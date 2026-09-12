@@ -1,0 +1,106 @@
+{
+  "owner": "JunkFood02",
+  "name": "Seal",
+  "fullName": "JunkFood02/Seal",
+  "url": "https://github.com/JunkFood02/Seal",
+  "description": "🦭 Video/Audio Downloader for Android, based on yt-dlp",
+  "stars": 28877,
+  "forks": 1396,
+  "openIssues": 692,
+  "openPrs": 28,
+  "sizeKb": 11542,
+  "languageBytes": {
+    "Kotlin": 1371965
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2026-08-25T15:44:42Z",
+  "updatedAt": "2026-09-11T05:49:11Z",
+  "recentDefaultCommits": 0,
+  "recentAuthors": [
+    "JunkFood02"
+  ],
+  "prAuthors": [
+    {
+      "login": "joshi-kt",
+      "type": "User"
+    },
+    {
+      "login": "RiyasDev72",
+      "type": "User"
+    },
+    {
+      "login": "nahuelranieri",
+      "type": "User"
+    },
+    {
+      "login": "DavidKitano",
+      "type": "User"
+    },
+    {
+      "login": "adiba",
+      "type": "User"
+    },
+    {
+      "login": "pumpa0",
+      "type": "User"
+    },
+    {
+      "login": "LuminaXAI",
+      "type": "User"
+    },
+    {
+      "login": "mstudio005",
+      "type": "User"
+    },
+    {
+      "login": "mj214074",
+      "type": "User"
+    },
+    {
+      "login": "mj214074",
+      "type": "User"
+    },
+    {
+      "login": "itisdb",
+      "type": "User"
+    },
+    {
+      "login": "ulchin2",
+      "type": "User"
+    },
+    {
+      "login": "PatilParas05",
+      "type": "User"
+    },
+    {
+      "login": "xumingxiao123",
+      "type": "User"
+    },
+    {
+      "login": "Eliass0",
+      "type": "User"
+    },
+    {
+      "login": "Dear-moon",
+      "type": "User"
+    },
+    {
+      "login": "CrazyBunQnQ",
+      "type": "User"
+    },
+    {
+      "login": "alexafw200-hash",
+      "type": "User"
+    },
+    {
+      "login": "alexafw200-hash",
+      "type": "User"
+    },
+    {
+      "login": "alexafw200-hash",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

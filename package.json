@@ -1,0 +1,25 @@
+{
+  "name": "axp-city",
+  "version": "1.0.0",
+  "description": "GitHub → isometric city ingest pipeline. Real repo metrics become mapped city lots.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "ingest": "tsx src/cli/ingest.ts",
+    "render": "tsx src/cli/render.ts",
+    "demo": "tsx src/cli/demo.ts",
+    "preview": "tsx src/cli/preview.ts",
+    "webhooks": "tsx src/cli/webhooks.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

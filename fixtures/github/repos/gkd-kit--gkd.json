@@ -1,0 +1,37 @@
+{
+  "owner": "gkd-kit",
+  "name": "gkd",
+  "fullName": "gkd-kit/gkd",
+  "url": "https://github.com/gkd-kit/gkd",
+  "description": "基于无障碍，高级选择器，订阅规则的自定义屏幕点击安卓应用 | An Android APP with custom screen tapping based on Accessibility, Advanced Selectors, and Subscription Rules",
+  "stars": 41635,
+  "forks": 1963,
+  "openIssues": 11,
+  "openPrs": 2,
+  "sizeKb": 5699,
+  "languageBytes": {
+    "Kotlin": 1971493,
+    "TypeScript": 20663,
+    "Java": 15305,
+    "AIDL": 566
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2026-09-06T16:52:03Z",
+  "updatedAt": "2026-09-11T07:29:14Z",
+  "recentDefaultCommits": 13,
+  "recentAuthors": [
+    "lisonge"
+  ],
+  "prAuthors": [
+    {
+      "login": "eviaaaaa",
+      "type": "User"
+    },
+    {
+      "login": "wg2038",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

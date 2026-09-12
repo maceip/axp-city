@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AXP · Hunt</title>
+<style>
+  :root {
+    --bg: #f6f3ee;
+    --panel: #f0ece5;
+    --card: #fffcf8;
+    --ink: #2c2924;
+    --muted: #7a746a;
+    --line: #e4ddd2;
+    --sage: #b9c9b0;
+    --sage-deep: #6f8668;
+    --sage-soft: #e7efe3;
+    --peach: #e8c4a8;
+    --peach-soft: #f6e6d8;
+    --mint: #cfe4d6;
+    --lav: #ddd6e8;
+    --amber: #e6c56a;
+    --ok: #5f9a6e;
+    --radius: 22px;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); }
+  body { display: grid; grid-template-columns: 220px 1fr 280px; min-height: 100vh; }
+  aside, main, .party { padding: 28px 22px; }
+  .rail { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 28px; }
+  .logo { font-weight: 800; letter-spacing: -0.04em; font-size: 28px; }
+  .logo span { color: var(--sage-deep); }
+  nav { display: flex; flex-direction: column; gap: 6px; }
+  nav a {
+    display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--muted);
+    padding: 10px 12px; border-radius: 14px; font-weight: 600; font-size: 14px;
+  }
+  nav a.active { background: var(--sage-soft); color: var(--ink); }
+  .connect {
+    margin-top: auto; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 14px; font-size: 13px; color: var(--muted); line-height: 1.4;
+  }
+  .connect strong { display: block; color: var(--ink); margin-bottom: 4px; }
+  main { padding: 32px 40px 40px; }
+  .crumbs { color: var(--muted); font-size: 12px; margin-bottom: 18px; letter-spacing: 0.02em; }
+  h1 { font-size: 42px; letter-spacing: -0.04em; margin: 0 0 6px; font-weight: 800; }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 15px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+  .chip {
+    border: 1px solid var(--line); background: transparent; border-radius: 999px;
+    padding: 7px 12px; font-size: 12px; color: var(--muted); font-weight: 600;
+  }
+  .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .field {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+  }
+  .run {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px 20px 16px; min-height: 210px; display: flex; flex-direction: column; gap: 12px;
+    position: relative; transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .run:hover { transform: translateY(-2px); box-shadow: 0 18px 40px rgba(44,41,36,.06); }
+  .run.focus {
+    outline: 2px solid var(--ink); outline-offset: 2px;
+    box-shadow: 0 22px 50px rgba(44,41,36,.08);
+  }
+  .top { display: flex; justify-content: space-between; align-items: center; }
+  .pill {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.02em; text-transform: lowercase;
+    padding: 5px 10px; border-radius: 999px;
+  }
+  .pill.need { background: var(--peach-soft); color: #8a5a38; }
+  .pill.prog { background: #e3eef8; color: #3d5f7a; }
+  .pill.open { background: var(--sage-soft); color: var(--sage-deep); }
+  .pill.check { background: var(--mint); color: #2f6a45; }
+  .id { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  h2 { margin: 0; font-size: 18px; letter-spacing: -0.02em; line-height: 1.25; }
+  p.blurb { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.45; flex: 1; }
+  .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .who { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .chibi {
+    width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(160deg,#efe6d8,#d9cbb8);
+    display: grid; place-items: center; position: relative; border: 1px solid #e2d6c5;
+  }
+  .chibi::before {
+    content: ""; width: 5px; height: 5px; background: #222; border-radius: 50%;
+    box-shadow: 8px 0 0 #222; position: absolute; top: 13px; left: 9px;
+  }
+  .chibi.cans { box-shadow: inset 0 -8px 0 rgba(0,0,0,.04); }
+  .graph {
+    width: 72px; height: 28px; opacity: .55;
+  }
+  .party {
+    background: var(--panel); border-left: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .party h3 { margin: 8px 0 4px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .agent {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 14px; display: grid; grid-template-columns: 48px 1fr; gap: 12px; align-items: center;
+  }
+  .agent .big {
+    width: 48px; height: 48px; border-radius: 16px; background: linear-gradient(160deg,#efe6d8,#d2c3ad);
+    position: relative; border: 1px solid #e2d6c5;
+  }
+  .agent .big::before {
+    content: ""; position: absolute; width: 6px; height: 6px; background: #222; border-radius: 50%;
+    top: 18px; left: 14px; box-shadow: 12px 0 0 #222;
+  }
+  .agent .big::after {
+    content: ""; position: absolute; width: 22px; height: 10px; border: 2px solid #6b6358; border-bottom: none;
+    border-radius: 10px 10px 0 0; top: 8px; left: 12px; opacity: .7;
+  }
+  .agent strong { display: block; font-size: 14px; margin-bottom: 2px; }
+  .agent .meta { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+  .dot.warn { background: var(--amber); }
+  .dot.idle { background: #c5bdafv; background: #c5bdaf; }
+  .hint { margin-top: auto; font-size: 12px; color: var(--muted); line-height: 1.4; padding: 8px 2px; }
+  .turn {
+    margin-top: 18px; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px;
+  }
+  .bar {
+    flex: 1; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden;
+  }
+  .bar i { display: block; width: 38%; height: 100%; background: linear-gradient(90deg, var(--sage), var(--peach)); border-radius: 999px; }
+</style>
+</head>
+<body>
+  <aside class="rail">
+    <div class="logo">axp<span>.</span></div>
+    <nav>
+      <a class="active" href="#">◎ Hunt</a>
+      <a href="#">◇ Contributions</a>
+      <a href="#">○ People</a>
+      <a href="#">◌ Activity</a>
+    </nav>
+    <div class="connect">
+      <strong>Connect an agent</strong>
+      Bring an ACP agent into the field. Time is optional.
+    </div>
+  </aside>
+
+  <main>
+    <div class="crumbs">Workspace / demo/constellation</div>
+    <h1>Hunt</h1>
+    <p class="sub">Who’s in the field · what they’re holding · where you jump in</p>
+    <div class="filters">
+      <button class="chip on">In the field</button>
+      <button class="chip">Needs you · 1</button>
+      <button class="chip">Open to join</button>
+      <button class="chip">Archived</button>
+    </div>
+    <section class="field">
+      <article class="run focus">
+        <div class="top"><span class="pill need">needs you</span><span class="id">issue-63</span></div>
+        <h2>Handle email task retries</h2>
+        <p class="blurb">AAMP dispatch retries are dropping ack state. Agent paused on tool approval.</p>
+        <div class="foot">
+          <div class="who"><div class="chibi cans"></div> Local ACP · waiting</div>
+          <svg class="graph" viewBox="0 0 72 28" fill="none"><path d="M4 22 C18 22 18 6 36 6 S54 22 68 10" stroke="#6f8668" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="68" cy="10" r="2.5" fill="#e8c4a8"/></svg>
+        </div>
+      </article>
+      <article class="run">
+        <div class="top"><span class="pill prog">in progress</span><span class="id">issue-71</span></div>
+        <h2>Diff panel density pass</h2>
+        <p class="blurb">Softening hunk chrome without losing mono precision. Streaming still ragged.</p>
+        <div class="foot">
+          <div class="who"><div class="chibi"></div> satellite · on a run</div>
+          <svg class="graph" viewBox="0 0 72 28" fill="none"><path d="M4 18 C20 18 22 8 38 8 S58 20 68 14" stroke="#6f8668" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="68" cy="14" r="2.5" fill="#b9c9b0"/></svg>
+        </div>
+      </article>
+      <article class="run">
+        <div class="top"><span class="pill open">open</span><span class="id">issue-58</span></div>
+        <h2>Avatar for community image</h2>
+        <p class="blurb">Onboarding contribution. Recognition for helping. No agent attached yet.</p>
+        <div class="foot">
+          <div class="who"><div class="chibi" style="opacity:.45"></div> join this run</div>
+          <svg class="graph" viewBox="0 0 72 28" fill="none"><path d="M4 14 H68" stroke="#c5bdaf" stroke-width="1.5" stroke-dasharray="3 3"/></svg>
+        </div>
+      </article>
+      <article class="run">
+        <div class="top"><span class="pill check">checkpoint</span><span class="id">issue-44</span></div>
+        <h2>Independent verify for parser fix</h2>
+        <p class="blurb">Artifact ready for human review. Signature present. Budget still warm.</p>
+        <div class="foot">
+          <div class="who"><div class="chibi"></div> maintainer · review</div>
+          <svg class="graph" viewBox="0 0 72 28" fill="none"><path d="M4 20 C24 20 28 8 48 8 S64 8 68 8" stroke="#6f8668" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="68" cy="8" r="2.5" fill="#5f9a6e"/></svg>
+        </div>
+      </article>
+    </section>
+    <div class="turn"><span>field load</span><div class="bar"><i></i></div><span>2 agents out</span></div>
+  </main>
+
+  <aside class="party">
+    <h3>Party</h3>
+    <div class="agent">
+      <div class="big"></div>
+      <div>
+        <strong>Local ACP</strong>
+        <div class="meta"><span class="dot warn"></span> needs you · issue-63</div>
+      </div>
+    </div>
+    <div class="agent">
+      <div class="big"></div>
+      <div>
+        <strong>satellite</strong>
+        <div class="meta"><span class="dot"></span> on a run · issue-71</div>
+      </div>
+    </div>
+    <div class="agent">
+      <div class="big" style="opacity:.7"></div>
+      <div>
+        <strong>idle seat</strong>
+        <div class="meta"><span class="dot idle"></span> connect another</div>
+      </div>
+    </div>
+    <p class="hint">Select a run to soft-zoom into chat + diff. Party tiles jump you to that agent’s thread.</p>
+  </aside>
+</body>
+</html>

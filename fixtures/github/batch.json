@@ -1,0 +1,972 @@
+{
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "asOf": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql",
+  "repos": [
+    "LegadoTeam/legado",
+    "maxrave-dev/SimpMusic",
+    "gkd-kit/gkd",
+    "RikkaApps/Shizuku",
+    "bmax121/APatch",
+    "JunkFood02/Seal",
+    "2dust/v2rayNG",
+    "ReVanced/revanced-manager",
+    "ankidroid/Anki-Android",
+    "libre-tube/LibreTube",
+    "tharunbirla/LibreCuts",
+    "caillette/Oak"
+  ],
+  "metrics": [
+    {
+      "owner": "LegadoTeam",
+      "name": "legado",
+      "fullName": "LegadoTeam/legado",
+      "url": "https://github.com/LegadoTeam/legado",
+      "description": "Legado 3.0 Book Reader with powerful controls ",
+      "stars": 1111,
+      "forks": 264,
+      "openIssues": 38,
+      "openPrs": 5,
+      "sizeKb": 84474,
+      "languageBytes": {
+        "Kotlin": 9718038,
+        "Java": 906398,
+        "Vue": 131317,
+        "CSS": 102573,
+        "TypeScript": 69352,
+        "JavaScript": 51534,
+        "HTML": 13179,
+        "AMPL": 5152
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-09-11T00:22:46Z",
+      "updatedAt": "2026-09-11T03:23:18Z",
+      "recentDefaultCommits": 176,
+      "recentAuthors": [
+        "mgz0227"
+      ],
+      "prAuthors": [
+        {
+          "login": "mgz0227",
+          "type": "User"
+        },
+        {
+          "login": "mgz0227",
+          "type": "User"
+        },
+        {
+          "login": "mgz0227",
+          "type": "User"
+        },
+        {
+          "login": "mgz0227",
+          "type": "User"
+        },
+        {
+          "login": "mgz0227",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "maxrave-dev",
+      "name": "SimpMusic",
+      "fullName": "maxrave-dev/SimpMusic",
+      "url": "https://github.com/maxrave-dev/SimpMusic",
+      "description": "A cross-platform music app using YouTube Music for backend",
+      "stars": 11125,
+      "forks": 584,
+      "openIssues": 384,
+      "openPrs": 20,
+      "sizeKb": 232795,
+      "languageBytes": {
+        "Kotlin": 3685767,
+        "Python": 41674,
+        "Shell": 30803,
+        "Dockerfile": 5779,
+        "Batchfile": 3010
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-09-10T10:28:33Z",
+      "updatedAt": "2026-09-11T07:45:25Z",
+      "recentDefaultCommits": 37,
+      "recentAuthors": [
+        "maxrave-dev"
+      ],
+      "prAuthors": [
+        {
+          "login": "sarthak1103",
+          "type": "User"
+        },
+        {
+          "login": "Sipnicc",
+          "type": "User"
+        },
+        {
+          "login": "hemanth-thirdi",
+          "type": "User"
+        },
+        {
+          "login": "lesquel",
+          "type": "User"
+        },
+        {
+          "login": "Chaitanyabeeraka11",
+          "type": "User"
+        },
+        {
+          "login": "itzlalpekhlua",
+          "type": "User"
+        },
+        {
+          "login": "zaibihsn",
+          "type": "User"
+        },
+        {
+          "login": "Hemanth2332",
+          "type": "User"
+        },
+        {
+          "login": "thecyberix",
+          "type": "User"
+        },
+        {
+          "login": "RadNotRed",
+          "type": "User"
+        },
+        {
+          "login": "laoluogun",
+          "type": "User"
+        },
+        {
+          "login": "naeem5877",
+          "type": "User"
+        },
+        {
+          "login": "laoluogun",
+          "type": "User"
+        },
+        {
+          "login": "laoluogun",
+          "type": "User"
+        },
+        {
+          "login": "chrisdebian",
+          "type": "User"
+        },
+        {
+          "login": "Hitomatito",
+          "type": "User"
+        },
+        {
+          "login": "Phoenix1808",
+          "type": "User"
+        },
+        {
+          "login": "HrishikeshBhandarkar",
+          "type": "User"
+        },
+        {
+          "login": "Shxiao101",
+          "type": "User"
+        },
+        {
+          "login": "HrishikeshBhandarkar",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "gkd-kit",
+      "name": "gkd",
+      "fullName": "gkd-kit/gkd",
+      "url": "https://github.com/gkd-kit/gkd",
+      "description": "基于无障碍，高级选择器，订阅规则的自定义屏幕点击安卓应用 | An Android APP with custom screen tapping based on Accessibility, Advanced Selectors, and Subscription Rules",
+      "stars": 41635,
+      "forks": 1963,
+      "openIssues": 11,
+      "openPrs": 2,
+      "sizeKb": 5699,
+      "languageBytes": {
+        "Kotlin": 1971493,
+        "TypeScript": 20663,
+        "Java": 15305,
+        "AIDL": 566
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-09-06T16:52:03Z",
+      "updatedAt": "2026-09-11T07:29:14Z",
+      "recentDefaultCommits": 13,
+      "recentAuthors": [
+        "lisonge"
+      ],
+      "prAuthors": [
+        {
+          "login": "eviaaaaa",
+          "type": "User"
+        },
+        {
+          "login": "wg2038",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "RikkaApps",
+      "name": "Shizuku",
+      "fullName": "RikkaApps/Shizuku",
+      "url": "https://github.com/RikkaApps/Shizuku",
+      "description": "Using system APIs directly with adb/root privileges from normal apps through a Java process started with app_process.",
+      "stars": 29980,
+      "forks": 3060,
+      "openIssues": 504,
+      "openPrs": 74,
+      "sizeKb": 39013,
+      "languageBytes": {
+        "Kotlin": 170895,
+        "Java": 99260,
+        "C++": 26805,
+        "C": 1295,
+        "CMake": 1293,
+        "Shell": 882
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2025-06-18T04:21:02Z",
+      "updatedAt": "2026-09-11T06:56:18Z",
+      "recentDefaultCommits": 0,
+      "recentAuthors": [
+        "vvb2060",
+        "Ahmad-Fardin"
+      ],
+      "prAuthors": [
+        {
+          "login": "eighthave",
+          "type": "User"
+        },
+        {
+          "login": "laiqun",
+          "type": "User"
+        },
+        {
+          "login": "Ryfters",
+          "type": "User"
+        },
+        {
+          "login": "Hujjjjjshajjjxxj",
+          "type": "User"
+        },
+        {
+          "login": "Soheng11",
+          "type": "User"
+        },
+        {
+          "login": "691220",
+          "type": "User"
+        },
+        {
+          "login": "910220",
+          "type": "User"
+        },
+        {
+          "login": "aprdan",
+          "type": "User"
+        },
+        {
+          "login": "MSWS",
+          "type": "User"
+        },
+        {
+          "login": "09266247076",
+          "type": "User"
+        },
+        {
+          "login": "AsiaTopindy",
+          "type": "User"
+        },
+        {
+          "login": "SamarthaKV29",
+          "type": "User"
+        },
+        {
+          "login": "pdien",
+          "type": "User"
+        },
+        {
+          "login": "evd316",
+          "type": "User"
+        },
+        {
+          "login": "sakchnkumar46-cyber",
+          "type": "User"
+        },
+        {
+          "login": "krtk-vrm",
+          "type": "User"
+        },
+        {
+          "login": "shoaibbajwa035-dot",
+          "type": "User"
+        },
+        {
+          "login": "alihassank310-afk",
+          "type": "User"
+        },
+        {
+          "login": "Qingcaj",
+          "type": "User"
+        },
+        {
+          "login": "knur70114-spec",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "bmax121",
+      "name": "APatch",
+      "fullName": "bmax121/APatch",
+      "url": "https://github.com/bmax121/APatch",
+      "description": "The patching of Android kernel and Android system",
+      "stars": 7927,
+      "forks": 774,
+      "openIssues": 42,
+      "openPrs": 8,
+      "sizeKb": 24261,
+      "languageBytes": {
+        "Kotlin": 545852,
+        "Rust": 158516,
+        "C++": 66761,
+        "Java": 54091,
+        "Shell": 36075,
+        "C": 18953,
+        "CMake": 1860,
+        "AIDL": 226
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-09-10T19:19:14Z",
+      "updatedAt": "2026-09-10T23:40:21Z",
+      "recentDefaultCommits": 4,
+      "recentAuthors": [
+        "Admirepowered",
+        "Prslc",
+        "matsuzaka-yuki",
+        "pomelohan"
+      ],
+      "prAuthors": [
+        {
+          "login": "People-11",
+          "type": "User"
+        },
+        {
+          "login": "ThePedroo",
+          "type": "User"
+        },
+        {
+          "login": "rawer886",
+          "type": "User"
+        },
+        {
+          "login": "kaduvert",
+          "type": "User"
+        },
+        {
+          "login": "lizehui2025",
+          "type": "User"
+        },
+        {
+          "login": "dependabot",
+          "type": "Bot"
+        },
+        {
+          "login": "dependabot",
+          "type": "Bot"
+        },
+        {
+          "login": "re4",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "JunkFood02",
+      "name": "Seal",
+      "fullName": "JunkFood02/Seal",
+      "url": "https://github.com/JunkFood02/Seal",
+      "description": "🦭 Video/Audio Downloader for Android, based on yt-dlp",
+      "stars": 28877,
+      "forks": 1396,
+      "openIssues": 692,
+      "openPrs": 28,
+      "sizeKb": 11542,
+      "languageBytes": {
+        "Kotlin": 1371965
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-08-25T15:44:42Z",
+      "updatedAt": "2026-09-11T05:49:11Z",
+      "recentDefaultCommits": 0,
+      "recentAuthors": [
+        "JunkFood02"
+      ],
+      "prAuthors": [
+        {
+          "login": "joshi-kt",
+          "type": "User"
+        },
+        {
+          "login": "RiyasDev72",
+          "type": "User"
+        },
+        {
+          "login": "nahuelranieri",
+          "type": "User"
+        },
+        {
+          "login": "DavidKitano",
+          "type": "User"
+        },
+        {
+          "login": "adiba",
+          "type": "User"
+        },
+        {
+          "login": "pumpa0",
+          "type": "User"
+        },
+        {
+          "login": "LuminaXAI",
+          "type": "User"
+        },
+        {
+          "login": "mstudio005",
+          "type": "User"
+        },
+        {
+          "login": "mj214074",
+          "type": "User"
+        },
+        {
+          "login": "mj214074",
+          "type": "User"
+        },
+        {
+          "login": "itisdb",
+          "type": "User"
+        },
+        {
+          "login": "ulchin2",
+          "type": "User"
+        },
+        {
+          "login": "PatilParas05",
+          "type": "User"
+        },
+        {
+          "login": "xumingxiao123",
+          "type": "User"
+        },
+        {
+          "login": "Eliass0",
+          "type": "User"
+        },
+        {
+          "login": "Dear-moon",
+          "type": "User"
+        },
+        {
+          "login": "CrazyBunQnQ",
+          "type": "User"
+        },
+        {
+          "login": "alexafw200-hash",
+          "type": "User"
+        },
+        {
+          "login": "alexafw200-hash",
+          "type": "User"
+        },
+        {
+          "login": "alexafw200-hash",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "2dust",
+      "name": "v2rayNG",
+      "fullName": "2dust/v2rayNG",
+      "url": "https://github.com/2dust/v2rayNG",
+      "description": "A V2Ray client for Android, support Xray core and v2fly core",
+      "stars": 62452,
+      "forks": 8077,
+      "openIssues": 13,
+      "openPrs": 27,
+      "sizeKb": 269716,
+      "languageBytes": {
+        "Kotlin": 1151356,
+        "HTML": 51253,
+        "Shell": 3399
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-09-10T06:30:48Z",
+      "updatedAt": "2026-09-11T07:26:04Z",
+      "recentDefaultCommits": 34,
+      "recentAuthors": [
+        "2dust",
+        "eliotcougar"
+      ],
+      "prAuthors": [
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "hosseinabaspanah",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        },
+        {
+          "login": "eliotcougar",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "ReVanced",
+      "name": "revanced-manager",
+      "fullName": "ReVanced/revanced-manager",
+      "url": "https://github.com/ReVanced/revanced-manager",
+      "description": "💊 Application to use ReVanced on Android ",
+      "stars": 29419,
+      "forks": 1143,
+      "openIssues": 173,
+      "openPrs": 15,
+      "sizeKb": 41136,
+      "languageBytes": {
+        "Kotlin": 1057729,
+        "C++": 2632,
+        "AIDL": 1854,
+        "CMake": 1832,
+        "Shell": 863
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-07-29T18:18:23Z",
+      "updatedAt": "2026-09-11T07:19:00Z",
+      "recentDefaultCommits": 0,
+      "recentAuthors": [
+        "semantic-release-bot",
+        "secp192k1",
+        "Axelen123",
+        "Taknok",
+        "Ushie"
+      ],
+      "prAuthors": [
+        {
+          "login": "X1nto",
+          "type": "User"
+        },
+        {
+          "login": "Ushie",
+          "type": "User"
+        },
+        {
+          "login": "Ushie",
+          "type": "User"
+        },
+        {
+          "login": "mostafaNazari702",
+          "type": "User"
+        },
+        {
+          "login": "germanamv",
+          "type": "User"
+        },
+        {
+          "login": "mostafaNazari702",
+          "type": "User"
+        },
+        {
+          "login": "github-actions",
+          "type": "Bot"
+        },
+        {
+          "login": "mostafaNazari702",
+          "type": "User"
+        },
+        {
+          "login": "oSumAtrIX",
+          "type": "User"
+        },
+        {
+          "login": "oSumAtrIX",
+          "type": "User"
+        },
+        {
+          "login": "oSumAtrIX",
+          "type": "User"
+        },
+        {
+          "login": "S4adam",
+          "type": "User"
+        },
+        {
+          "login": "keeltrace",
+          "type": "User"
+        },
+        {
+          "login": "keeltrace",
+          "type": "User"
+        },
+        {
+          "login": "keeltrace",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "ankidroid",
+      "name": "Anki-Android",
+      "fullName": "ankidroid/Anki-Android",
+      "url": "https://github.com/ankidroid/Anki-Android",
+      "description": "AnkiDroid: Anki flashcards on Android. Your secret trick to achieve superhuman information retention.",
+      "stars": 11765,
+      "forks": 2901,
+      "openIssues": 271,
+      "openPrs": 94,
+      "sizeKb": 336627,
+      "languageBytes": {
+        "Kotlin": 8216348,
+        "HTML": 165617,
+        "Shell": 58884,
+        "JavaScript": 30601,
+        "TypeScript": 21024,
+        "Python": 15237,
+        "CSS": 3152,
+        "AIDL": 1042
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-09-10T20:22:30Z",
+      "updatedAt": "2026-09-11T06:02:13Z",
+      "recentDefaultCommits": 237,
+      "recentAuthors": [
+        "david-allison",
+        "criticalAY",
+        "AnkiDroid Translations"
+      ],
+      "prAuthors": [
+        {
+          "login": "krmanik",
+          "type": "User"
+        },
+        {
+          "login": "krmanik",
+          "type": "User"
+        },
+        {
+          "login": "iamllama",
+          "type": "User"
+        },
+        {
+          "login": "Rdkang",
+          "type": "User"
+        },
+        {
+          "login": "Clesssss",
+          "type": "User"
+        },
+        {
+          "login": "ShridharGoel",
+          "type": "User"
+        },
+        {
+          "login": "xenonnn4w",
+          "type": "User"
+        },
+        {
+          "login": "BrayanDSO",
+          "type": "User"
+        },
+        {
+          "login": "ericli3690",
+          "type": "User"
+        },
+        {
+          "login": "yurtpage",
+          "type": "User"
+        },
+        {
+          "login": "xenonnn4w",
+          "type": "User"
+        },
+        {
+          "login": "infiniteflux",
+          "type": "User"
+        },
+        {
+          "login": "ShaanNarendran",
+          "type": "User"
+        },
+        {
+          "login": "BrayanDSO",
+          "type": "User"
+        },
+        {
+          "login": "ShaanNarendran",
+          "type": "User"
+        },
+        {
+          "login": "xenonnn4w",
+          "type": "User"
+        },
+        {
+          "login": "xenonnn4w",
+          "type": "User"
+        },
+        {
+          "login": "dependabot",
+          "type": "Bot"
+        },
+        {
+          "login": "KT-1114",
+          "type": "User"
+        },
+        {
+          "login": "S-H-Y-A",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "libre-tube",
+      "name": "LibreTube",
+      "fullName": "libre-tube/LibreTube",
+      "url": "https://github.com/libre-tube/LibreTube",
+      "description": "An alternative frontend for YouTube, for Android.",
+      "stars": 12672,
+      "forks": 663,
+      "openIssues": 147,
+      "openPrs": 13,
+      "sizeKb": 105793,
+      "languageBytes": {
+        "Kotlin": 1344464,
+        "Java": 10423
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-09-08T07:21:23Z",
+      "updatedAt": "2026-09-10T21:34:37Z",
+      "recentDefaultCommits": 30,
+      "recentAuthors": [
+        "eltociear",
+        "FineFindus",
+        "Bnyro"
+      ],
+      "prAuthors": [
+        {
+          "login": "FineFindus",
+          "type": "User"
+        },
+        {
+          "login": "FineFindus",
+          "type": "User"
+        },
+        {
+          "login": "SE-Bilal-Ahmad",
+          "type": "User"
+        },
+        {
+          "login": "FineFindus",
+          "type": "User"
+        },
+        {
+          "login": "Bnyro",
+          "type": "User"
+        },
+        {
+          "login": "Bnyro",
+          "type": "User"
+        },
+        {
+          "login": "SE-Bilal-Ahmad",
+          "type": "User"
+        },
+        {
+          "login": "YasinMoridi",
+          "type": "User"
+        },
+        {
+          "login": "nuturs",
+          "type": "User"
+        },
+        {
+          "login": "alihrhera",
+          "type": "User"
+        },
+        {
+          "login": "prefixFelix",
+          "type": "User"
+        },
+        {
+          "login": "ItsMeSamey",
+          "type": "User"
+        },
+        {
+          "login": "FineFindus",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "tharunbirla",
+      "name": "LibreCuts",
+      "fullName": "tharunbirla/LibreCuts",
+      "url": "https://github.com/tharunbirla/LibreCuts",
+      "description": "LibreCuts is a free, open-source video editor for Android that prioritizes simplicity and efficiency.",
+      "stars": 751,
+      "forks": 83,
+      "openIssues": 41,
+      "openPrs": 2,
+      "sizeKb": 96602,
+      "languageBytes": {
+        "Kotlin": 941711,
+        "Java": 263
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2026-09-10T22:17:30Z",
+      "updatedAt": "2026-09-11T07:34:49Z",
+      "recentDefaultCommits": 0,
+      "recentAuthors": [
+        "tharunbirla",
+        "chinese404new",
+        "vr-romero",
+        "tarekzidani379-ux",
+        "JonatasVi",
+        "mirk0dex",
+        "Agroqirax"
+      ],
+      "prAuthors": [
+        {
+          "login": "hosted-weblate",
+          "type": "Bot"
+        },
+        {
+          "login": "Redman1037",
+          "type": "User"
+        }
+      ],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    },
+    {
+      "owner": "caillette",
+      "name": "Oak",
+      "fullName": "caillette/Oak",
+      "url": "https://github.com/caillette/Oak",
+      "description": "Tree manipulation with Kotlin language",
+      "stars": 0,
+      "forks": 0,
+      "openIssues": 0,
+      "openPrs": 0,
+      "sizeKb": 144,
+      "languageBytes": {
+        "Kotlin": 13513
+      },
+      "primaryLanguage": "Kotlin",
+      "pushedAt": "2013-10-20T17:59:37Z",
+      "updatedAt": "2013-10-20T17:59:38Z",
+      "recentDefaultCommits": 0,
+      "recentAuthors": [
+        "caillette"
+      ],
+      "prAuthors": [],
+      "fetchedAt": "2026-09-11T07:46:54.450Z",
+      "source": "github-graphql"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "owner": "caillette",
+  "name": "Oak",
+  "fullName": "caillette/Oak",
+  "url": "https://github.com/caillette/Oak",
+  "description": "Tree manipulation with Kotlin language",
+  "stars": 0,
+  "forks": 0,
+  "openIssues": 0,
+  "openPrs": 0,
+  "sizeKb": 144,
+  "languageBytes": {
+    "Kotlin": 13513
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2013-10-20T17:59:37Z",
+  "updatedAt": "2013-10-20T17:59:38Z",
+  "recentDefaultCommits": 0,
+  "recentAuthors": [
+    "caillette"
+  ],
+  "prAuthors": [],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

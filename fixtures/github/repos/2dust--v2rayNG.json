@@ -1,0 +1,109 @@
+{
+  "owner": "2dust",
+  "name": "v2rayNG",
+  "fullName": "2dust/v2rayNG",
+  "url": "https://github.com/2dust/v2rayNG",
+  "description": "A V2Ray client for Android, support Xray core and v2fly core",
+  "stars": 62452,
+  "forks": 8077,
+  "openIssues": 13,
+  "openPrs": 27,
+  "sizeKb": 269716,
+  "languageBytes": {
+    "Kotlin": 1151356,
+    "HTML": 51253,
+    "Shell": 3399
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2026-09-10T06:30:48Z",
+  "updatedAt": "2026-09-11T07:26:04Z",
+  "recentDefaultCommits": 34,
+  "recentAuthors": [
+    "2dust",
+    "eliotcougar"
+  ],
+  "prAuthors": [
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "hosseinabaspanah",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    },
+    {
+      "login": "eliotcougar",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

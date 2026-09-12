@@ -1,0 +1,81 @@
+{
+  "owner": "libre-tube",
+  "name": "LibreTube",
+  "fullName": "libre-tube/LibreTube",
+  "url": "https://github.com/libre-tube/LibreTube",
+  "description": "An alternative frontend for YouTube, for Android.",
+  "stars": 12672,
+  "forks": 663,
+  "openIssues": 147,
+  "openPrs": 13,
+  "sizeKb": 105793,
+  "languageBytes": {
+    "Kotlin": 1344464,
+    "Java": 10423
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2026-09-08T07:21:23Z",
+  "updatedAt": "2026-09-10T21:34:37Z",
+  "recentDefaultCommits": 30,
+  "recentAuthors": [
+    "eltociear",
+    "FineFindus",
+    "Bnyro"
+  ],
+  "prAuthors": [
+    {
+      "login": "FineFindus",
+      "type": "User"
+    },
+    {
+      "login": "FineFindus",
+      "type": "User"
+    },
+    {
+      "login": "SE-Bilal-Ahmad",
+      "type": "User"
+    },
+    {
+      "login": "FineFindus",
+      "type": "User"
+    },
+    {
+      "login": "Bnyro",
+      "type": "User"
+    },
+    {
+      "login": "Bnyro",
+      "type": "User"
+    },
+    {
+      "login": "SE-Bilal-Ahmad",
+      "type": "User"
+    },
+    {
+      "login": "YasinMoridi",
+      "type": "User"
+    },
+    {
+      "login": "nuturs",
+      "type": "User"
+    },
+    {
+      "login": "alihrhera",
+      "type": "User"
+    },
+    {
+      "login": "prefixFelix",
+      "type": "User"
+    },
+    {
+      "login": "ItsMeSamey",
+      "type": "User"
+    },
+    {
+      "login": "FineFindus",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

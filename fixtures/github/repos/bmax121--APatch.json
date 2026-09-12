@@ -1,0 +1,68 @@
+{
+  "owner": "bmax121",
+  "name": "APatch",
+  "fullName": "bmax121/APatch",
+  "url": "https://github.com/bmax121/APatch",
+  "description": "The patching of Android kernel and Android system",
+  "stars": 7927,
+  "forks": 774,
+  "openIssues": 42,
+  "openPrs": 8,
+  "sizeKb": 24261,
+  "languageBytes": {
+    "Kotlin": 545852,
+    "Rust": 158516,
+    "C++": 66761,
+    "Java": 54091,
+    "Shell": 36075,
+    "C": 18953,
+    "CMake": 1860,
+    "AIDL": 226
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2026-09-10T19:19:14Z",
+  "updatedAt": "2026-09-10T23:40:21Z",
+  "recentDefaultCommits": 4,
+  "recentAuthors": [
+    "Admirepowered",
+    "Prslc",
+    "matsuzaka-yuki",
+    "pomelohan"
+  ],
+  "prAuthors": [
+    {
+      "login": "People-11",
+      "type": "User"
+    },
+    {
+      "login": "ThePedroo",
+      "type": "User"
+    },
+    {
+      "login": "rawer886",
+      "type": "User"
+    },
+    {
+      "login": "kaduvert",
+      "type": "User"
+    },
+    {
+      "login": "lizehui2025",
+      "type": "User"
+    },
+    {
+      "login": "dependabot",
+      "type": "Bot"
+    },
+    {
+      "login": "dependabot",
+      "type": "Bot"
+    },
+    {
+      "login": "re4",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

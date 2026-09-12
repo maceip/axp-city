@@ -1,0 +1,41 @@
+{
+  "owner": "tharunbirla",
+  "name": "LibreCuts",
+  "fullName": "tharunbirla/LibreCuts",
+  "url": "https://github.com/tharunbirla/LibreCuts",
+  "description": "LibreCuts is a free, open-source video editor for Android that prioritizes simplicity and efficiency.",
+  "stars": 751,
+  "forks": 83,
+  "openIssues": 41,
+  "openPrs": 2,
+  "sizeKb": 96602,
+  "languageBytes": {
+    "Kotlin": 941711,
+    "Java": 263
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2026-09-10T22:17:30Z",
+  "updatedAt": "2026-09-11T07:34:49Z",
+  "recentDefaultCommits": 0,
+  "recentAuthors": [
+    "tharunbirla",
+    "chinese404new",
+    "vr-romero",
+    "tarekzidani379-ux",
+    "JonatasVi",
+    "mirk0dex",
+    "Agroqirax"
+  ],
+  "prAuthors": [
+    {
+      "login": "hosted-weblate",
+      "type": "Bot"
+    },
+    {
+      "login": "Redman1037",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

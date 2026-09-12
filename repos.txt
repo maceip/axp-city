@@ -1,0 +1,13 @@
+# AXP City demo repos (owner/name). Blank lines and # comments are ignored.
+LegadoTeam/legado
+maxrave-dev/SimpMusic
+gkd-kit/gkd
+RikkaApps/Shizuku
+bmax121/APatch
+JunkFood02/Seal
+2dust/v2rayNG
+ReVanced/revanced-manager
+ankidroid/Anki-Android
+libre-tube/LibreTube
+tharunbirla/LibreCuts
+caillette/Oak

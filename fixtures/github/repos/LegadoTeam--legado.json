@@ -1,0 +1,53 @@
+{
+  "owner": "LegadoTeam",
+  "name": "legado",
+  "fullName": "LegadoTeam/legado",
+  "url": "https://github.com/LegadoTeam/legado",
+  "description": "Legado 3.0 Book Reader with powerful controls ",
+  "stars": 1111,
+  "forks": 264,
+  "openIssues": 38,
+  "openPrs": 5,
+  "sizeKb": 84474,
+  "languageBytes": {
+    "Kotlin": 9718038,
+    "Java": 906398,
+    "Vue": 131317,
+    "CSS": 102573,
+    "TypeScript": 69352,
+    "JavaScript": 51534,
+    "HTML": 13179,
+    "AMPL": 5152
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2026-09-11T00:22:46Z",
+  "updatedAt": "2026-09-11T03:23:18Z",
+  "recentDefaultCommits": 176,
+  "recentAuthors": [
+    "mgz0227"
+  ],
+  "prAuthors": [
+    {
+      "login": "mgz0227",
+      "type": "User"
+    },
+    {
+      "login": "mgz0227",
+      "type": "User"
+    },
+    {
+      "login": "mgz0227",
+      "type": "User"
+    },
+    {
+      "login": "mgz0227",
+      "type": "User"
+    },
+    {
+      "login": "mgz0227",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

@@ -1,0 +1,94 @@
+{
+  "owner": "ReVanced",
+  "name": "revanced-manager",
+  "fullName": "ReVanced/revanced-manager",
+  "url": "https://github.com/ReVanced/revanced-manager",
+  "description": "💊 Application to use ReVanced on Android ",
+  "stars": 29419,
+  "forks": 1143,
+  "openIssues": 173,
+  "openPrs": 15,
+  "sizeKb": 41136,
+  "languageBytes": {
+    "Kotlin": 1057729,
+    "C++": 2632,
+    "AIDL": 1854,
+    "CMake": 1832,
+    "Shell": 863
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2026-07-29T18:18:23Z",
+  "updatedAt": "2026-09-11T07:19:00Z",
+  "recentDefaultCommits": 0,
+  "recentAuthors": [
+    "semantic-release-bot",
+    "secp192k1",
+    "Axelen123",
+    "Taknok",
+    "Ushie"
+  ],
+  "prAuthors": [
+    {
+      "login": "X1nto",
+      "type": "User"
+    },
+    {
+      "login": "Ushie",
+      "type": "User"
+    },
+    {
+      "login": "Ushie",
+      "type": "User"
+    },
+    {
+      "login": "mostafaNazari702",
+      "type": "User"
+    },
+    {
+      "login": "germanamv",
+      "type": "User"
+    },
+    {
+      "login": "mostafaNazari702",
+      "type": "User"
+    },
+    {
+      "login": "github-actions",
+      "type": "Bot"
+    },
+    {
+      "login": "mostafaNazari702",
+      "type": "User"
+    },
+    {
+      "login": "oSumAtrIX",
+      "type": "User"
+    },
+    {
+      "login": "oSumAtrIX",
+      "type": "User"
+    },
+    {
+      "login": "oSumAtrIX",
+      "type": "User"
+    },
+    {
+      "login": "S4adam",
+      "type": "User"
+    },
+    {
+      "login": "keeltrace",
+      "type": "User"
+    },
+    {
+      "login": "keeltrace",
+      "type": "User"
+    },
+    {
+      "login": "keeltrace",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

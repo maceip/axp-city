@@ -1,0 +1,115 @@
+{
+  "owner": "ankidroid",
+  "name": "Anki-Android",
+  "fullName": "ankidroid/Anki-Android",
+  "url": "https://github.com/ankidroid/Anki-Android",
+  "description": "AnkiDroid: Anki flashcards on Android. Your secret trick to achieve superhuman information retention.",
+  "stars": 11765,
+  "forks": 2901,
+  "openIssues": 271,
+  "openPrs": 94,
+  "sizeKb": 336627,
+  "languageBytes": {
+    "Kotlin": 8216348,
+    "HTML": 165617,
+    "Shell": 58884,
+    "JavaScript": 30601,
+    "TypeScript": 21024,
+    "Python": 15237,
+    "CSS": 3152,
+    "AIDL": 1042
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2026-09-10T20:22:30Z",
+  "updatedAt": "2026-09-11T06:02:13Z",
+  "recentDefaultCommits": 237,
+  "recentAuthors": [
+    "david-allison",
+    "criticalAY",
+    "AnkiDroid Translations"
+  ],
+  "prAuthors": [
+    {
+      "login": "krmanik",
+      "type": "User"
+    },
+    {
+      "login": "krmanik",
+      "type": "User"
+    },
+    {
+      "login": "iamllama",
+      "type": "User"
+    },
+    {
+      "login": "Rdkang",
+      "type": "User"
+    },
+    {
+      "login": "Clesssss",
+      "type": "User"
+    },
+    {
+      "login": "ShridharGoel",
+      "type": "User"
+    },
+    {
+      "login": "xenonnn4w",
+      "type": "User"
+    },
+    {
+      "login": "BrayanDSO",
+      "type": "User"
+    },
+    {
+      "login": "ericli3690",
+      "type": "User"
+    },
+    {
+      "login": "yurtpage",
+      "type": "User"
+    },
+    {
+      "login": "xenonnn4w",
+      "type": "User"
+    },
+    {
+      "login": "infiniteflux",
+      "type": "User"
+    },
+    {
+      "login": "ShaanNarendran",
+      "type": "User"
+    },
+    {
+      "login": "BrayanDSO",
+      "type": "User"
+    },
+    {
+      "login": "ShaanNarendran",
+      "type": "User"
+    },
+    {
+      "login": "xenonnn4w",
+      "type": "User"
+    },
+    {
+      "login": "xenonnn4w",
+      "type": "User"
+    },
+    {
+      "login": "dependabot",
+      "type": "Bot"
+    },
+    {
+      "login": "KT-1114",
+      "type": "User"
+    },
+    {
+      "login": "S-H-Y-A",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}

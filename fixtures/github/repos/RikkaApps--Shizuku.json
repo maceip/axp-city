@@ -1,0 +1,112 @@
+{
+  "owner": "RikkaApps",
+  "name": "Shizuku",
+  "fullName": "RikkaApps/Shizuku",
+  "url": "https://github.com/RikkaApps/Shizuku",
+  "description": "Using system APIs directly with adb/root privileges from normal apps through a Java process started with app_process.",
+  "stars": 29980,
+  "forks": 3060,
+  "openIssues": 504,
+  "openPrs": 74,
+  "sizeKb": 39013,
+  "languageBytes": {
+    "Kotlin": 170895,
+    "Java": 99260,
+    "C++": 26805,
+    "C": 1295,
+    "CMake": 1293,
+    "Shell": 882
+  },
+  "primaryLanguage": "Kotlin",
+  "pushedAt": "2025-06-18T04:21:02Z",
+  "updatedAt": "2026-09-11T06:56:18Z",
+  "recentDefaultCommits": 0,
+  "recentAuthors": [
+    "vvb2060",
+    "Ahmad-Fardin"
+  ],
+  "prAuthors": [
+    {
+      "login": "eighthave",
+      "type": "User"
+    },
+    {
+      "login": "laiqun",
+      "type": "User"
+    },
+    {
+      "login": "Ryfters",
+      "type": "User"
+    },
+    {
+      "login": "Hujjjjjshajjjxxj",
+      "type": "User"
+    },
+    {
+      "login": "Soheng11",
+      "type": "User"
+    },
+    {
+      "login": "691220",
+      "type": "User"
+    },
+    {
+      "login": "910220",
+      "type": "User"
+    },
+    {
+      "login": "aprdan",
+      "type": "User"
+    },
+    {
+      "login": "MSWS",
+      "type": "User"
+    },
+    {
+      "login": "09266247076",
+      "type": "User"
+    },
+    {
+      "login": "AsiaTopindy",
+      "type": "User"
+    },
+    {
+      "login": "SamarthaKV29",
+      "type": "User"
+    },
+    {
+      "login": "pdien",
+      "type": "User"
+    },
+    {
+      "login": "evd316",
+      "type": "User"
+    },
+    {
+      "login": "sakchnkumar46-cyber",
+      "type": "User"
+    },
+    {
+      "login": "krtk-vrm",
+      "type": "User"
+    },
+    {
+      "login": "shoaibbajwa035-dot",
+      "type": "User"
+    },
+    {
+      "login": "alihassank310-afk",
+      "type": "User"
+    },
+    {
+      "login": "Qingcaj",
+      "type": "User"
+    },
+    {
+      "login": "knur70114-spec",
+      "type": "User"
+    }
+  ],
+  "fetchedAt": "2026-09-11T07:46:54.450Z",
+  "source": "github-graphql"
+}
