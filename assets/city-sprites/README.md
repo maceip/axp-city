@@ -18,6 +18,33 @@ source of truth. No pixels changed; only the location is new.
 - `01-buildings.png`, `02-actors-humans-drones.png`, `03-yards-parcels.png`,
   `04-ground-tiles.png`, `05-lot-examples.png` — earlier pixel pass
   (Kairosoft-style, superseded for look)
+- `env-tiles-vector-kit.png` — labeled ground tile legend in building-pack
+  style (grass, dirt, concrete, roads, dual-plot bases, park, curbs, water &
+  sand, cliffs, snow, props). Reference for the tile pass; not stamped yet.
+- `v5-ground-tiles-kit.png` — 34 measured iso ground tiles + props
+  (grass/dirt/pave, 6 road pieces, dual-plots, water/sand, park, curb,
+  cliffs, snow, trees, lamp, cone, bench, manhole). Trees/lamp/bench stamp
+  the map decor; see `GROUND_TILES` in `src/render/sprites.ts`.
+- `v6-anim-unit-walk.png` (34f), `v6-anim-carry-crate.png` (18f),
+  `v6-anim-blueprint.png` (26f), `v6-anim-pallet-jack.png` (19f) —
+  transparent 384px-grid walk/work cycles (~8 fps) from the grok crew packs.
+  Animated via SMIL on recent-activity yards; see `ANIM_SHEETS` and
+  `src/render/anim.ts`. Dormant lots stay static.
+
+## `unprocessed/` scans (2026-09-12)
+
+Art inbox (local only, git-ignored). 8 of 9 art files are renamed md5 dupes
+of `player-repo/` holdings: the two `03_19_00 PM` PNGs = `10_46_14 AM
+(1)/(2)` (AXP City themed-building evolutions); the two
+`create-an-isometric…` JPGs = `isometric_sprite_sheet.jpg` /
+`solarpunk_sprite_sheet.jpg` (craft grids); `image-gen-1/10/3/8` =
+`10_38_02 AM (1)/(10)/(3)/(8)` (eco warehouse, watermill, drone hub,
+conservatory trios). Only `1ba16fa0-….png` was new (now
+`v5-ground-tiles-kit.png` above). The two `grok-workspace.zip`s hold 9
+transparent walk/work-cycle packs (unit01: walk, carry-box, carry-ladder,
+push-cart; crew: blueprint, carry-crate, carry-ladder, pallet-jack,
+wheelbarrow) — 4 atlases ingested as `v6-anim-*`; the other 5 stay zipped
+for the next pass.
 
 ## Overlap note
 

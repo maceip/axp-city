@@ -1,280 +1,263 @@
-import { box, path, project } from "./iso.js";
+import { HIGH_PR_COUNT } from "../parser/thresholds.js";
+import type { CityLot } from "../types.js";
+import { animatedFigure, bobWrap } from "./anim.js";
+import { project } from "./iso.js";
+import {
+  animSheet,
+  CREW_CARRY,
+  CREW_WALK,
+  DECOR_BENCH,
+  DECOR_LAMP,
+  DECOR_TREES,
+  DRONE_QUADS,
+  GROUND_SHEET,
+  MATERIAL_LOOSE,
+  MATERIAL_PALLETS,
+  PLANNING_SHEET,
+  PLANNING_TABLES,
+  PROP_SHEETS,
+  type SpriteBox,
+  type StampFn,
+} from "./sprites.js";
 
-function robot(x: number, y: number, hue: "white" | "olive"): string {
-  const body = hue === "white" ? "#e8edf2" : "#6d7a55";
-  const mid = hue === "white" ? "#c5ced6" : "#556244";
-  const dark = hue === "white" ? "#9aa6b0" : "#3f4a32";
-  const visor = hue === "white" ? "#5aa7d4" : "#c4d46a";
-  return (
-    box(x, y, 0, 0.28, 0.24, 6, { top: mid, left: mid, right: dark }) +
-    box(x - 0.03, y + 0.02, 6, 0.34, 0.22, 11, { top: body, left: mid, right: dark }) +
-    box(x + 0.04, y + 0.04, 17, 0.22, 0.18, 6, { top: body, left: mid, right: dark }) +
-    box(x + 0.07, y + 0.07, 21, 0.16, 0.12, 1.8, {
-      top: visor,
-      left: visor,
-      right: visor,
-    }) +
-    box(x + 0.28, y + 0.04, 10, 0.1, 0.1, 7, { top: mid, left: dark, right: dark }) +
-    box(x - 0.08, y + 0.1, 10, 0.1, 0.1, 7, { top: mid, left: dark, right: dark })
-  );
+/**
+ * Yard props are real sprite stamps (white sheets keyed out via multiply).
+ * Conditions mirror the locked yard language: issues → blueprints + tables,
+ * PRs → materials, recent activity → crew, bots/high PRs → drone. Only the
+ * art changed from the old procedural shapes.
+ */
+
+/** Stagger loop phase per lot so a street of yards does not march in sync. */
+function phaseFor(lot: CityLot): number {
+  return -((lot.buildingId % 7) * 0.6);
 }
 
-function table(x: number, y: number): string {
-  const top = box(x, y, 9, 0.85, 0.58, 1.4, {
-    top: "#3d6fa6",
-    left: "#2f5780",
-    right: "#244462",
-  });
-  const grid = path(
-    [
-      project(x + 0.08, y + 0.08, 10.4),
-      project(x + 0.62, y + 0.08, 10.4),
-      project(x + 0.62, y + 0.4, 10.4),
-      project(x + 0.08, y + 0.4, 10.4),
-    ],
-    "#5b8ec4",
-  );
-  const legs =
-    box(x + 0.04, y + 0.04, 0, 0.08, 0.08, 9, {
-      top: "#8b9096",
-      left: "#6d7278",
-      right: "#555a60",
-    }) +
-    box(x + 0.58, y + 0.04, 0, 0.08, 0.08, 9, {
-      top: "#8b9096",
-      left: "#6d7278",
-      right: "#555a60",
-    }) +
-    box(x + 0.04, y + 0.36, 0, 0.08, 0.08, 9, {
-      top: "#8b9096",
-      left: "#6d7278",
-      right: "#555a60",
-    }) +
-    box(x + 0.58, y + 0.36, 0, 0.08, 0.08, 9, {
-      top: "#8b9096",
-      left: "#6d7278",
-      right: "#555a60",
+function blueprint(
+  x: number,
+  y: number,
+  lot: CityLot,
+  stamp: StampFn,
+  lotTag: string,
+): string {
+  const sheet = PROP_SHEETS.planning;
+  const dim = !lot.recentActivity;
+  const anchor = project(x + 0.31, y + 0.45);
+  let s = stamp(sheet.file, sheet, PLANNING_SHEET, anchor.sx, anchor.sy, 70, dim);
+  if (lot.recentActivity) {
+    // A reader studies the sheet in place (idle loop, gentle bob).
+    const reader = project(x - 0.15, y + 0.75);
+    s += animatedFigure({
+      id: `${lotTag}-read`,
+      sheet: animSheet("blueprint"),
+      anchorX: reader.sx,
+      anchorY: reader.sy,
+      targetW: 54,
+      phase: phaseFor(lot),
+      bob: 3,
     });
-  return legs + top + grid;
+  }
+  return s;
 }
 
-function blueprint(x: number, y: number, small = false): string {
-  const w = small ? 0.42 : 0.62;
-  const d = small ? 0.32 : 0.48;
-  const sheet = path(
-    [
-      project(x, y, 0.8),
-      project(x + w, y, 0.8),
-      project(x + w, y + d, 0.8),
-      project(x, y + d, 0.8),
-    ],
-    "#3d7ec4",
-    "rgba(20,40,70,0.25)",
-  );
-  const inset = path(
-    [
-      project(x + w * 0.12, y + d * 0.15, 1.1),
-      project(x + w * 0.88, y + d * 0.15, 1.1),
-      project(x + w * 0.88, y + d * 0.85, 1.1),
-      project(x + w * 0.12, y + d * 0.85, 1.1),
-    ],
-    "#5a9ad6",
-  );
-  return sheet + inset;
+function draftingTable(x: number, y: number, lot: CityLot, stamp: StampFn): string {
+  const sheet = PROP_SHEETS.planning;
+  const anchor = project(x + 0.42, y + 0.44);
+  const table = PLANNING_TABLES[lot.buildingId % PLANNING_TABLES.length];
+  return stamp(sheet.file, sheet, table, anchor.sx, anchor.sy, 95, !lot.recentActivity);
 }
 
-function brickStack(x: number, y: number): string {
-  return (
-    box(x, y, 0, 0.42, 0.32, 6, { top: "#c45b4a", left: "#a3493b", right: "#83392e" }) +
-    box(x + 0.05, y + 0.04, 6, 0.32, 0.24, 5, {
-      top: "#d46b58",
-      left: "#b45342",
-      right: "#8f4033",
-    })
-  );
+function mats(
+  x: number,
+  y: number,
+  lot: CityLot,
+  stamp: StampFn,
+  lotTag: string,
+): string {
+  const sheet = PROP_SHEETS.materials;
+  const dim = !lot.recentActivity;
+  const a1 = project(x + 0.9, y + 0.85);
+  const primary = MATERIAL_PALLETS[lot.buildingId % MATERIAL_PALLETS.length];
+  let s = stamp(sheet.file, sheet, primary, a1.sx, a1.sy, 85, dim);
+  if (lot.openPrs >= HIGH_PR_COUNT) {
+    const a2 = project(x + 1.45, y + 0.35);
+    const secondary = MATERIAL_LOOSE[(lot.buildingId + 3) % MATERIAL_LOOSE.length];
+    s = stamp(sheet.file, sheet, secondary, a2.sx, a2.sy, 60, dim) + s;
+  }
+  if (lot.recentActivity) {
+    // A stacker works the pallet in place.
+    const jack = project(x + 1.7, y + 1.0);
+    s += animatedFigure({
+      id: `${lotTag}-jack`,
+      sheet: animSheet("palletJack"),
+      anchorX: jack.sx,
+      anchorY: jack.sy,
+      targetW: 72,
+      phase: phaseFor(lot),
+      bob: 2,
+    });
+  }
+  return s;
 }
 
-function pallet(x: number, y: number): string {
-  return (
-    box(x, y, 0, 0.5, 0.34, 2.2, { top: "#c4a06a", left: "#a88452", right: "#8a6b42" }) +
-    box(x + 0.04, y + 0.04, 2.2, 0.42, 0.26, 5, {
-      top: "#d8b27a",
-      left: "#b8945e",
-      right: "#967848",
-    })
-  );
-}
-
-function pipes(x: number, y: number): string {
-  return (
-    box(x, y, 0, 0.55, 0.12, 4, { top: "#6d7580", left: "#555c66", right: "#434950" }) +
-    box(x, y + 0.14, 0, 0.55, 0.12, 4, {
-      top: "#7a828c",
-      left: "#5d646e",
-      right: "#484e56",
-    }) +
-    box(x, y + 0.28, 0, 0.55, 0.12, 4, {
-      top: "#6d7580",
-      left: "#555c66",
-      right: "#434950",
-    })
-  );
-}
-
-function sandPile(x: number, y: number): string {
-  return path(
-    [
-      project(x, y + 0.18, 0.4),
-      project(x + 0.22, y, 0.4),
-      project(x + 0.44, y + 0.18, 0.4),
-      project(x + 0.22, y + 0.36, 0.4),
-    ],
-    "#e2c48a",
-    "rgba(90,70,40,0.2)",
-  ) +
-    path(
-      [
-        project(x + 0.1, y + 0.16, 4),
-        project(x + 0.22, y + 0.08, 4),
-        project(x + 0.34, y + 0.16, 4),
-        project(x + 0.22, y + 0.24, 4),
-      ],
-      "#edd7a4",
+function crew(
+  x: number,
+  y: number,
+  lot: CityLot,
+  stamp: StampFn,
+  lotTag: string,
+): string {
+  if (lot.recentActivity) {
+    // Live yard: a unit paces one way, a crate-carrier the other.
+    const phase = phaseFor(lot);
+    const a1 = project(x + 1.5, y + 0.55);
+    const a2 = project(x + 0.75, y + 1.35);
+    return (
+      animatedFigure({
+        id: `${lotTag}-walk`,
+        sheet: animSheet("unitWalk"),
+        anchorX: a1.sx,
+        anchorY: a1.sy,
+        targetW: 56,
+        phase,
+        pace: { dx: 42, dy: 10, legs: 2 },
+      }) +
+      animatedFigure({
+        id: `${lotTag}-carry`,
+        sheet: animSheet("carryCrate"),
+        anchorX: a2.sx,
+        anchorY: a2.sy,
+        targetW: 60,
+        phase: phase - 1.1,
+        pace: { dx: -38, dy: -8, legs: 2 },
+      })
     );
+  }
+  const sheet = PROP_SHEETS.crew;
+  const walker = CREW_WALK[lot.buildingId % CREW_WALK.length];
+  const carrier = CREW_CARRY[lot.buildingId % CREW_CARRY.length];
+  const a1 = project(x + 1.5, y + 0.55);
+  const a2 = project(x + 0.75, y + 1.35);
+  const crewH = 58;
+  return (
+    stamp(
+      sheet.file,
+      sheet,
+      walker,
+      a1.sx,
+      a1.sy,
+      walker.w * (crewH / walker.h),
+      false,
+    ) +
+    stamp(
+      sheet.file,
+      sheet,
+      carrier,
+      a2.sx,
+      a2.sy,
+      carrier.w * (crewH / carrier.h),
+      false,
+    )
+  );
 }
 
-function drone(x: number, y: number, z: number): string {
-  const body = box(x, y, z, 0.4, 0.3, 5, {
-    top: "#eef2f6",
-    left: "#c5ced6",
-    right: "#9aa6b0",
+/** A lone walker crosses yards that are active but have no other crew. */
+function idleWalker(x: number, y: number, lot: CityLot, lotTag: string): string {
+  const anchor = project(x + 0.7, y + 0.6);
+  return animatedFigure({
+    id: `${lotTag}-idle`,
+    sheet: animSheet("unitWalk"),
+    anchorX: anchor.sx,
+    anchorY: anchor.sy,
+    targetW: 56,
+    phase: phaseFor(lot),
+    pace: { dx: 40, dy: 9, legs: 2 },
   });
-  const eye = box(x + 0.14, y + 0.08, z + 5, 0.14, 0.14, 2, {
-    top: "#5aa7d4",
-    left: "#3d86b0",
-    right: "#2f6a8c",
-  });
-  const arms =
-    box(x - 0.22, y + 0.1, z + 3.5, 0.22, 0.08, 1.6, {
-      top: "#c5ced6",
-      left: "#9aa6b0",
-      right: "#7a858e",
-    }) +
-    box(x + 0.4, y + 0.1, z + 3.5, 0.22, 0.08, 1.6, {
-      top: "#c5ced6",
-      left: "#9aa6b0",
-      right: "#7a858e",
-    });
-  const rotors =
-    box(x - 0.28, y + 0.04, z + 5.2, 0.22, 0.22, 1.1, {
-      top: "#4a5158",
-      left: "#3a4046",
-      right: "#2c3136",
-    }) +
-    box(x + 0.46, y + 0.04, z + 5.2, 0.22, 0.22, 1.1, {
-      top: "#4a5158",
-      left: "#3a4046",
-      right: "#2c3136",
-    });
-  return `<g class="drone">${body}${eye}${arms}${rotors}</g>`;
 }
 
-export interface YardFlags {
-  showBlueprint: boolean;
-  showDraftingTable: boolean;
-  showMaterials: boolean;
-  showCrew: boolean;
-  showDrone: boolean;
+function drone(x: number, y: number, lot: CityLot, stamp: StampFn): string {
+  const sheet = PROP_SHEETS.drones;
+  const anchor = project(x, y);
+  const quad = DRONE_QUADS[lot.buildingId % DRONE_QUADS.length];
+  const shadow =
+    `<ellipse cx="${anchor.sx}" cy="${anchor.sy + 22}" rx="14" ry="5" fill="rgba(60,70,80,0.25)"/>`;
+  // Quads hover: the stamp bobs gently over its shadow.
+  const hover = bobWrap(
+    stamp(sheet.file, sheet, quad, anchor.sx, anchor.sy - 42, 62, false),
+    4,
+    3,
+    phaseFor(lot),
+  );
+  return shadow + hover;
 }
 
-export function renderYardProps(originX: number, originY: number, flags: YardFlags): string {
+export function renderYardProps(
+  originX: number,
+  originY: number,
+  lot: CityLot,
+  stamp: StampFn,
+  lotTag: string,
+): string {
   const yx = originX + 2.2;
   const yy = originY + 0.2;
   let s = "";
-  if (flags.showDraftingTable) {
-    s += table(yx + 0.2, yy + 0.7);
+  if (lot.showDraftingTable) {
+    s += draftingTable(yx + 0.2, yy + 0.7, lot, stamp);
   }
-  if (flags.showBlueprint) {
-    s += blueprint(yx + 0.95, yy + 0.12, flags.showMaterials);
+  if (lot.showBlueprint) {
+    s += blueprint(yx + 0.95, yy + 0.12, lot, stamp, lotTag);
   }
-  if (flags.showMaterials) {
-    s += brickStack(yx + 0.08, yy + 0.08);
-    s += pallet(yx + 0.55, yy + 1.2);
-    s += pipes(yx + 1.15, yy + 0.95);
-    s += sandPile(yx + 1.25, yy + 0.12);
+  if (lot.showMaterials) {
+    s += mats(yx + 0.08, yy + 0.08, lot, stamp, lotTag);
   }
-  if (flags.showCrew) {
-    s += robot(yx + 1.5, yy + 0.55, "white");
-    s += robot(yx + 0.75, yy + 1.35, "olive");
+  if (lot.showCrew) {
+    s += crew(yx, yy, lot, stamp, lotTag);
   }
-  if (flags.showDrone) {
-    s += drone(yx + 1.25, yy - 0.2, 42);
+  if (lot.yard === "idle_active") {
+    s += idleWalker(yx, yy, lot, lotTag);
+  }
+  if (lot.showDrone) {
+    s += drone(yx + 1.25, yy - 0.2, lot, stamp);
   }
   return `<g class="yard-props">${s}</g>`;
 }
 
-export function tree(x: number, y: number, kind: "round" | "pine" = "round"): string {
-  const trunk = box(x + 0.08, y + 0.08, 0, 0.1, 0.1, 8, {
-    top: "#8a6a40",
-    left: "#6e5533",
-    right: "#544028",
-  });
-  if (kind === "pine") {
-    return (
-      trunk +
-      box(x - 0.02, y - 0.02, 6, 0.3, 0.3, 6, {
-        top: "#4f8a45",
-        left: "#3f7038",
-        right: "#325a2c",
-      }) +
-      box(x + 0.02, y + 0.02, 12, 0.22, 0.22, 6, {
-        top: "#5a9a4e",
-        left: "#467a3d",
-        right: "#386230",
-      })
-    );
-  }
-  return (
-    trunk +
-    box(x - 0.06, y - 0.06, 7, 0.38, 0.38, 10, {
-      top: "#6aaa55",
-      left: "#548a44",
-      right: "#416c36",
-    })
+/**
+ * Map-corner decor stamped from the real ground-tile kit (white sheet keyed
+ * out via multiply). Anchors sit on the ground point; art faces the camera.
+ */
+function decorStamp(
+  x: number,
+  y: number,
+  tile: SpriteBox,
+  targetW: number,
+  stamp: StampFn,
+): string {
+  const anchor = project(x, y);
+  return stamp(
+    GROUND_SHEET.file,
+    GROUND_SHEET,
+    tile,
+    anchor.sx,
+    anchor.sy,
+    targetW,
+    false,
   );
 }
 
-export function lamp(x: number, y: number): string {
-  return (
-    box(x + 0.06, y + 0.06, 0, 0.08, 0.08, 16, {
-      top: "#6d737a",
-      left: "#555b62",
-      right: "#3f444a",
-    }) +
-    box(x + 0.02, y + 0.02, 16, 0.16, 0.16, 3, {
-      top: "#f0e3a8",
-      left: "#d4c47a",
-      right: "#b8a85e",
-    })
-  );
+export function spriteTree(
+  x: number,
+  y: number,
+  variant: number,
+  stamp: StampFn,
+): string {
+  const tile = DECOR_TREES[variant % DECOR_TREES.length];
+  return decorStamp(x, y, tile, 64, stamp);
 }
 
-export function bench(x: number, y: number): string {
-  return (
-    box(x, y, 4, 0.55, 0.16, 2, {
-      top: "#8b5a32",
-      left: "#6e4628",
-      right: "#55361e",
-    }) +
-    box(x + 0.04, y + 0.02, 0, 0.08, 0.12, 4, {
-      top: "#4a4e54",
-      left: "#3a3e44",
-      right: "#2c3036",
-    }) +
-    box(x + 0.42, y + 0.02, 0, 0.08, 0.12, 4, {
-      top: "#4a4e54",
-      left: "#3a3e44",
-      right: "#2c3036",
-    })
-  );
+export function spriteLamp(x: number, y: number, stamp: StampFn): string {
+  return decorStamp(x, y, DECOR_LAMP, 26, stamp);
+}
+
+export function spriteBench(x: number, y: number, stamp: StampFn): string {
+  return decorStamp(x, y, DECOR_BENCH, 84, stamp);
 }

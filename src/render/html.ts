@@ -85,17 +85,41 @@ const mapScript = `(function () {
     card.hidden = false;
     card.querySelector(".close").addEventListener("click", hideCard);
   }
+  var glide = null;
+  function stopGlide() { if (glide) { cancelAnimationFrame(glide); glide = null; } }
+  function flyTo(cx, cy) {
+    stopGlide();
+    var x0 = view.x, y0 = view.y;
+    var tx = cx - view.w / 2, ty = cy - view.h / 2;
+    var t0 = null;
+    function step(t) {
+      if (t0 === null) t0 = t;
+      var k = Math.min(1, (t - t0) / 450);
+      var e = 1 - Math.pow(1 - k, 3);
+      view.x = x0 + (tx - x0) * e;
+      view.y = y0 + (ty - y0) * e;
+      apply();
+      if (k < 1) glide = requestAnimationFrame(step);
+      else glide = null;
+    }
+    glide = requestAnimationFrame(step);
+  }
   function centerOn(hit) {
     try {
       var box = hit.getBBox();
-      view.x = box.x + box.width / 2 - view.w / 2;
-      view.y = box.y + box.height / 2 - view.h / 2;
-      apply();
+      flyTo(box.x + box.width / 2, box.y + box.height / 2);
     } catch (e) { /* getBBox unavailable — selection still shows */ }
+  }
+  function zoomCenter(f) {
+    var cx = view.x + view.w / 2, cy = view.y + view.h / 2;
+    zoomTo(view.w * f);
+    view.x = cx - view.w / 2;
+    view.y = cy - view.h / 2;
   }
 
   var dragging = false, lx = 0, ly = 0, moved = false;
   svg.addEventListener("pointerdown", function (e) {
+    stopGlide();
     dragging = true; moved = false; lx = e.clientX; ly = e.clientY;
     try { svg.setPointerCapture(e.pointerId); } catch (err) {}
     svg.style.cursor = "grabbing";
@@ -121,6 +145,7 @@ const mapScript = `(function () {
   });
   svg.addEventListener("wheel", function (e) {
     e.preventDefault();
+    stopGlide();
     var r = svg.getBoundingClientRect();
     var mx = view.x + (e.clientX - r.left) * (view.w / r.width);
     var my = view.y + (e.clientY - r.top) * (view.h / r.height);
@@ -132,9 +157,23 @@ const mapScript = `(function () {
     apply();
   }, { passive: false });
   svg.addEventListener("dblclick", function () {
+    stopGlide();
     view = { x: home.x, y: home.y, w: home.w, h: home.h };
     apply();
     hideCard();
+  });
+  document.addEventListener("keydown", function (e) {
+    var step = view.w / 8;
+    var handled = true;
+    if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") { stopGlide(); view.x -= step; }
+    else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") { stopGlide(); view.x += step; }
+    else if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") { stopGlide(); view.y -= step; }
+    else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") { stopGlide(); view.y += step; }
+    else if (e.key === "+" || e.key === "=") { stopGlide(); zoomCenter(1 / 1.25); }
+    else if (e.key === "-" || e.key === "_") { stopGlide(); zoomCenter(1.25); }
+    else if (e.key === "Escape") { hideCard(); }
+    else handled = false;
+    if (handled) { e.preventDefault(); apply(); }
   });
 })();`;
 
@@ -195,6 +234,7 @@ export function renderCityHtml(lots: CityLot[], generatedAt: string): string {
     }
     .stage svg { display: block; width: 100%; height: min(88vh, 980px); touch-action: none; cursor: grab; }
     .lot-hit { cursor: pointer; }
+    .lot-hit:hover path { stroke: #2457c5; stroke-width: 2; }
     .lot-hit.selected path { stroke: #2457c5; stroke-width: 2.5; }
     .maphint {
       position: absolute; left: 12px; bottom: 10px; margin: 0;
@@ -256,7 +296,7 @@ export function renderCityHtml(lots: CityLot[], generatedAt: string): string {
     <p class="meta">${lots.length} lots · activity window ${RECENT_ACTIVITY_DAYS} days · drone if PRs ≥ ${HIGH_PR_COUNT} or bot authors · ${escapeHtml(generatedAt)}</p>
   </header>
   <div class="stage">${svg}
-    <p class="maphint">drag to pan · scroll to zoom · click a lot to inspect · double-click to reset</p>
+    <p class="maphint">drag to pan · scroll to zoom · click a lot to inspect · WASD/arrows move · double-click to reset</p>
     <div class="lotcard" id="lot-card" hidden></div>
   </div>
   <script type="application/json" id="axp-lots">${lotsJson(lots)}</script>

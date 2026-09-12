@@ -1,7 +1,32 @@
 import type { CityLot } from "../types.js";
-import { renderBuilding } from "./buildings.js";
 import { diamond, fmt, project, TILE_H, TILE_W } from "./iso.js";
-import { bench, lamp, renderYardProps, tree } from "./props.js";
+import {
+  renderYardProps,
+  spriteBench,
+  spriteLamp,
+  spriteTree,
+} from "./props.js";
+import {
+  sheetForBand,
+  spriteBoxFor,
+  stamper,
+  type StampFn,
+} from "./sprites.js";
+
+/** Real sprite art from assets/city-sprites (white sheets keyed out via multiply). */
+function buildingStamp(lot: CityLot, x: number, y: number, stamp: StampFn): string {
+  const sheet = sheetForBand(lot.buildingBand);
+  const box = spriteBoxFor(lot.buildingId);
+  return stamp(
+    sheet.file,
+    sheet,
+    box,
+    (x - y - 0.2) * 36,
+    (x + y + 2.2) * 18,
+    230.4,
+    !lot.recentActivity,
+  );
+}
 
 const COLS = 4;
 const LOT_W = 4;
@@ -66,19 +91,21 @@ function groundLayer(placements: LotPlacement[]): string {
   return `<g class="ground">${s}</g>`;
 }
 
-function decorLayer(placements: LotPlacement[]): string {
+function decorLayer(placements: LotPlacement[], stamp: StampFn): string {
   const { w, h } = worldSize(placements.length);
   let s = "";
-  const trees: Array<[number, number, "round" | "pine"]> = [
-    [0.45, 0.45, "round"],
-    [w - 1.1, 0.5, "pine"],
-    [0.5, h - 1.3, "pine"],
-    [w - 2.6, h - 2.3, "round"],
+  const trees: Array<[number, number]> = [
+    [0.45, 0.45],
+    [w - 1.1, 0.5],
+    [0.5, h - 1.3],
+    [w - 2.6, h - 2.3],
   ];
-  for (const [x, y, kind] of trees) s += tree(x, y, kind);
-  s += lamp(MARGIN + STRIDE_X - 0.35, MARGIN - 0.45);
-  s += lamp(MARGIN + 2 * STRIDE_X - 0.35, MARGIN - 0.45);
-  s += bench(MARGIN + STRIDE_X + 0.15, MARGIN + LOT_D + 0.15);
+  trees.forEach(([x, y], i) => {
+    s += spriteTree(x, y, i, stamp);
+  });
+  s += spriteLamp(MARGIN + STRIDE_X - 0.35, MARGIN - 0.45, stamp);
+  s += spriteLamp(MARGIN + 2 * STRIDE_X - 0.35, MARGIN - 0.45, stamp);
+  s += spriteBench(MARGIN + STRIDE_X + 0.15, MARGIN + LOT_D + 0.15, stamp);
   return `<g class="decor">${s}</g>`;
 }
 
@@ -108,19 +135,19 @@ function hitTile(place: LotPlacement): string {
   return `<g class="lot-hit" data-repo="${escapeXml(place.lot.fullName)}">${diamond(place.x, place.y, 4, LOT_D, "rgba(0,0,0,0)", "rgba(0,0,0,0)")}</g>`;
 }
 
-function lotGroup(place: LotPlacement): string {
+function lotGroup(place: LotPlacement, i: number): string {
   const { lot, x, y } = place;
-  const quiet = !lot.recentActivity;
   const tip = [
     lot.fullName,
     `${lot.stars} stars · ${lot.openIssues} issues · ${lot.openPrs} PRs`,
     lot.yard,
   ].join(" — ");
+  const stamp = stamper(i);
   return `
     <g class="lot" data-repo="${escapeXml(lot.fullName)}" data-yard="${lot.yard}" data-band="${lot.buildingBand}">
       <title>${escapeXml(tip)}</title>
-      ${renderBuilding(lot.buildingId, x, y, quiet)}
-      ${renderYardProps(x, y, lot)}
+      ${buildingStamp(lot, x, y, stamp)}
+      ${renderYardProps(x, y, lot, stamp, `lot${i}`)}
     </g>`;
 }
 
@@ -137,6 +164,8 @@ export function renderCitySvg(lots: CityLot[], generatedAt: string): string {
   const vbH = bottom.sy + 70;
   const sorted = [...placements].sort((a, b) => a.x + a.y - (b.x + b.y));
 
+  // Decor stamps share one stamper id past the per-lot range (0..n-1).
+  const decorStamp = stamper(placements.length);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg id="axp-map" xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(vbX)} ${fmt(vbY)} ${fmt(vbW)} ${fmt(vbH)}" role="img" aria-label="AXP City isometric map generated ${generatedAt}">
   <defs>
@@ -148,8 +177,8 @@ export function renderCitySvg(lots: CityLot[], generatedAt: string): string {
   <rect x="${fmt(vbX)}" y="${fmt(vbY)}" width="${fmt(vbW)}" height="${fmt(vbH)}" fill="url(#sky)"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif">
     ${groundLayer(placements)}
-    ${decorLayer(placements)}
-    ${sorted.map(lotGroup).join("\n")}
+    ${decorLayer(placements, decorStamp)}
+    ${sorted.map((place, i) => lotGroup(place, i)).join("\n")}
     <g class="labels">
     ${sorted.map(label).join("\n")}
     </g>
