@@ -19,6 +19,10 @@ import {
   spriteBoxFor,
   spritePlacement,
   stamper,
+  WILD_BUSHES,
+  WILD_SHEETS,
+  WILD_TREES,
+  WILD_WATER,
 } from "../src/render/sprites.js";
 
 describe("building sprite atlas", () => {
@@ -117,6 +121,28 @@ describe("yard prop atlas", () => {
     for (const sheet of Object.values(PROP_SHEETS)) {
       expect(existsSync(join("assets", "city-sprites", sheet.file))).toBe(true);
     }
+  });
+
+  it("ships the keyed wild sheets with in-bounds foliage boxes", () => {
+    for (const sheet of Object.values(WILD_SHEETS)) {
+      expect(existsSync(join("assets", "city-sprites", sheet.file))).toBe(true);
+    }
+    expect(WILD_TREES.length).toBeGreaterThan(100);
+    expect(WILD_BUSHES.length).toBeGreaterThan(20);
+    const inWild = (
+      sheet: { width: number; height: number },
+      box: { x: number; y: number; w: number; h: number },
+    ) => {
+      expect(box.w).toBeGreaterThan(0);
+      expect(box.h).toBeGreaterThan(0);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.w).toBeLessThanOrEqual(sheet.width);
+      expect(box.y + box.h).toBeLessThanOrEqual(sheet.height);
+    };
+    for (const box of WILD_TREES) inWild(WILD_SHEETS.trees, box);
+    for (const box of WILD_BUSHES) inWild(WILD_SHEETS.bushes, box);
+    inWild(WILD_SHEETS.bushes, WILD_WATER);
   });
 
   it("sizes prop clips to the requested target width", () => {

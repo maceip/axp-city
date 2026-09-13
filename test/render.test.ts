@@ -20,7 +20,7 @@ function lotGroup(svg: string, repo: string): string {
 }
 
 describe("renderCityHtml", () => {
-  it("labels every lot with owner/name and does not invent states", () => {
+  it("lists every lot with owner/name and does not invent states", () => {
     const lots = parseCity(
       [
         metrics({
@@ -48,7 +48,7 @@ describe("renderCityHtml", () => {
     expect(html).not.toContain("LegadoTeam/legado");
   });
 
-  it("paints labels above buildings and gives every lot a click tile", () => {
+  it("hides persistent labels and gives every lot a click tile", () => {
     const lots = parseCity(
       [
         metrics({ fullName: "acme/alpha", stars: 100 }),
@@ -57,11 +57,12 @@ describe("renderCityHtml", () => {
       { now: FIXED_NOW },
     );
     const svg = renderCitySvg(lots, FIXED_NOW);
-    // Labels live in one trailing layer so later lots cannot cover them.
-    const labelsAt = svg.indexOf('<g class="labels">');
-    expect(labelsAt).toBeGreaterThan(-1);
-    expect(labelsAt).toBeGreaterThan(svg.lastIndexOf('<g class="lot"'));
-    expect(svg.match(/lot-label/g)?.length).toBe(2);
+    // The map loads unlabeled; hover tags are HTML, not SVG text.
+    expect(svg).not.toContain("lot-label");
+    expect(svg).not.toContain('<g class="labels">');
+    const html = renderCityHtml(lots, FIXED_NOW);
+    expect(html).toContain('id="hover-tag"');
+    expect(html).toContain("tag-pop");
     // One transparent hit tile per lot, keyed by repo.
     expect(svg).toContain('class="lot-hit" data-repo="acme/alpha"');
     expect(svg).toContain('class="lot-hit" data-repo="acme/beta"');
@@ -75,7 +76,11 @@ describe("renderCityHtml", () => {
     expect(html).toContain('id="axp-map"');
     expect(html).toContain('id="axp-lots"');
     expect(html).toContain('id="lot-card"');
+    expect(html).toContain('id="hover-tag"');
     expect(html).toContain("pointerdown");
+    expect(html).toContain("pointermove");
+    expect(html).toContain("clampView");
+    expect(html).toContain("data-world");
     expect(html).toContain("dblclick");
     expect(html).toContain('"repo":"acme/alpha"');
   });
@@ -98,10 +103,15 @@ describe("renderCityHtml", () => {
     // walker + crate-carrier + pallet-jack. Quiet dormant: dimmed building.
     // No drone at 3 PRs without bots. Decor: 4 trees + 2 lamps + 1 bench.
     // Ground: 2 connected dual-plot lot tiles, 2 street runs of 19 slabs +
-    // 3 manholes each, 2 cones. Streets: 1 pacer per road (2).
-    expect(svg.match(/<image /g)?.length).toBe(63);
+    // 3 manholes each, 2 cones, and a wild water pond tile. Streets: 1 pacer
+    // per road (2). The deterministic forest ring adds 93 wild stamps here.
+    expect(svg.match(/<image /g)?.length).toBe(157);
     expect(svg.match(/v5-ground-tiles-kit-k1\.png/g)?.length).toBe(55);
-    expect(svg).toContain("v5-ground-tiles-kit-k1.png");
+    expect(svg).toContain("v8-wild-trees-k1.png");
+    expect(svg).toContain("v8-wild-bushes-k1.png");
+    expect(svg).toContain('class="wild-tree"');
+    expect(svg).toContain('class="wild-bush"');
+    expect(svg).toContain('data-world="');
     expect(svg).toContain("/assets/sprites/buildings-small-01-17-k1.png");
     // Occlusion contract: keyed sheets composite normally so buildings
     // hide what is behind them instead of ghosting through it.

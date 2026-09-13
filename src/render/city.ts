@@ -18,6 +18,10 @@ import {
   sheetForBand,
   spriteBoxFor,
   stamper,
+  WILD_BUSHES,
+  WILD_SHEETS,
+  WILD_TREES,
+  WILD_WATER,
   type SpriteBox,
   type StampFn,
 } from "./sprites.js";
@@ -70,6 +74,30 @@ const ROAD_TOP0 = MARGIN - SHOULDER - ROAD_D;
 
 function roadCenterY(row: number): number {
   return ROAD_TOP0 + row * STRIDE_Y + ROAD_D / 2;
+}
+
+// Tile ground extends past the developed island so the camera can roam over
+// art instead of void. The wild ring below covers this apron.
+const FOREST_PAD_X = 6;
+const FOREST_PAD_Y = 4;
+const FOREST_STEP = 1.7;
+// Tallest stamps rise ~260px above their anchors; keep them inside.
+const VB_Y = -240;
+
+// Measured boxes 0-1 are sheet UI thumbnails, not trees; the full-width bush
+// row is a hedge strip rather than a plantable bush.
+const FOREST_TREES = WILD_TREES.filter((box) => box.h >= 50);
+const FOREST_BUSHES = WILD_BUSHES.filter((box) => box.w <= 64);
+
+/** Deterministic 0-1 hash for stable foliage variety (no RNG in renders). */
+function hash01(ix: number, iy: number, seed: number): number {
+  let h =
+    Math.imul(ix, 374761393) +
+    Math.imul(iy, 668265263) +
+    Math.imul(seed, 974634211);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
 }
 
 export interface LotPlacement {
@@ -197,17 +225,69 @@ function lotTile(place: LotPlacement, index: number, stamp: StampFn): string {
   return s;
 }
 
+function worldBounds(w: number, h: number): { x: number; y: number; width: number; height: number } {
+  const x0 = -FOREST_PAD_X;
+  const y0 = -FOREST_PAD_Y;
+  const x1 = w + FOREST_PAD_X;
+  const y1 = h + FOREST_PAD_Y;
+  const sx0 = (x0 - y1) * (TILE_W / 2);
+  const sx1 = (x1 - y0) * (TILE_W / 2);
+  const sy1 = (x1 + y1) * (TILE_H / 2) + 80;
+  return { x: sx0, y: VB_Y, width: sx1 - sx0, height: sy1 - VB_Y };
+}
+
+/**
+ * Forest ring from the new wild sheets. Items are height-normalized so pixel
+ * trees/bushes share world scale, then depth-sorted with lots and walkers.
+ */
+function forestItems(w: number, h: number, stamp: StampFn): Array<{ key: number; svg: string }> {
+  const items: Array<{ key: number; svg: string }> = [];
+  let iy = 0;
+  for (let y = -FOREST_PAD_Y; y <= h + FOREST_PAD_Y; y += FOREST_STEP, iy++) {
+    let ix = 0;
+    for (let x = -FOREST_PAD_X; x <= w + FOREST_PAD_X; x += FOREST_STEP, ix++) {
+      if (x > -1 && x < w + 1 && y > -1 && y < h + 1) continue;
+      if (hash01(ix, iy, 11) < 0.16) continue;
+      const jx = x + (hash01(ix, iy, 67) - 0.5) * 0.7;
+      const jy = y + (hash01(ix, iy, 71) - 0.5) * 0.7;
+      const anchor = project(jx, jy);
+      const variant = hash01(ix, iy, 37);
+      const size = hash01(ix, iy, 53);
+      if (hash01(ix, iy, 23) < 0.62) {
+        const box = FOREST_TREES[Math.floor(variant * FOREST_TREES.length) % FOREST_TREES.length];
+        const targetH = 76 + size * 52;
+        const targetW = (box.w * targetH) / box.h;
+        items.push({
+          key: jx + jy,
+          svg: `<g class="wild-tree">${stamp(WILD_SHEETS.trees.file, WILD_SHEETS.trees, box, anchor.sx, anchor.sy, targetW, false)}</g>`,
+        });
+      } else {
+        const box = FOREST_BUSHES[Math.floor(variant * FOREST_BUSHES.length) % FOREST_BUSHES.length];
+        const targetH = 30 + size * 22;
+        const targetW = (box.w * targetH) / box.h;
+        items.push({
+          key: jx + jy,
+          svg: `<g class="wild-bush">${stamp(WILD_SHEETS.bushes.file, WILD_SHEETS.bushes, box, anchor.sx, anchor.sy, targetW, false)}</g>`,
+        });
+      }
+    }
+  }
+  return items;
+}
+
 function groundLayer(placements: LotPlacement[], stamp: StampFn): string {
   const { w, h, rows } = worldSize(placements.length);
   let s = "";
-  s += diamond(0, 0, w, h, "#7fbe56", "rgba(40,70,30,0.16)");
-  s += diamond(0.35, 0.35, w - 0.7, h - 0.7, "#86c55c", "rgba(40,70,30,0.08)");
+  s += diamond(-FOREST_PAD_X, -FOREST_PAD_Y, w + FOREST_PAD_X * 2, h + FOREST_PAD_Y * 2, "#7fbe56", "rgba(40,70,30,0.16)");
+  s += diamond(-FOREST_PAD_X + 0.35, -FOREST_PAD_Y + 0.35, w + FOREST_PAD_X * 2 - 0.7, h + FOREST_PAD_Y * 2 - 0.7, "#86c55c", "rgba(40,70,30,0.08)");
 
   for (let r = 0; r <= rows; r++) {
     s += streetRun(r, w, stamp);
   }
 
   s += diamond(w - 2.2, h - 2.0, 2.0, 1.7, "#4ea2d6", "rgba(20,70,110,0.2)");
+  const pond = project(w - 0.2, h - 0.3);
+  s += stamp(WILD_SHEETS.bushes.file, WILD_SHEETS.bushes, WILD_WATER, pond.sx, pond.sy, 132, false);
 
   placements.forEach((place, i) => {
     s += lotTile(place, i, stamp);
@@ -239,20 +319,6 @@ function escapeXml(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-function label(place: LotPlacement): string {
-  const { lot, x, y } = place;
-  const anchor = project(x + 2.05, y + LOT_D + 0.05);
-  const title = `${lot.owner}/${lot.name}`;
-  const sub = `${lot.buildingBand}${String(lot.buildingId).padStart(2, "0")} · ${lot.yard.replaceAll("_", " ")}`;
-  const width = Math.max(150, title.length * 6.6 + 16);
-  return `
-    <g class="lot-label" transform="translate(${fmt(anchor.sx - width / 2)}, ${fmt(anchor.sy + 12)})">
-      <rect x="0" y="0" width="${width}" height="32" rx="8" fill="rgba(255,255,255,0.95)" stroke="rgba(40,50,60,0.14)"/>
-      <text x="${width / 2}" y="13" text-anchor="middle" font-size="10.5" font-weight="650" fill="#1f2933">${escapeXml(title)}</text>
-      <text x="${width / 2}" y="25.5" text-anchor="middle" font-size="9.5" fill="#5b6773">${escapeXml(sub)}</text>
-    </g>`;
 }
 
 function hitTile(place: LotPlacement): string {
@@ -305,10 +371,10 @@ export function renderCitySvg(lots: CityLot[], generatedAt: string): string {
   const bottom = project(w, h);
   const pad = 70;
   const vbX = min.sx - pad;
-  // Tallest stamps rise ~260px above their anchors; keep them inside.
-  const vbY = -240;
+  const vbY = VB_Y;
   const vbW = max.sx - min.sx + pad * 2;
   const vbH = bottom.sy - vbY + 80;
+  const world = worldBounds(w, h);
   const sorted = [...placements].sort((a, b) => a.x + a.y - (b.x + b.y));
 
   // Ground and decor stamps share stampers past the per-lot range (0..n-1).
@@ -327,9 +393,10 @@ export function renderCitySvg(lots: CityLot[], generatedAt: string): string {
       svg: streetWalkers(r, w),
     });
   }
+  items.push(...forestItems(w, h, groundStamp));
   items.sort((a, b) => a.key - b.key);
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg id="axp-map" xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(vbX)} ${fmt(vbY)} ${fmt(vbW)} ${fmt(vbH)}" role="img" aria-label="AXP City isometric map generated ${generatedAt}">
+<svg id="axp-map" xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(vbX)} ${fmt(vbY)} ${fmt(vbW)} ${fmt(vbH)}" data-world="${fmt(world.x)} ${fmt(world.y)} ${fmt(world.width)} ${fmt(world.height)}" role="img" aria-label="AXP City isometric map generated ${generatedAt}">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#f4f1ea"/>
@@ -341,9 +408,6 @@ export function renderCitySvg(lots: CityLot[], generatedAt: string): string {
     ${groundLayer(placements, groundStamp)}
     ${decorLayer(placements, decorStamp)}
     ${items.map((it) => it.svg).join("\n")}
-    <g class="labels">
-    ${sorted.map(label).join("\n")}
-    </g>
     <g class="hits">
     ${sorted.map(hitTile).join("\n")}
     </g>

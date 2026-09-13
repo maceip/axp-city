@@ -1,9 +1,10 @@
 """End-to-end visual contract for the AXP City map.
 
 Loads a rendered fixture city in real Chromium and checks the things unit
-tests cannot see: every sprite URL resolves and paints, labels never collide
-with each other or with building art, each yard kind stamps the right number
-of sprites, animation elements only exist on active lots, and click/keyboard
+tests cannot see: every sprite URL resolves and paints, the map loads
+without persistent labels, hovering a lot pops its tag, the camera cannot
+leave the tiled world, each yard kind stamps the right number of sprites,
+animation elements only exist on active lots, and click/keyboard
 interaction works.
 """
 
@@ -21,16 +22,8 @@ MIN_IMAGES = {
 ACTIVE_YARDS = ("prs_active", "issues_active", "idle_active")
 
 
-def _intersect(a, b):
-    x0 = max(a[0], b[0])
-    y0 = max(a[1], b[1])
-    x1 = min(a[0] + a[2], b[0] + b[2])
-    y1 = min(a[1] + a[3], b[1] + b[3])
-    return max(0.0, x1 - x0) * max(0.0, y1 - y0)
-
-
 def _screen_rects(page):
-    """Every lot with its label box and stamped clip boxes, in screen px."""
+    """Every lot with its stamped clip boxes, in screen px."""
     ctm = page.evaluate(
         "() => { const m = document.querySelector('#axp-map').getScreenCTM();"
         " return [m.a, m.b, m.c, m.d, m.e, m.f]; }")
@@ -54,13 +47,6 @@ def _screen_rects(page):
         " rect: [r.getAttribute('x'), r.getAttribute('y'),"
         " r.getAttribute('width'), r.getAttribute('height')] }; }),"
         "}))")
-    labels = page.evaluate(
-        "() => [...document.querySelectorAll('.lot-label')].map(l => ({"
-        " repo: l.querySelector('text').textContent,"
-        " box: (() => { const r = l.getBoundingClientRect();"
-        " return [r.x, r.y, r.width, r.height]; })(),"
-        "}))")
-    by_repo = {item["repo"]: item["box"] for item in labels}
     lots = []
     for lot in raw:
         static = [s for s in lot["stamps"] if not s["animated"]]
@@ -71,7 +57,6 @@ def _screen_rects(page):
             "yard": lot["yard"],
             "images": lot["images"],
             "animates": lot["animates"],
-            "label": by_repo[lot["repo"]],
             "clips": [project(*map(float, s["rect"])) for s in static],
             "roamers": [project(*map(float, s["rect"])) for s in roamers],
             "building": project(*map(float, building["rect"])),
@@ -108,29 +93,24 @@ def test_sprite_images_resolve_and_paint(page):
     assert all(w > 0 and h > 0 for w, h in sizes), "unpainted image found"
 
 
-def test_labels_never_overlap(page):
+def test_map_loads_without_persistent_labels(page):
     pg, _, _ = page
-    lots = _screen_rects(pg)
-    assert len(lots) == 8, f"fixture should render 8 lots, saw {len(lots)}"
-    for i, first in enumerate(lots):
-        for second in lots[i + 1:]:
-            area = _intersect(first["label"], second["label"])
-            assert area <= 1.0, (
-                f"labels overlap: {first['repo']} x {second['repo']}"
-                f" ({area:.0f}px^2)")
+    assert len(_screen_rects(pg)) == 8, "fixture should render 8 lots"
+    assert pg.eval_on_selector_all(
+        ".lot-label", "els => els.length") == 0, "map loaded with labels"
+    tag = pg.locator("#hover-tag")
+    assert tag.evaluate("el => el.hidden"), "hover tag visible on load"
 
 
-# Overlap checks below cover STATIC stamps only (clip ids "clip-lot-*").
-# Animated figures ("anim-*") legitimately roam: they pace across the yard
-# and the labels layer paints above them, so a mid-stride pass can never
-# cover text. Roamers get their own leash test instead.
-def test_own_label_clears_own_building(page):
+def test_hover_pops_lot_tag(page):
     pg, _, _ = page
-    for lot in _screen_rects(pg):
-        for clip in lot["clips"]:
-            area = _intersect(lot["label"], clip)
-            assert area <= 1.0, (
-                f"{lot['repo']}: own art covers its label ({area:.0f}px^2)")
+    tag = pg.locator("#hover-tag")
+    pg.locator(".lot-hit").first.hover()
+    tag.wait_for(state="visible")
+    assert "acme/" in (tag.inner_text() or "").lower(), "hover tag names no repo"
+    assert "tag-pop" in (tag.inner_html() or ""), "hover tag did not pop"
+    pg.mouse.move(30, 900)
+    tag.wait_for(state="hidden")
 
 
 def test_animated_crew_roams_own_yard(page):
@@ -148,10 +128,9 @@ def test_animated_crew_roams_own_yard(page):
                 f"{lot['repo']}: roamer escaped its yard vertically")
 
 
-# Labels paint above the art on opaque pills, so art from a back row may
-# legitimately pass behind a front label. What must never happen is a
-# building drifting off its own pad: the plant point (bottom-center of the
-# building clip) has to land on the lot's own click tile.
+# A building must never drift off its own pad: the plant point
+# (bottom-center of the building clip) has to land on the lot's own
+# click tile.
 def test_buildings_seated_on_own_pad(page):
     pg, _, _ = page
     for lot in _screen_rects(pg):
@@ -220,6 +199,22 @@ def test_keyboard_pan_moves_map(page):
     pg.keyboard.press("ArrowRight")
     after = pg.get_attribute("#axp-map", "viewBox").split()
     assert float(after[0]) > float(before[0]), "ArrowRight did not pan"
+
+
+def test_camera_cannot_leave_tiled_world(page):
+    pg, _, _ = page
+    world = [float(v) for v in pg.get_attribute("#axp-map", "data-world").split()]
+    assert len(world) == 4, "svg must carry its tiled world bounds"
+    for key in ["ArrowLeft", "ArrowUp"] * 30:
+        pg.keyboard.press(key)
+    x, y, w, h = (float(v) for v in pg.get_attribute("#axp-map", "viewBox").split())
+    assert x >= world[0] - 0.5, f"camera panned past tiles: {x} < {world[0]}"
+    assert y >= world[1] - 0.5, f"camera panned past tiles: {y} < {world[1]}"
+    for key in ["ArrowRight", "ArrowDown"] * 30:
+        pg.keyboard.press(key)
+    x, y, w, h = (float(v) for v in pg.get_attribute("#axp-map", "viewBox").split())
+    assert x + w <= world[0] + world[2] + 0.5, "camera panned past tiles"
+    assert y + h <= world[1] + world[3] + 0.5, "camera panned past tiles"
 
 
 def test_street_pacers_walk_roads(page):

@@ -43,7 +43,8 @@ function lotsJson(lots: CityLot[]): string {
 const mapScript = `(function () {
   var svg = document.getElementById("axp-map");
   var card = document.getElementById("lot-card");
-  if (!svg || !card) return;
+  var tag = document.getElementById("hover-tag");
+  if (!svg || !card || !tag) return;
   var lots = [];
   try { lots = JSON.parse(document.getElementById("axp-lots").textContent || "[]"); } catch (e) { lots = []; }
   var byRepo = {};
@@ -52,7 +53,25 @@ const mapScript = `(function () {
   var base = svg.viewBox.baseVal;
   var home = { x: base.x, y: base.y, w: base.width, h: base.height };
   var view = { x: home.x, y: home.y, w: home.w, h: home.h };
+  var world = null;
+  try {
+    var parts = (svg.getAttribute("data-world") || "").split(/\\s+/).map(Number);
+    if (parts.length === 4 && parts.every(isFinite)) {
+      world = { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+    }
+  } catch (e) { world = null; }
+  function clampView() {
+    if (!world || !(view.w > 0) || !(home.w > 0) || !(home.h > 0)) return;
+    var maxW = Math.min(world.w, world.h * home.w / home.h);
+    view.w = Math.min(Math.max(view.w, home.w / 12), maxW);
+    view.h = view.w * home.h / home.w;
+    if (view.w >= world.w) view.x = world.x + (world.w - view.w) / 2;
+    else view.x = Math.min(Math.max(view.x, world.x), world.x + world.w - view.w);
+    if (view.h >= world.h) view.y = world.y + (world.h - view.h) / 2;
+    else view.y = Math.min(Math.max(view.y, world.y), world.y + world.h - view.h);
+  }
   function apply() {
+    clampView();
     svg.setAttribute("viewBox", view.x + " " + view.y + " " + view.w + " " + view.h);
   }
   function zoomTo(w) {
@@ -69,6 +88,35 @@ const mapScript = `(function () {
     card.innerHTML = "";
     var prev = svg.querySelector(".lot-hit.selected");
     if (prev) prev.classList.remove("selected");
+  }
+  var hoverRepo = null;
+  function hideTag() {
+    hoverRepo = null;
+    tag.hidden = true;
+    tag.innerHTML = "";
+  }
+  function showTag(repo, clientX, clientY) {
+    var lot = byRepo[repo];
+    var stage = svg.parentElement;
+    if (!lot || !stage) { hideTag(); return; }
+    var stageBox = stage.getBoundingClientRect();
+    if (hoverRepo !== repo) {
+      hoverRepo = repo;
+      tag.innerHTML =
+        '<div class="tag-pop">' +
+        '<div class="tag-name">' + esc(lot.repo) + "</div>" +
+        '<div class="tag-sub">' + esc(lot.band) + String(lot.id).padStart(2, "0") + " · " + esc(lot.yard) + "</div>" +
+        "</div>";
+      tag.hidden = false;
+    }
+    var x = clientX - stageBox.left;
+    var y = clientY - stageBox.top;
+    var left = x + 18;
+    var top = y - tag.offsetHeight / 2;
+    left = Math.min(Math.max(left, 12), stageBox.width - tag.offsetWidth - 12);
+    top = Math.min(Math.max(top, 12), stageBox.height - tag.offsetHeight - 12);
+    tag.style.left = left + "px";
+    tag.style.top = top + "px";
   }
   function showCard(repo, hit) {
     var lot = byRepo[repo];
@@ -141,9 +189,17 @@ const mapScript = `(function () {
   var dragging = false, lx = 0, ly = 0, moved = false;
   svg.addEventListener("pointerdown", function (e) {
     stopGlide();
+    hideTag();
     dragging = true; moved = false; lx = e.clientX; ly = e.clientY;
     svg.style.cursor = "grabbing";
   });
+  svg.addEventListener("pointermove", function (e) {
+    if (dragging) { hideTag(); return; }
+    var hit = e.target && e.target.closest ? e.target.closest(".lot-hit") : null;
+    if (!hit) { hideTag(); return; }
+    showTag(hit.getAttribute("data-repo"), e.clientX, e.clientY);
+  });
+  svg.addEventListener("pointerleave", hideTag);
   window.addEventListener("pointermove", function (e) {
     if (!dragging) return;
     if (!moved && Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 3) {
@@ -193,6 +249,7 @@ const mapScript = `(function () {
     view = { x: home.x, y: home.y, w: home.w, h: home.h };
     apply();
     hideCard();
+    hideTag();
   });
   document.addEventListener("keydown", function (e) {
     var step = view.w / 8;
@@ -203,7 +260,7 @@ const mapScript = `(function () {
     else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") { stopGlide(); view.y += step; }
     else if (e.key === "+" || e.key === "=") { stopGlide(); zoomCenter(1 / 1.25); }
     else if (e.key === "-" || e.key === "_") { stopGlide(); zoomCenter(1.25); }
-    else if (e.key === "Escape") { hideCard(); }
+    else if (e.key === "Escape") { hideCard(); hideTag(); }
     else handled = false;
     if (handled) { e.preventDefault(); apply(); }
   });
@@ -268,6 +325,49 @@ export function renderCityHtml(lots: CityLot[], generatedAt: string): string {
     .lot-hit { cursor: pointer; }
     .lot-hit:hover path { stroke: #2457c5; stroke-width: 2; }
     .lot-hit.selected path { stroke: #2457c5; stroke-width: 2.5; }
+    .hovertag {
+      position: absolute; left: 0; top: 0; z-index: 6;
+      pointer-events: none;
+      transform: rotate(-2deg);
+    }
+    .hovertag[hidden] { display: none; }
+    .tag-pop {
+      background: #ffd23f;
+      border: 3px solid #111;
+      border-radius: 10px;
+      box-shadow: 5px 5px 0 #111;
+      padding: 8px 12px 9px;
+      transform-origin: 15% 85%;
+      animation: tag-pop .28s cubic-bezier(.2, 1.5, .35, 1);
+    }
+    .tag-name {
+      font-style: italic;
+      font-weight: 800;
+      font-size: 15px;
+      line-height: 1.05;
+      letter-spacing: .01em;
+      text-transform: uppercase;
+      color: #111;
+      white-space: nowrap;
+    }
+    .tag-sub {
+      margin-top: 3px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: #111;
+      white-space: nowrap;
+    }
+    @keyframes tag-pop {
+      0% { transform: scale(.2) rotate(8deg); }
+      60% { transform: scale(1.12) rotate(-2deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tag-pop { animation: none; }
+    }
+    .wild-bush image { image-rendering: pixelated; }
     .maphint {
       position: absolute; left: 12px; bottom: 10px; margin: 0;
       background: rgba(255,255,255,0.92); border: 1px solid var(--line);
@@ -328,7 +428,8 @@ export function renderCityHtml(lots: CityLot[], generatedAt: string): string {
     <p class="meta">${lots.length} lots · activity window ${RECENT_ACTIVITY_DAYS} days · drone if PRs ≥ ${HIGH_PR_COUNT} or bot authors · ${escapeHtml(generatedAt)}</p>
   </header>
   <div class="stage">${svg}
-    <p class="maphint">drag to pan · scroll to zoom · click a lot to inspect · WASD/arrows move · double-click to reset</p>
+    <p class="maphint">drag to pan · scroll to zoom · hover a lot for its tag · click a lot to inspect · WASD/arrows move · double-click to reset</p>
+    <div class="hovertag" id="hover-tag" aria-hidden="true" hidden></div>
     <div class="lotcard" id="lot-card" hidden></div>
   </div>
   <script type="application/json" id="axp-lots">${lotsJson(lots)}</script>
