@@ -13,7 +13,7 @@ import {
   type StampFn,
 } from "./sprites.js";
 
-/** Real sprite art from assets/city-sprites (white sheets keyed out via multiply). */
+/** Real sprite art from assets/city-sprites (flood-keyed, occluding stamps). */
 function buildingStamp(lot: CityLot, x: number, y: number, stamp: StampFn): string {
   const sheet = sheetForBand(lot.buildingBand);
   const box = spriteBoxFor(lot.buildingId);

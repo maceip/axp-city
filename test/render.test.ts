@@ -85,7 +85,9 @@ describe("renderCityHtml", () => {
     expect(svg.match(/<image /g)?.length).toBe(13);
     expect(svg).toContain("v5-ground-tiles-kit.png");
     expect(svg).toContain("/assets/sprites/buildings-small-01-17.png");
-    expect(svg).toContain("mix-blend-mode:multiply");
+    // Occlusion contract: keyed sheets composite normally so buildings
+    // hide what is behind them instead of ghosting through it.
+    expect(svg).not.toContain("mix-blend-mode");
     expect(svg).toContain('clip-path="url(#clip-lot-');
     expect(svg).toContain('preserveAspectRatio="none"');
     // Quiet lot dims its stamp; the active one does not.

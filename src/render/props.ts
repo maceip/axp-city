@@ -21,7 +21,7 @@ import {
 } from "./sprites.js";
 
 /**
- * Yard props are real sprite stamps (white sheets keyed out via multiply).
+ * Yard props are real sprite stamps (flood-keyed sheets, occluding).
  * Conditions mirror the locked yard language: issues → blueprints + tables,
  * PRs → materials, recent activity → crew, bots/high PRs → drone. Only the
  * art changed from the old procedural shapes.
@@ -280,8 +280,8 @@ export function renderYardProps(
 }
 
 /**
- * Map-corner decor stamped from the real ground-tile kit (white sheet keyed
- * out via multiply). Anchors sit on the ground point; art faces the camera.
+ * Map-corner decor stamped from the real ground-tile kit (flood-keyed).
+ * Anchors sit on the ground point; art faces the camera.
  */
 function decorStamp(
   x: number,

@@ -37,6 +37,16 @@ source of truth. No pixels changed; only the location is new.
   arm, cargo airlift) instead of the human crew; high-pressure human yards
   fly the cargo drone; stale pressure yards park a dimmed static quad.
 
+## Keyed transparency (2026-09-13)
+
+Stamped sheets (buildings ×3, v2-raw-materials, v2-planning-issues,
+v3-robot-crew, v3-agent-drones, v5-ground-tiles-kit) are flood-keyed to
+transparent alpha by `scripts/key_sheets.py` (border flood through
+near-white ≥252, plus <25px dust removal) and composite with normal
+source-over occlusion — no multiply, no ghosting. Content extents are
+unchanged, so the manifests still hold. Re-run the script on any re-cut
+sheet. Originals live in git history.
+
 ## `unprocessed/` scans (2026-09-12)
 
 Art inbox (local only, git-ignored). 8 of 9 art files are renamed md5 dupes

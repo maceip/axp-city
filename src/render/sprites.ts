@@ -6,9 +6,10 @@ import { fmt } from "./iso.js";
  *
  * Measured with /tmp/slice_v2.py (connected components on a near-white
  * mask, overlap merging for glass interiors, row-boundary splits, tallest
- * content-run top trim). Sheet backgrounds are white, so stamps render with
- * `mix-blend-mode: multiply` and only need the building pixels boxed —
- * backing up into pure-white margin is harmless.
+ * content-run top trim). Sheet backgrounds are flood-keyed to transparent
+ * (scripts/key_sheets.py), so stamps occlude with normal compositing; only
+ * the building pixels need boxing — backing up into cleared margin is
+ * harmless.
  *
  * One hand-set top: 50 → y 542 (row-4 top edge). The measurer clipped it
  * to y 629 on pale glass that falls below the occupancy threshold; the rows
@@ -168,7 +169,7 @@ export type StampFn = (
 /**
  * Yard prop atlas. Measured with /tmp/slice_props.py (connected components;
  * crew columns force-split at row bands and shrink-wrapped per figure).
- * All sheets are 1280x720 white-background, stamped with multiply like the
+ * All sheets are 1280x720 with flood-keyed backgrounds, stamped like the
  * buildings above.
  */
 export interface PropSheet {
@@ -267,7 +268,7 @@ export const DRONE_QUADS = ["quadScout", "quadTeal", "quadCarry", "quadA"].map(p
  * Ground / environment tile kit (v5-ground-tiles-kit.png). Measured with the
  * same connected-components pass as the yard sheets (see /tmp/slice_lib.py);
  * text labels excluded by size, tile boxes assigned in visual reading order.
- * White background, stamped with multiply like everything above.
+ * Flood-keyed background, stamped like everything above.
  */
 export const GROUND_SHEET: PropSheet = {
   file: "v5-ground-tiles-kit.png",
@@ -419,7 +420,7 @@ export function animSheet(name: string): AnimSheet {
   return sheet;
 }
 
-/** Per-lot stamp factory: unique clip ids, multiply-blended sheets. */
+/** Per-lot stamp factory: unique clip ids, source-over occluding stamps. */
 export function stamper(lotIndex: number): StampFn {
   let n = 0;
   return (file, sheet, box, anchorX, anchorY, targetW, dimmed) => {
@@ -428,7 +429,7 @@ export function stamper(lotIndex: number): StampFn {
     const dim = dimmed ? ' opacity="0.62"' : "";
     return (
       `<clipPath id="${id}"><rect x="${fmt(p.clipX)}" y="${fmt(p.clipY)}" width="${fmt(p.clipW)}" height="${fmt(p.clipH)}"/></clipPath>` +
-      `<image href="/assets/sprites/${file}" x="${fmt(p.imgX)}" y="${fmt(p.imgY)}" width="${fmt(p.imgW)}" height="${fmt(p.imgH)}" preserveAspectRatio="none" clip-path="url(#${id})" style="mix-blend-mode:multiply"${dim}/>`
+      `<image href="/assets/sprites/${file}" x="${fmt(p.imgX)}" y="${fmt(p.imgY)}" width="${fmt(p.imgW)}" height="${fmt(p.imgH)}" preserveAspectRatio="none" clip-path="url(#${id})"${dim}/>`
     );
   };
 }
