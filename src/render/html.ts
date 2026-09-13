@@ -117,38 +117,52 @@ const mapScript = `(function () {
     view.y = cy - view.h / 2;
   }
 
-  var dragging = false, lx = 0, ly = 0, moved = false, captureId = null;
+  // Cursor mapping under the default meet fit (uniform scale, centered).
+  // Pan uses raw screen deltas over that scale: deltas anchored in the
+  // moving view oscillate (apply, zero, apply…), silently dropping half of
+  // a fast drag. Screen deltas cannot do that. toUser stays for the wheel
+  // anchor, which is absolute per event and has no such hazard.
+  function meetScale() {
+    var r = svg.getBoundingClientRect();
+    if (!r.width || !r.height || !view.w || !view.h) return 0;
+    return Math.min(r.width / view.w, r.height / view.h);
+  }
+  function toUser(e) {
+    var r = svg.getBoundingClientRect();
+    var s = meetScale();
+    if (!s) return null;
+    var ox = r.left + (r.width - view.w * s) / 2;
+    var oy = r.top + (r.height - view.h * s) / 2;
+    return { x: view.x + (e.clientX - ox) / s, y: view.y + (e.clientY - oy) / s };
+  }
+  // Drag tracking listens on window, not the svg: moves keep flowing when
+  // the cursor leaves the map mid-drag, with no pointer capture involved
+  // (capture retargets the click that follows a drag and breaks selection).
+  var dragging = false, lx = 0, ly = 0, moved = false;
   svg.addEventListener("pointerdown", function (e) {
     stopGlide();
     dragging = true; moved = false; lx = e.clientX; ly = e.clientY;
-    captureId = null;
     svg.style.cursor = "grabbing";
   });
-  svg.addEventListener("pointermove", function (e) {
+  window.addEventListener("pointermove", function (e) {
     if (!dragging) return;
     if (!moved && Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 3) {
       moved = true;
-      captureId = e.pointerId;
-      try { svg.setPointerCapture(captureId); } catch (err) {}
     }
-    var r = svg.getBoundingClientRect();
-    view.x -= (e.clientX - lx) * (view.w / r.width);
-    view.y -= (e.clientY - ly) * (view.h / r.height);
+    var s = meetScale();
+    if (s) {
+      view.x -= (e.clientX - lx) / s;
+      view.y -= (e.clientY - ly) / s;
+    }
     lx = e.clientX; ly = e.clientY;
     apply();
   });
-  // Release capture on pointerup so the following click hit-tests the
-  // lot tile normally; holding it would retarget every click to the svg.
   function endDrag() {
     dragging = false;
-    if (captureId !== null) {
-      try { svg.releasePointerCapture(captureId); } catch (err) {}
-      captureId = null;
-    }
     svg.style.cursor = "grab";
   }
-  svg.addEventListener("pointerup", endDrag);
-  svg.addEventListener("pointercancel", endDrag);
+  window.addEventListener("pointerup", endDrag);
+  window.addEventListener("pointercancel", endDrag);
   svg.addEventListener("click", function (e) {
     if (moved) return;
     var hit = e.target && e.target.closest ? e.target.closest(".lot-hit") : null;
@@ -159,9 +173,14 @@ const mapScript = `(function () {
   svg.addEventListener("wheel", function (e) {
     e.preventDefault();
     stopGlide();
-    var r = svg.getBoundingClientRect();
-    var mx = view.x + (e.clientX - r.left) * (view.w / r.width);
-    var my = view.y + (e.clientY - r.top) * (view.h / r.height);
+    var u = toUser(e);
+    var mx, my;
+    if (u) { mx = u.x; my = u.y; }
+    else {
+      var r = svg.getBoundingClientRect();
+      mx = view.x + (e.clientX - r.left) * (view.w / r.width);
+      my = view.y + (e.clientY - r.top) * (view.h / r.height);
+    }
     var before = view.w;
     zoomTo(view.w * (e.deltaY > 0 ? 1.15 : 1 / 1.15));
     var k = view.w / before;

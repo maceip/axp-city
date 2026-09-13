@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCity } from "../src/parser/index.js";
-import { renderCitySvg } from "../src/render/city.js";
+import { buildingTargetWidth, renderCitySvg } from "../src/render/city.js";
 import { renderCityHtml } from "../src/render/html.js";
 import { FIXED_NOW, metrics } from "./helpers.js";
 
@@ -193,5 +193,15 @@ describe("renderCityHtml", () => {
     expect(html).toContain(".lot-hit:hover");
     expect(html).toContain("requestAnimationFrame");
     expect(html).toContain("keydown");
+  });
+
+  it("sizes buildings by band so sheds read smaller than towers", () => {
+    const s = buildingTargetWidth("S");
+    const m = buildingTargetWidth("M");
+    const l = buildingTargetWidth("L");
+    expect(s).toBeLessThan(m);
+    expect(m).toBeLessThan(l);
+    // A lot is 144px wide: even landmarks stay near their own pad.
+    expect(l).toBeLessThanOrEqual(168);
   });
 });

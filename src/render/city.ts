@@ -14,16 +14,35 @@ import {
 } from "./sprites.js";
 
 /** Real sprite art from assets/city-sprites (flood-keyed, occluding stamps). */
+
+/**
+ * Stamp width per star band, in screen px. A lot is 4 world units = 144px
+ * wide, so even the L landmarks stay near their own pad and the S sheds
+ * read smaller than the towers — size follows stars, not sprite art.
+ */
+export function buildingTargetWidth(band: CityLot["buildingBand"]): number {
+  switch (band) {
+    case "S":
+      return 112;
+    case "M":
+      return 138;
+    case "L":
+      return 168;
+  }
+}
+
 function buildingStamp(lot: CityLot, x: number, y: number, stamp: StampFn): string {
   const sheet = sheetForBand(lot.buildingBand);
   const box = spriteBoxFor(lot.buildingId);
+  // Plant bottom-center on the building pad (first diamond half).
+  const anchor = project(x + 1, y + LOT_D / 2);
   return stamp(
     sheet.file,
     sheet,
     box,
-    (x - y - 0.2) * 36,
-    (x + y + 2.2) * 18,
-    230.4,
+    anchor.sx,
+    anchor.sy,
+    buildingTargetWidth(lot.buildingBand),
     !lot.recentActivity,
   );
 }
@@ -122,12 +141,12 @@ function label(place: LotPlacement): string {
   const anchor = project(x + 2.05, y + LOT_D + 0.05);
   const title = `${lot.owner}/${lot.name}`;
   const sub = `${lot.buildingBand}${String(lot.buildingId).padStart(2, "0")} · ${lot.yard.replaceAll("_", " ")}`;
-  const width = Math.max(172, title.length * 7.1 + 18);
+  const width = Math.max(150, title.length * 6.6 + 16);
   return `
-    <g class="lot-label" transform="translate(${fmt(anchor.sx - width / 2)}, ${fmt(anchor.sy + 6)})">
-      <rect x="0" y="0" width="${width}" height="34" rx="8" fill="rgba(255,255,255,0.95)" stroke="rgba(40,50,60,0.14)"/>
-      <text x="${width / 2}" y="14" text-anchor="middle" font-size="11" font-weight="650" fill="#1f2933">${escapeXml(title)}</text>
-      <text x="${width / 2}" y="27" text-anchor="middle" font-size="10" fill="#5b6773">${escapeXml(sub)}</text>
+    <g class="lot-label" transform="translate(${fmt(anchor.sx - width / 2)}, ${fmt(anchor.sy + 12)})">
+      <rect x="0" y="0" width="${width}" height="32" rx="8" fill="rgba(255,255,255,0.95)" stroke="rgba(40,50,60,0.14)"/>
+      <text x="${width / 2}" y="13" text-anchor="middle" font-size="10.5" font-weight="650" fill="#1f2933">${escapeXml(title)}</text>
+      <text x="${width / 2}" y="25.5" text-anchor="middle" font-size="9.5" fill="#5b6773">${escapeXml(sub)}</text>
     </g>`;
 }
 
@@ -159,9 +178,10 @@ export function renderCitySvg(lots: CityLot[], generatedAt: string): string {
   const bottom = project(w, h);
   const pad = 70;
   const vbX = min.sx - pad;
-  const vbY = -24;
+  // Tallest stamps rise ~170px above their anchors; keep them inside.
+  const vbY = -210;
   const vbW = max.sx - min.sx + pad * 2;
-  const vbH = bottom.sy + 70;
+  const vbH = bottom.sy - vbY + 80;
   const sorted = [...placements].sort((a, b) => a.x + a.y - (b.x + b.y));
 
   // Decor stamps share one stamper id past the per-lot range (0..n-1).

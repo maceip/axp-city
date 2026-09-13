@@ -194,15 +194,24 @@ def test_click_tile_opens_card(page):
     assert "acme/" in (card.inner_text() or ""), "card names no repo"
 
 
+def test_building_size_follows_band(page):
+    pg, _, _ = page
+    widths = {lot["repo"]: lot["building"][2] for lot in _screen_rects(pg)}
+    assert widths["acme/forge"] < widths["acme/robots"], (
+        "S shed must stamp narrower than an M tower")
+
+
 def test_drag_pans_map(page):
     pg, _, _ = page
-    before = pg.get_attribute("#axp-map", "viewBox").split()
+    tile_before = _tile_box(pg, "acme/forge")
     pg.mouse.move(800, 500)
     pg.mouse.down()
     pg.mouse.move(950, 500, steps=10)
     pg.mouse.up()
-    after = pg.get_attribute("#axp-map", "viewBox").split()
-    assert float(after[0]) != float(before[0]), "drag did not pan"
+    # Anchored landscape: content tracks the cursor 1:1, no swim.
+    tile_after = _tile_box(pg, "acme/forge")
+    moved = tile_after[0] - tile_before[0]
+    assert abs(moved - 150) < 5, f"landscape slipped: tile moved {moved:.1f}px"
 
 
 def test_keyboard_pan_moves_map(page):
