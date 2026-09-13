@@ -117,23 +117,36 @@ const mapScript = `(function () {
     view.y = cy - view.h / 2;
   }
 
-  var dragging = false, lx = 0, ly = 0, moved = false;
+  var dragging = false, lx = 0, ly = 0, moved = false, captureId = null;
   svg.addEventListener("pointerdown", function (e) {
     stopGlide();
     dragging = true; moved = false; lx = e.clientX; ly = e.clientY;
-    try { svg.setPointerCapture(e.pointerId); } catch (err) {}
+    captureId = null;
     svg.style.cursor = "grabbing";
   });
   svg.addEventListener("pointermove", function (e) {
     if (!dragging) return;
-    if (Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 3) moved = true;
+    if (!moved && Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 3) {
+      moved = true;
+      captureId = e.pointerId;
+      try { svg.setPointerCapture(captureId); } catch (err) {}
+    }
     var r = svg.getBoundingClientRect();
     view.x -= (e.clientX - lx) * (view.w / r.width);
     view.y -= (e.clientY - ly) * (view.h / r.height);
     lx = e.clientX; ly = e.clientY;
     apply();
   });
-  function endDrag() { dragging = false; svg.style.cursor = "grab"; }
+  // Release capture on pointerup so the following click hit-tests the
+  // lot tile normally; holding it would retarget every click to the svg.
+  function endDrag() {
+    dragging = false;
+    if (captureId !== null) {
+      try { svg.releasePointerCapture(captureId); } catch (err) {}
+      captureId = null;
+    }
+    svg.style.cursor = "grab";
+  }
   svg.addEventListener("pointerup", endDrag);
   svg.addEventListener("pointercancel", endDrag);
   svg.addEventListener("click", function (e) {

@@ -7,3 +7,6 @@ data/
 
 # local art inbox (processed copies live in assets/)
 unprocessed/
+
+# e2e screenshots (local review artifacts)
+e2e/screenshots/
