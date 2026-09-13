@@ -42,7 +42,7 @@ function blueprint(
   const sheet = PROP_SHEETS.planning;
   const dim = !lot.recentActivity;
   const anchor = project(x + 0.31, y + 0.45);
-  let s = stamp(sheet.file, sheet, PLANNING_SHEET, anchor.sx, anchor.sy, 70, dim);
+  let s = stamp(sheet.file, sheet, PLANNING_SHEET, anchor.sx, anchor.sy, 46, dim);
   if (lot.recentActivity) {
     if (lot.botDetected && !lot.showDrone) {
       // Bot-tended issue yard: a crane arm builds from the plans.
@@ -53,7 +53,7 @@ function blueprint(
         sheet: animSheet("craneArm"),
         anchorX: crane.sx,
         anchorY: crane.sy,
-        targetW: 70,
+        targetW: 50,
         phase: phaseFor(lot),
       });
     } else if (!lot.botDetected) {
@@ -64,7 +64,7 @@ function blueprint(
         sheet: animSheet("blueprint"),
         anchorX: reader.sx,
         anchorY: reader.sy,
-        targetW: 54,
+        targetW: 44,
         phase: phaseFor(lot),
         bob: 3,
       });
@@ -77,7 +77,7 @@ function draftingTable(x: number, y: number, lot: CityLot, stamp: StampFn): stri
   const sheet = PROP_SHEETS.planning;
   const anchor = project(x + 0.42, y + 0.44);
   const table = PLANNING_TABLES[lot.buildingId % PLANNING_TABLES.length];
-  return stamp(sheet.file, sheet, table, anchor.sx, anchor.sy, 95, !lot.recentActivity);
+  return stamp(sheet.file, sheet, table, anchor.sx, anchor.sy, 62, !lot.recentActivity);
 }
 
 function mats(
@@ -91,11 +91,11 @@ function mats(
   const dim = !lot.recentActivity;
   const a1 = project(x + 0.9, y + 0.85);
   const primary = MATERIAL_PALLETS[lot.buildingId % MATERIAL_PALLETS.length];
-  let s = stamp(sheet.file, sheet, primary, a1.sx, a1.sy, 85, dim);
+  let s = stamp(sheet.file, sheet, primary, a1.sx, a1.sy, 56, dim);
   if (lot.openPrs >= HIGH_PR_COUNT) {
     const a2 = project(x + 1.45, y + 0.35);
     const secondary = MATERIAL_LOOSE[(lot.buildingId + 3) % MATERIAL_LOOSE.length];
-    s = stamp(sheet.file, sheet, secondary, a2.sx, a2.sy, 60, dim) + s;
+    s = stamp(sheet.file, sheet, secondary, a2.sx, a2.sy, 40, dim) + s;
   }
   if (lot.recentActivity) {
     // Bot-tended yards get the robot hauler; human yards the pallet-jack.
@@ -105,7 +105,7 @@ function mats(
       sheet: animSheet(lot.botDetected ? "platformRover" : "palletJack"),
       anchorX: jack.sx,
       anchorY: jack.sy,
-      targetW: lot.botDetected ? 84 : 72,
+      targetW: lot.botDetected ? 58 : 52,
       phase: phaseFor(lot),
       bob: 2,
     });
@@ -130,7 +130,7 @@ function crew(
         sheet: animSheet("quadDog"),
         anchorX: a1.sx,
         anchorY: a1.sy,
-        targetW: 62,
+        targetW: 50,
         phase,
         pace: { dx: 40, dy: 9, legs: 2 },
       });
@@ -143,7 +143,7 @@ function crew(
         sheet: animSheet("unitWalk"),
         anchorX: a1.sx,
         anchorY: a1.sy,
-        targetW: 56,
+        targetW: 48,
         phase,
         pace: { dx: 42, dy: 10, legs: 2 },
       }) +
@@ -152,7 +152,7 @@ function crew(
         sheet: animSheet("carryCrate"),
         anchorX: a2.sx,
         anchorY: a2.sy,
-        targetW: 60,
+        targetW: 50,
         phase: phase - 1.1,
         pace: { dx: -38, dy: -8, legs: 2 },
       })
@@ -163,7 +163,7 @@ function crew(
   const carrier = CREW_CARRY[lot.buildingId % CREW_CARRY.length];
   const a1 = project(x + 1.5, y + 0.55);
   const a2 = project(x + 0.75, y + 1.35);
-  const crewH = 58;
+  const crewH = 48;
   return (
     stamp(
       sheet.file,
@@ -195,7 +195,7 @@ function idleWalker(x: number, y: number, lot: CityLot, lotTag: string): string 
     sheet: animSheet(bot ? "quadDog" : "unitWalk"),
     anchorX: anchor.sx,
     anchorY: anchor.sy,
-    targetW: bot ? 62 : 56,
+    targetW: bot ? 50 : 48,
     phase: phaseFor(lot),
     pace: { dx: 40, dy: 9, legs: 2 },
   });
@@ -210,7 +210,7 @@ function drone(
 ): string {
   const anchor = project(x, y);
   const shadow =
-    `<ellipse cx="${anchor.sx}" cy="${anchor.sy + 22}" rx="14" ry="5" fill="rgba(60,70,80,0.25)"/>`;
+    `<ellipse cx="${anchor.sx}" cy="${anchor.sy + 22}" rx="11" ry="4" fill="rgba(60,70,80,0.25)"/>`;
   // AI-tended yards fly the animated cargo drone (hover loop + bob); a crane
   // arm works the pad beside it.
   if (lot.botDetected || lot.recentActivity) {
@@ -222,7 +222,7 @@ function drone(
         sheet: animSheet("cargoDrone"),
         anchorX: anchor.sx,
         anchorY: anchor.sy - 42,
-        targetW: 64,
+        targetW: 54,
         phase,
         bob: 4,
       });
@@ -233,7 +233,7 @@ function drone(
         sheet: animSheet("craneArm"),
         anchorX: crane.sx,
         anchorY: crane.sy,
-        targetW: 70,
+        targetW: 50,
         phase,
       });
     }
@@ -244,7 +244,7 @@ function drone(
   const quad = DRONE_QUADS[lot.buildingId % DRONE_QUADS.length];
   return (
     shadow +
-    stamp(sheet.file, sheet, quad, anchor.sx, anchor.sy - 42, 62, true)
+    stamp(sheet.file, sheet, quad, anchor.sx, anchor.sy - 42, 52, true)
   );
 }
 

@@ -325,6 +325,17 @@ export const DECOR_LAMP = groundBox("lampPost");
 export const DECOR_BENCH = groundBox("benchProp");
 
 /**
+ * Streets and lot bases from the ground kit. ROAD_TILES alternate along a
+ * street run; the dual-plot tiles stamp one connected pad+yard per lot
+ * (concrete production pad on the art's left, yard on the right).
+ */
+export const ROAD_TILES = ["roadPlain", "roadDashed"].map(groundBox);
+export const LOT_TILE_GRASS = ["dualGrassA", "dualGrassB"].map(groundBox);
+export const LOT_TILE_DIRT = groundBox("dualDirt");
+export const MANHOLE_TILE = groundBox("manhole");
+export const CONE_TILE = groundBox("cone");
+
+/**
  * Animated crew atlases (v6-anim-*.png, transparent RGBA). Regular row-major
  * grids of 384px cells; only the first `frames` cells hold art (verified via
  * alpha occupancy — trailing cells are empty). Intended playback ~8 fps.

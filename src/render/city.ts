@@ -1,4 +1,5 @@
 import type { CityLot } from "../types.js";
+import { animatedFigure } from "./anim.js";
 import { diamond, fmt, project, TILE_H, TILE_W } from "./iso.js";
 import {
   renderYardProps,
@@ -7,9 +8,17 @@ import {
   spriteTree,
 } from "./props.js";
 import {
+  animSheet,
+  CONE_TILE,
+  GROUND_SHEET,
+  LOT_TILE_DIRT,
+  LOT_TILE_GRASS,
+  MANHOLE_TILE,
+  ROAD_TILES,
   sheetForBand,
   spriteBoxFor,
   stamper,
+  type SpriteBox,
   type StampFn,
 } from "./sprites.js";
 
@@ -50,9 +59,18 @@ function buildingStamp(lot: CityLot, x: number, y: number, stamp: StampFn): stri
 const COLS = 4;
 const LOT_W = 4;
 const LOT_D = 2.4;
+// Streets are real tile stamps ~1 world unit wide, so the row gap leaves a
+// grass shoulder on each side: shoulder + road + shoulder.
+const ROAD_D = 1.0;
+const SHOULDER = 0.35;
 const STRIDE_X = 4.7;
-const STRIDE_Y = 3.35;
+const STRIDE_Y = LOT_D + ROAD_D + SHOULDER * 2;
 const MARGIN = 1.4;
+const ROAD_TOP0 = MARGIN - SHOULDER - ROAD_D;
+
+function roadCenterY(row: number): number {
+  return ROAD_TOP0 + row * STRIDE_Y + ROAD_D / 2;
+}
 
 export interface LotPlacement {
   lot: CityLot;
@@ -85,28 +103,115 @@ function worldSize(count: number): { w: number; h: number; rows: number } {
   };
 }
 
-function groundLayer(placements: LotPlacement[]): string {
-  const { w, h } = worldSize(placements.length);
+/**
+ * Non-uniform scale about a screen point. The ground-kit art is drawn
+ * flatter than true 2:1, so lot tiles are eased to the projected footprint
+ * instead of stamped at natural aspect.
+ */
+function ease(inner: string, cx: number, cy: number, sx: number, sy: number): string {
+  return (
+    `<g transform="translate(${fmt(cx)} ${fmt(cy)}) scale(${fmt(sx)} ${fmt(sy)}) ` +
+    `translate(${fmt(-cx)} ${fmt(-cy)})">${inner}</g>`
+  );
+}
+
+/** One street run from the road tiles: alternating slabs, ironwork, a cone. */
+function streetRun(row: number, w: number, stamp: StampFn): string {
+  const top = ROAD_TOP0 + row * STRIDE_Y;
+  const cy = top + ROAD_D / 2;
+  let s = diamond(0.6, top, w - 1.2, ROAD_D, "#4b525c", "rgba(20,24,28,0.25)");
+  let k = 0;
+  for (let x = 1.2; x < w - 1.2; x += 1.0, k++) {
+    const anchor = project(x, cy);
+    if (k % 6 === 3) {
+      s += stamp(
+        GROUND_SHEET.file,
+        GROUND_SHEET,
+        MANHOLE_TILE,
+        anchor.sx,
+        anchor.sy,
+        30,
+        false,
+      );
+    }
+    const tile = ROAD_TILES[k % ROAD_TILES.length];
+    const inner = stamp(
+      GROUND_SHEET.file,
+      GROUND_SHEET,
+      tile,
+      anchor.sx,
+      anchor.sy,
+      72,
+      false,
+    );
+    // Kit slabs read a touch taller than the bed; settle them onto it.
+    s += ease(inner, anchor.sx, anchor.sy, 1, 0.85);
+  }
+  const cone = project(w - 2.6 - (row % 2) * (w - 5.2), cy);
+  s += stamp(
+    GROUND_SHEET.file,
+    GROUND_SHEET,
+    CONE_TILE,
+    cone.sx,
+    cone.sy,
+    26,
+    false,
+  );
+  return s;
+}
+
+/**
+ * One connected pad+yard per lot from the dual-plot tiles (dirt receiving
+ * yards for material/PR and dormant lots, grass for planning/idle ones), so
+ * the building pad and the activity yard read as a single property. A muted
+ * flat bed sits underneath as a loading fallback.
+ */
+function lotTile(place: LotPlacement, index: number, stamp: StampFn): string {
+  const { lot, x, y } = place;
+  const worked =
+    lot.yard === "fully_dormant" || lot.yard.startsWith("prs_");
+  const tile: SpriteBox = worked
+    ? LOT_TILE_DIRT
+    : LOT_TILE_GRASS[index % LOT_TILE_GRASS.length];
+  const bed = worked ? "#c9a06b" : "#8fc46a";
+  let s = diamond(x + 0.15, y + 0.15, LOT_W - 0.3, LOT_D - 0.3, bed, "rgba(40,60,35,0.18)");
+  const bc = project(x + LOT_W / 2, y + LOT_D);
+  const naturalW = tile.w;
+  const inner = stamp(
+    GROUND_SHEET.file,
+    GROUND_SHEET,
+    tile,
+    bc.sx,
+    bc.sy,
+    naturalW,
+    false,
+  );
+  // Projected lot footprint: (LOT_W+LOT_D)*36 wide, (LOT_W+LOT_D)*18 tall.
+  s += ease(
+    inner,
+    bc.sx,
+    bc.sy,
+    ((LOT_W + LOT_D) * 36) / naturalW,
+    ((LOT_W + LOT_D) * 18) / tile.h,
+  );
+  return s;
+}
+
+function groundLayer(placements: LotPlacement[], stamp: StampFn): string {
+  const { w, h, rows } = worldSize(placements.length);
   let s = "";
   s += diamond(0, 0, w, h, "#7fbe56", "rgba(40,70,30,0.16)");
   s += diamond(0.35, 0.35, w - 0.7, h - 0.7, "#86c55c", "rgba(40,70,30,0.08)");
 
-  const rows = Math.max(1, Math.ceil(placements.length / COLS));
   for (let r = 0; r <= rows; r++) {
-    const y = MARGIN - 0.55 + r * STRIDE_Y;
-    s += diamond(0.6, y, w - 1.2, 0.55, "#4b525c", "rgba(20,24,28,0.25)");
-  }
-  for (let c = 0; c <= COLS; c++) {
-    const x = MARGIN - 0.5 + c * STRIDE_X;
-    s += diamond(x, 0.5, 0.55, h - 1.0, "#4b525c", "rgba(20,24,28,0.25)");
+    s += streetRun(r, w, stamp);
   }
 
   s += diamond(w - 2.2, h - 2.0, 2.0, 1.7, "#4ea2d6", "rgba(20,70,110,0.2)");
 
-  for (const place of placements) {
-    s += diamond(place.x, place.y, 2, LOT_D, "#e7ebf0", "rgba(50,60,70,0.2)");
-    s += diamond(place.x + 2, place.y, 2, LOT_D, "#d2a15c", "rgba(80,50,20,0.2)");
-  }
+  placements.forEach((place, i) => {
+    s += lotTile(place, i, stamp);
+  });
   return `<g class="ground">${s}</g>`;
 }
 
@@ -170,22 +275,59 @@ function lotGroup(place: LotPlacement, i: number): string {
     </g>`;
 }
 
+/**
+ * Crew on the streets: one pacer per road gliding along world +x (or -x on
+ * alternating streets) so feet stay on the asphalt, mirrored at each end.
+ * Emitted as its own layer so depth sorting can interleave it with the lots.
+ */
+function streetWalkers(row: number, w: number): string {
+  const cy = roadCenterY(row);
+  const east = row % 2 === 0;
+  const wx = east ? 2.4 : w - 2.4;
+  const anchor = project(wx, cy);
+  const dx = east ? 100 : -100;
+  return `<g class="road-life">${animatedFigure({
+    id: `street-${row}`,
+    sheet: animSheet(east ? "unitWalk" : "carryCrate"),
+    anchorX: anchor.sx,
+    anchorY: anchor.sy,
+    targetW: 50,
+    phase: -row * 1.3,
+    pace: { dx, dy: dx / 2, legs: 3 },
+  })}</g>`;
+}
+
 export function renderCitySvg(lots: CityLot[], generatedAt: string): string {
   const placements = placeLots(lots);
-  const { w, h } = worldSize(lots.length);
+  const { w, h, rows } = worldSize(lots.length);
   const min = project(0, h);
   const max = project(w, 0);
   const bottom = project(w, h);
   const pad = 70;
   const vbX = min.sx - pad;
-  // Tallest stamps rise ~170px above their anchors; keep them inside.
-  const vbY = -210;
+  // Tallest stamps rise ~260px above their anchors; keep them inside.
+  const vbY = -240;
   const vbW = max.sx - min.sx + pad * 2;
   const vbH = bottom.sy - vbY + 80;
   const sorted = [...placements].sort((a, b) => a.x + a.y - (b.x + b.y));
 
-  // Decor stamps share one stamper id past the per-lot range (0..n-1).
+  // Ground and decor stamps share stampers past the per-lot range (0..n-1).
+  const groundStamp = stamper(placements.length + 1);
   const decorStamp = stamper(placements.length);
+  // Lots and street walkers depth-sort together: a walker on the street
+  // behind a row is occluded by that row's buildings, like everything else.
+  const items: Array<{ key: number; svg: string }> = sorted.map((place, i) => ({
+    key: place.x + place.y,
+    svg: lotGroup(place, i),
+  }));
+  for (let r = 0; r <= rows; r++) {
+    const east = r % 2 === 0;
+    items.push({
+      key: (east ? 2.4 : w - 2.4) + roadCenterY(r),
+      svg: streetWalkers(r, w),
+    });
+  }
+  items.sort((a, b) => a.key - b.key);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg id="axp-map" xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(vbX)} ${fmt(vbY)} ${fmt(vbW)} ${fmt(vbH)}" role="img" aria-label="AXP City isometric map generated ${generatedAt}">
   <defs>
@@ -196,9 +338,9 @@ export function renderCitySvg(lots: CityLot[], generatedAt: string): string {
   </defs>
   <rect x="${fmt(vbX)}" y="${fmt(vbY)}" width="${fmt(vbW)}" height="${fmt(vbH)}" fill="url(#sky)"/>
   <g font-family="ui-sans-serif, system-ui, sans-serif">
-    ${groundLayer(placements)}
+    ${groundLayer(placements, groundStamp)}
     ${decorLayer(placements, decorStamp)}
-    ${sorted.map((place, i) => lotGroup(place, i)).join("\n")}
+    ${items.map((it) => it.svg).join("\n")}
     <g class="labels">
     ${sorted.map(label).join("\n")}
     </g>

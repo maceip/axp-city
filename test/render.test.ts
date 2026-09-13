@@ -4,6 +4,21 @@ import { buildingTargetWidth, renderCitySvg } from "../src/render/city.js";
 import { renderCityHtml } from "../src/render/html.js";
 import { FIXED_NOW, metrics } from "./helpers.js";
 
+/** Slice one lot's own group out of the svg (balanced <g> scan). */
+function lotGroup(svg: string, repo: string): string {
+  const attr = svg.indexOf(`data-repo="${repo}"`);
+  const start = svg.lastIndexOf('<g class="lot"', attr);
+  const tags = /<\/?g[\s>]/g;
+  tags.lastIndex = start;
+  let depth = 0;
+  let m: RegExpExecArray | null;
+  while ((m = tags.exec(svg)) !== null) {
+    depth += m[0][1] === "/" ? -1 : 1;
+    if (depth === 0) return svg.slice(start, m.index + 4);
+  }
+  throw new Error(`unbalanced group for ${repo}`);
+}
+
 describe("renderCityHtml", () => {
   it("labels every lot with owner/name and does not invent states", () => {
     const lots = parseCity(
@@ -82,7 +97,10 @@ describe("renderCityHtml", () => {
     // Active: building + 1 pallet (3 PRs < HIGH_PR_COUNT) + animated
     // walker + crate-carrier + pallet-jack. Quiet dormant: dimmed building.
     // No drone at 3 PRs without bots. Decor: 4 trees + 2 lamps + 1 bench.
-    expect(svg.match(/<image /g)?.length).toBe(13);
+    // Ground: 2 connected dual-plot lot tiles, 2 street runs of 19 slabs +
+    // 3 manholes each, 2 cones. Streets: 1 pacer per road (2).
+    expect(svg.match(/<image /g)?.length).toBe(63);
+    expect(svg.match(/v5-ground-tiles-kit-k1\.png/g)?.length).toBe(55);
     expect(svg).toContain("v5-ground-tiles-kit-k1.png");
     expect(svg).toContain("/assets/sprites/buildings-small-01-17-k1.png");
     // Occlusion contract: keyed sheets composite normally so buildings
@@ -130,7 +148,7 @@ describe("renderCityHtml", () => {
     expect(svg).toContain("v2-planning-issues-k1.png");
     expect(svg).not.toContain("v6-anim-blueprint.png");
     // Dormant lot: dimmed building, no props, no animation elements.
-    const dormant = svg.split("acme/dead")[1] ?? "";
+    const dormant = lotGroup(svg, "acme/dead");
     expect(dormant).not.toContain("v2-raw-materials-k1.png");
     expect(dormant).not.toContain("v3-robot-crew-k1.png");
     expect(dormant).not.toContain("v6-anim-");
@@ -159,10 +177,13 @@ describe("renderCityHtml", () => {
     expect(svg).toContain("v7-anim-platform-rover.png");
     expect(svg).toContain("v7-anim-cargo-drone.png");
     expect(svg).toContain("v7-anim-crane-arm.png");
-    expect(svg).not.toContain("v6-anim-unit-walk.png");
-    expect(svg).not.toContain("v6-anim-carry-crate.png");
-    expect(svg).not.toContain("v6-anim-pallet-jack.png");
-    expect(svg).not.toContain("v6-anim-blueprint.png");
+    // The yard itself runs the robot crew; street pacers still walk outside.
+    const yard = lotGroup(svg, "acme/bots");
+    expect(yard).not.toContain("v6-anim-unit-walk.png");
+    expect(yard).not.toContain("v6-anim-carry-crate.png");
+    expect(yard).not.toContain("v6-anim-pallet-jack.png");
+    expect(yard).not.toContain("v6-anim-blueprint.png");
+    expect(svg).toContain('class="road-life"');
   });
 
   it("parks a dimmed static quad on stale high-pressure yards", () => {
@@ -181,8 +202,10 @@ describe("renderCityHtml", () => {
     expect(svg).toContain("v3-agent-drones-k1.png");
     expect(svg).toContain('opacity="0.62"');
     expect(svg).not.toContain("v7-anim-cargo-drone.png");
-    expect(svg).not.toContain("<animate");
-    expect(svg).not.toContain("<animateTransform");
+    // The stale yard itself stays frozen; only the street pacers move.
+    const yard = lotGroup(svg, "acme/pressure");
+    expect(yard).not.toContain("<animate");
+    expect(yard).not.toContain("<animateTransform");
   });
 
   it("wires hover cursor, glide camera, and keyboard movement", () => {

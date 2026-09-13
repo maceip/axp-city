@@ -222,6 +222,17 @@ def test_keyboard_pan_moves_map(page):
     assert float(after[0]) > float(before[0]), "ArrowRight did not pan"
 
 
+def test_street_pacers_walk_roads(page):
+    pg, _, _ = page
+    n = pg.eval_on_selector_all(".road-life image", "els => els.length")
+    # Fixture renders 8 lots in 2 rows: one pacer per street (3).
+    assert n == 3, f"expected a pacer on each of the 3 streets, saw {n}"
+    glides = pg.eval_on_selector_all(
+        ".road-life animateTransform", "els => els.length")
+    # Each pacer glides (translate) and mirrors at each end (scale).
+    assert glides == 2 * n, "every street pacer must glide along its road"
+
+
 def test_screenshot_captures_city(page):
     pg, _, _ = page
     SCREENSHOTS.mkdir(exist_ok=True)
