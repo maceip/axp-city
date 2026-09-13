@@ -13,12 +13,20 @@ const TYPES: Record<string, string> = {
 
 const args = parseArgs(process.argv.slice(2));
 const root = resolve(args.outDir);
+// Sprite sheets live next to the repo (assets/city-sprites/) and are
+// referenced as /assets/sprites/ — same layout as the live site.
+const spritesRoot = resolve("assets", "city-sprites");
 
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
-  const rel = url.pathname === "/" ? "/city.html" : url.pathname;
-  const file = normalize(join(root, rel));
-  if (!file.startsWith(root) || !existsSync(file) || !statSync(file).isFile()) {
+  let base = root;
+  let rel = url.pathname === "/" ? "/city.html" : url.pathname;
+  if (rel === "/assets/sprites" || rel.startsWith("/assets/sprites/")) {
+    base = spritesRoot;
+    rel = rel.slice("/assets/sprites".length) || "/";
+  }
+  const file = normalize(join(base, rel));
+  if (!file.startsWith(base) || !existsSync(file) || !statSync(file).isFile()) {
     res.writeHead(404, { "content-type": "text/plain" });
     res.end("Not found");
     return;
