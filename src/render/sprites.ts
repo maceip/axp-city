@@ -32,9 +32,9 @@ export interface SpriteBox {
 }
 
 export const BUILDING_SHEETS: Record<BuildingBand, SpriteSheet> = {
-  S: { file: "buildings-small-01-17.png", width: 1280, height: 720 },
-  M: { file: "buildings-medium-18-34.png", width: 1280, height: 720 },
-  L: { file: "buildings-large-35-50.png", width: 1280, height: 720 },
+  S: { file: "buildings-small-01-17-k1.png", width: 1280, height: 720 },
+  M: { file: "buildings-medium-18-34-k1.png", width: 1280, height: 720 },
+  L: { file: "buildings-large-35-50-k1.png", width: 1280, height: 720 },
 };
 
 export const BUILDING_SPRITES: Record<number, SpriteBox> = {
@@ -179,10 +179,10 @@ export interface PropSheet {
 }
 
 export const PROP_SHEETS: Record<string, PropSheet> = {
-  materials: { file: "v2-raw-materials.png", width: 1280, height: 720 },
-  planning: { file: "v2-planning-issues.png", width: 1280, height: 720 },
-  crew: { file: "v3-robot-crew.png", width: 1280, height: 720 },
-  drones: { file: "v3-agent-drones.png", width: 1280, height: 720 },
+  materials: { file: "v2-raw-materials-k1.png", width: 1280, height: 720 },
+  planning: { file: "v2-planning-issues-k1.png", width: 1280, height: 720 },
+  crew: { file: "v3-robot-crew-k1.png", width: 1280, height: 720 },
+  drones: { file: "v3-agent-drones-k1.png", width: 1280, height: 720 },
 };
 
 export const PROP_BOXES: Record<string, SpriteBox> = {
@@ -265,13 +265,13 @@ export const CREW_CARRY = ["carryWhite", "carryOlive", "cart"].map(propBox);
 export const DRONE_QUADS = ["quadScout", "quadTeal", "quadCarry", "quadA"].map(propBox);
 
 /**
- * Ground / environment tile kit (v5-ground-tiles-kit.png). Measured with the
+ * Ground / environment tile kit (v5-ground-tiles-kit-k1.png). Measured with the
  * same connected-components pass as the yard sheets (see /tmp/slice_lib.py);
  * text labels excluded by size, tile boxes assigned in visual reading order.
  * Flood-keyed background, stamped like everything above.
  */
 export const GROUND_SHEET: PropSheet = {
-  file: "v5-ground-tiles-kit.png",
+  file: "v5-ground-tiles-kit-k1.png",
   width: 1280,
   height: 720,
 };

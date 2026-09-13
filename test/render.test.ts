@@ -83,8 +83,8 @@ describe("renderCityHtml", () => {
     // walker + crate-carrier + pallet-jack. Quiet dormant: dimmed building.
     // No drone at 3 PRs without bots. Decor: 4 trees + 2 lamps + 1 bench.
     expect(svg.match(/<image /g)?.length).toBe(13);
-    expect(svg).toContain("v5-ground-tiles-kit.png");
-    expect(svg).toContain("/assets/sprites/buildings-small-01-17.png");
+    expect(svg).toContain("v5-ground-tiles-kit-k1.png");
+    expect(svg).toContain("/assets/sprites/buildings-small-01-17-k1.png");
     // Occlusion contract: keyed sheets composite normally so buildings
     // hide what is behind them instead of ghosting through it.
     expect(svg).not.toContain("mix-blend-mode");
@@ -117,22 +117,22 @@ describe("renderCityHtml", () => {
     const svg = renderCitySvg(lots, FIXED_NOW);
     // Busy PR lot: materials (density pair at 20 PRs), animated walkers,
     // animated cargo drone. Recent lots animate; static sheets stay stashed.
-    expect(svg).toContain("v2-raw-materials.png");
+    expect(svg).toContain("v2-raw-materials-k1.png");
     expect(svg).toContain("v6-anim-unit-walk.png");
     expect(svg).toContain("v6-anim-carry-crate.png");
     expect(svg).toContain("v6-anim-pallet-jack.png");
     expect(svg).toContain("v7-anim-cargo-drone.png");
     expect(svg).toContain('calcMode="discrete"');
     expect(svg).toContain('type="scale"');
-    expect(svg).not.toContain("v3-agent-drones.png");
-    expect(svg).not.toContain("v3-robot-crew.png");
+    expect(svg).not.toContain("v3-agent-drones-k1.png");
+    expect(svg).not.toContain("v3-robot-crew-k1.png");
     // Planning lot: drafting table + blueprint sheet, no reader (stale).
-    expect(svg).toContain("v2-planning-issues.png");
+    expect(svg).toContain("v2-planning-issues-k1.png");
     expect(svg).not.toContain("v6-anim-blueprint.png");
     // Dormant lot: dimmed building, no props, no animation elements.
     const dormant = svg.split("acme/dead")[1] ?? "";
-    expect(dormant).not.toContain("v2-raw-materials.png");
-    expect(dormant).not.toContain("v3-robot-crew.png");
+    expect(dormant).not.toContain("v2-raw-materials-k1.png");
+    expect(dormant).not.toContain("v3-robot-crew-k1.png");
     expect(dormant).not.toContain("v6-anim-");
     expect(dormant).not.toContain("v7-anim-");
     expect(dormant).not.toContain("<animate");
@@ -178,7 +178,7 @@ describe("renderCityHtml", () => {
       { now: FIXED_NOW },
     );
     const svg = renderCitySvg(lots, FIXED_NOW);
-    expect(svg).toContain("v3-agent-drones.png");
+    expect(svg).toContain("v3-agent-drones-k1.png");
     expect(svg).toContain('opacity="0.62"');
     expect(svg).not.toContain("v7-anim-cargo-drone.png");
     expect(svg).not.toContain("<animate");

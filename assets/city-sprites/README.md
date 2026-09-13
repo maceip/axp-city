@@ -5,14 +5,14 @@ source of truth. No pixels changed; only the location is new.
 
 ## Files (18)
 
-- `buildings-small-01-17.png`, `buildings-medium-18-34.png`,
-  `buildings-large-35-50.png` — 50 buildings, S/M/L bands
+- `buildings-small-01-17-k1.png`, `buildings-medium-18-34-k1.png`,
+  `buildings-large-35-50-k1.png` — 50 buildings, S/M/L bands
 - `environment-tiles.png` — grass, roads, dual-plot pads, props
-- `v2-raw-materials.png` — PR yard materials
-- `v2-planning-issues.png` — drafting tables / blueprints
+- `v2-raw-materials-k1.png` — PR yard materials
+- `v2-planning-issues-k1.png` — drafting tables / blueprints
 - `v2-lot-states.png`, `v2-lot-states-activity.png` — state examples
-- `v3-robot-crew.png` — biped activity crew
-- `v3-agent-drones.png`, `v4-facade-drones.png`,
+- `v3-robot-crew-k1.png` — biped activity crew
+- `v3-agent-drones-k1.png`, `v4-facade-drones.png`,
   `v4-ground-construction-bots.png` — agents
 - `v3-lot-states-robots.png` — lots with robot crew
 - `01-buildings.png`, `02-actors-humans-drones.png`, `03-yards-parcels.png`,
@@ -21,7 +21,7 @@ source of truth. No pixels changed; only the location is new.
 - `env-tiles-vector-kit.png` — labeled ground tile legend in building-pack
   style (grass, dirt, concrete, roads, dual-plot bases, park, curbs, water &
   sand, cliffs, snow, props). Reference for the tile pass; not stamped yet.
-- `v5-ground-tiles-kit.png` — 34 measured iso ground tiles + props
+- `v5-ground-tiles-kit-k1.png` — 34 measured iso ground tiles + props
   (grass/dirt/pave, 6 road pieces, dual-plots, water/sand, park, curb,
   cliffs, snow, trees, lamp, cone, bench, manhole). Trees/lamp/bench stamp
   the map decor; see `GROUND_TILES` in `src/render/sprites.ts`.
@@ -56,7 +56,7 @@ of `player-repo/` holdings: the two `03_19_00 PM` PNGs = `10_46_14 AM
 `solarpunk_sprite_sheet.jpg` (craft grids); `image-gen-1/10/3/8` =
 `10_38_02 AM (1)/(10)/(3)/(8)` (eco warehouse, watermill, drone hub,
 conservatory trios). Only `1ba16fa0-….png` was new (now
-`v5-ground-tiles-kit.png` above). The two `grok-workspace.zip`s hold 9
+`v5-ground-tiles-kit-k1.png` above). The two `grok-workspace.zip`s hold 9
 transparent walk/work-cycle packs (unit01: walk, carry-box, carry-ladder,
 push-cart; crew: blueprint, carry-crate, carry-ladder, pallet-jack,
 wheelbarrow) — 4 atlases ingested as `v6-anim-*`; the other 5 stay zipped
@@ -65,14 +65,16 @@ for the next pass. `cDY1Ciay5P0XLpGh-grok-workspace.zip` (`axp` pack: crane
 
 ## Overlap note
 
-The six hashed files directly under `assets/*.png` are byte-identical
-duplicates of six sheets here (verified by md5 on consolidation day):
+The six hashed files directly under `assets/*.png` were byte-identical
+duplicates of six sheets here on consolidation day — that ended with the
+`-k1` keying pass (the named copies are now RGBA; the hashed ones are still
+the opaque originals). The table below maps them to the pre-key names:
 
 | `assets/*.png` (old, hashed) | Same as here |
 | --- | --- |
-| `4588de….png` | `buildings-small-01-17.png` |
-| `874613….png` | `buildings-medium-18-34.png` |
-| `c7a9a6….png` | `buildings-large-35-50.png` |
+| `4588de….png` | `buildings-small-01-17-k1.png` |
+| `874613….png` | `buildings-medium-18-34-k1.png` |
+| `c7a9a6….png` | `buildings-large-35-50-k1.png` |
 | `cf5628….png` | `environment-tiles.png` |
 | `665c13….png` | `v2-lot-states-activity.png` |
 | `d7991f….png` | `v3-lot-states-robots.png` |
