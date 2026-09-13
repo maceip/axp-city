@@ -114,14 +114,15 @@ describe("renderCityHtml", () => {
     );
     const svg = renderCitySvg(lots, FIXED_NOW);
     // Busy PR lot: materials (density pair at 20 PRs), animated walkers,
-    // hovering drone. Recent lots animate; static crew sheets stay stashed.
+    // animated cargo drone. Recent lots animate; static sheets stay stashed.
     expect(svg).toContain("v2-raw-materials.png");
     expect(svg).toContain("v6-anim-unit-walk.png");
     expect(svg).toContain("v6-anim-carry-crate.png");
     expect(svg).toContain("v6-anim-pallet-jack.png");
-    expect(svg).toContain("v3-agent-drones.png");
+    expect(svg).toContain("v7-anim-cargo-drone.png");
     expect(svg).toContain('calcMode="discrete"');
     expect(svg).toContain('type="scale"');
+    expect(svg).not.toContain("v3-agent-drones.png");
     expect(svg).not.toContain("v3-robot-crew.png");
     // Planning lot: drafting table + blueprint sheet, no reader (stale).
     expect(svg).toContain("v2-planning-issues.png");
@@ -131,8 +132,55 @@ describe("renderCityHtml", () => {
     expect(dormant).not.toContain("v2-raw-materials.png");
     expect(dormant).not.toContain("v3-robot-crew.png");
     expect(dormant).not.toContain("v6-anim-");
+    expect(dormant).not.toContain("v7-anim-");
     expect(dormant).not.toContain("<animate");
     expect(dormant).not.toContain("<animateTransform");
+  });
+
+  it("works bot-tended yards with the robot crew, not the human crew", () => {
+    const lots = parseCity(
+      [
+        metrics({
+          fullName: "acme/bots",
+          stars: 100,
+          openPrs: 4,
+          openIssues: 2,
+          pushedAt: "2026-09-10T00:00:00Z",
+          prAuthors: [{ login: "dependabot[bot]", type: "Bot" }],
+        }),
+      ],
+      { now: FIXED_NOW },
+    );
+    expect(lots[0].botDetected).toBe(true);
+    const svg = renderCitySvg(lots, FIXED_NOW);
+    expect(svg).toContain("v7-anim-quad-dog.png");
+    expect(svg).toContain("v7-anim-platform-rover.png");
+    expect(svg).toContain("v7-anim-cargo-drone.png");
+    expect(svg).toContain("v7-anim-crane-arm.png");
+    expect(svg).not.toContain("v6-anim-unit-walk.png");
+    expect(svg).not.toContain("v6-anim-carry-crate.png");
+    expect(svg).not.toContain("v6-anim-pallet-jack.png");
+    expect(svg).not.toContain("v6-anim-blueprint.png");
+  });
+
+  it("parks a dimmed static quad on stale high-pressure yards", () => {
+    const lots = parseCity(
+      [
+        metrics({
+          fullName: "acme/pressure",
+          stars: 100,
+          openPrs: 20,
+          pushedAt: "2024-01-01T00:00:00Z",
+        }),
+      ],
+      { now: FIXED_NOW },
+    );
+    const svg = renderCitySvg(lots, FIXED_NOW);
+    expect(svg).toContain("v3-agent-drones.png");
+    expect(svg).toContain('opacity="0.62"');
+    expect(svg).not.toContain("v7-anim-cargo-drone.png");
+    expect(svg).not.toContain("<animate");
+    expect(svg).not.toContain("<animateTransform");
   });
 
   it("wires hover cursor, glide camera, and keyboard movement", () => {

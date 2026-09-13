@@ -98,11 +98,3 @@ export function animatedFigure(fig: AnimFigure): string {
   return `<g>${figure}</g>`;
 }
 
-/** Gentle hover for an already-rendered static stamp (drones). */
-export function bobWrap(svg: string, amplitude: number, dur: number, phase: number): string {
-  return (
-    `<g><animateTransform attributeName="transform" type="translate" ` +
-    `values="0 0;0 ${fmt(-amplitude)};0 0" keyTimes="0;0.5;1" dur="${dur}s" ` +
-    `repeatCount="indefinite" begin="${phase}s"/>${svg}</g>`
-  );
-}

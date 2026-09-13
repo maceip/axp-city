@@ -375,6 +375,42 @@ export const ANIM_SHEETS: Record<string, AnimSheet> = {
     frames: 19,
     fps: 8,
   },
+  craneArm: {
+    file: "v7-anim-crane-arm.png",
+    width: 2304,
+    height: 2304,
+    cols: 6,
+    rows: 6,
+    frames: 34,
+    fps: 8,
+  },
+  quadDog: {
+    file: "v7-anim-quad-dog.png",
+    width: 2304,
+    height: 2304,
+    cols: 6,
+    rows: 6,
+    frames: 32,
+    fps: 8,
+  },
+  cargoDrone: {
+    file: "v7-anim-cargo-drone.png",
+    width: 2304,
+    height: 1152,
+    cols: 6,
+    rows: 3,
+    frames: 16,
+    fps: 8,
+  },
+  platformRover: {
+    file: "v7-anim-platform-rover.png",
+    width: 2304,
+    height: 1152,
+    cols: 6,
+    rows: 3,
+    frames: 16,
+    fps: 8,
+  },
 };
 
 export function animSheet(name: string): AnimSheet {

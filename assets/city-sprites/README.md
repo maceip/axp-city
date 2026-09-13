@@ -30,6 +30,12 @@ source of truth. No pixels changed; only the location is new.
   transparent 384px-grid walk/work cycles (~8 fps) from the grok crew packs.
   Animated via SMIL on recent-activity yards; see `ANIM_SHEETS` and
   `src/render/anim.ts`. Dormant lots stay static.
+- `v7-anim-crane-arm.png` (34f), `v7-anim-quad-dog.png` (32f),
+  `v7-anim-cargo-drone.png` (16f), `v7-anim-platform-rover.png` (16f) —
+  transparent 384px-grid robot cycles (~8 fps) from the grok `axp` pack.
+  Bot-detected yards work the robot crew (dog patrol, rover hauler, crane
+  arm, cargo airlift) instead of the human crew; high-pressure human yards
+  fly the cargo drone; stale pressure yards park a dimmed static quad.
 
 ## `unprocessed/` scans (2026-09-12)
 
@@ -44,7 +50,8 @@ conservatory trios). Only `1ba16fa0-….png` was new (now
 transparent walk/work-cycle packs (unit01: walk, carry-box, carry-ladder,
 push-cart; crew: blueprint, carry-crate, carry-ladder, pallet-jack,
 wheelbarrow) — 4 atlases ingested as `v6-anim-*`; the other 5 stay zipped
-for the next pass.
+for the next pass. `cDY1Ciay5P0XLpGh-grok-workspace.zip` (`axp` pack: crane
+34f, quad 32f, drone 16f, platform 16f) — all 4 ingested as `v7-anim-*`.
 
 ## Overlap note
 
