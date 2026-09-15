@@ -18,7 +18,7 @@ repos.txt  →  ingest/  →  out/metrics.json
 | --- | --- |
 | `src/ingest/` | GitHub GraphQL (token) or REST. Writes `fixtures/github/` so later runs and tests can stay offline. |
 | `src/parser/` | Pure `RepoMetrics → CityLot`. Thresholds and precedence are documented in code and in [`docs/PARSER.md`](docs/PARSER.md). |
-| `src/render/` | Isometric SVG city (environment tiles + building silhouettes 01–50). Labels `owner/name`. |
+| `src/render/` | Isometric SVG city (environment tiles + building silhouettes 01–50). Labels `owner/name`. Next engine: Phaser 4 — see [`docs/ENGINE.md`](docs/ENGINE.md). |
 | `src/cli/` | `ingest`, `render`, `demo`, `preview`. |
 
 ## Thresholds (parser)
