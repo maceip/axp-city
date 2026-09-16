@@ -29,7 +29,7 @@ Loading is measured as time from navigation to the first rendered terrain chunk 
 `test_sustained_travel_bounds_memory_textures_and_loading` drives two laps around the 1,000-lot city with held keys (eight 2.5 s legs) and samples `window.__AXP.diagnostics()` after each leg into `e2e/screenshots/sustained-travel.json`: allocated and active scene objects, pooled images, actors, terrain chunks visible/cached/generated, texture count, sheets and decoded bytes requested, in-flight and failed assets, and `performance.memory.usedJSHeapSize` where the browser exposes it (Chromium). The assertions are the invariants the renderer is built on:
 
 - allocated objects never exceed the pools (1,500 images + 400 graphics + 800 actor sprites, plus civics);
-- cached terrain textures never exceed the LRU capacity (96) beyond what is on screen;
+- cached terrain textures never exceed the LRU capacity (96) beyond what is on screen — eviction skips on-screen textures and continues past them, so the cache cannot creep after a lap returns to old ground (the GitHub-hosted SwiftShader leg caught it at 105 before this was fixed);
 - every sprite sheet is requested at most once and the count stops growing once the kit has been seen;
 - textures do not scale with distance travelled;
 - the heap after the second lap is within 35 % (+16 MB) of the first lap's peak.
