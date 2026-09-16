@@ -121,6 +121,7 @@ export class HudScene extends Phaser.Scene {
   private censusBg!: Phaser.GameObjects.Image;
   private censusRowsTexts: Phaser.GameObjects.BitmapText[] = [];
   private censusHeader: Phaser.GameObjects.BitmapText[] = [];
+  private censusMarks: Phaser.GameObjects.GameObject[] = [];
   private censusOpen = false;
   private censusScroll = 0;
   private censusSort: { key: CensusSortKey; descending: boolean } = { key: "stars", descending: true };
@@ -176,6 +177,7 @@ export class HudScene extends Phaser.Scene {
     this.cardTexts = [];
     this.censusRowsTexts = [];
     this.censusHeader = [];
+    this.censusMarks = [];
     this.censusOpen = false;
     this.censusScroll = 0;
     this.censusVisible = [];
@@ -702,9 +704,9 @@ export class HudScene extends Phaser.Scene {
       this.censusBg.setDisplaySize(W, height);
       this.buttons.get("close-census")!.container.setPosition(W - 44, 8);
     } else {
-      const width = Math.min(540, Math.max(380, W * 0.34));
-      const height = H - 122;
-      this.census.setPosition(16, 106).setSize(width, height);
+      const width = Math.min(720, Math.max(580, W * 0.42));
+      const height = H - 112;
+      this.census.setPosition(16, 98).setSize(width, height);
       this.censusBg.setDisplaySize(width, height);
       this.buttons.get("close-census")!.container.setPosition(width - 44, 8);
     }
@@ -716,48 +718,65 @@ export class HudScene extends Phaser.Scene {
     const small = this.scale.width < 700;
     return small
       ? [
-          { key: "repo", label: "Repo", width: 170 },
-          { key: "stars", label: "Stars", width: 60 },
-          { key: "prs", label: "PRs", width: 40 },
-          { key: "band", label: "Bld", width: 40 },
-          { key: "crew", label: "Crew", width: 90 },
+          { key: "repo", label: "Repo", width: 180 },
+          { key: "stars", label: "Stars", width: 64 },
+          { key: "prs", label: "PRs", width: 44 },
+          { key: "band", label: "Bld", width: 44 },
+          { key: "crew", label: "Crew", width: 100 },
         ]
       : [
-          { key: "repo", label: "Repo", width: 168 },
-          { key: "district", label: "District", width: 88 },
-          { key: "stars", label: "Stars", width: 52 },
-          { key: "prs", label: "PRs", width: 40 },
-          { key: "band", label: "Bld", width: 36 },
-          { key: "crew", label: "Crew", width: 88 },
+          { key: "repo", label: "Repository", width: 236 },
+          { key: "district", label: "District", width: 132 },
+          { key: "stars", label: "Stars", width: 80 },
+          { key: "prs", label: "PRs", width: 60 },
+          { key: "band", label: "Bld", width: 52 },
+          { key: "crew", label: "Crew", width: 124 },
         ];
   }
 
+  private censusMetrics(): { small: boolean; rowH: number; font: number; head: number; headerY: number } {
+    const small = this.scale.width < 700;
+    return { small, rowH: small ? 26 : 32, font: small ? 12 : 14, head: small ? 12 : 13, headerY: small ? 72 : 90 };
+  }
+
+  private clipCell(value: string, width: number, fontSize: number): string {
+    const advance = 19 * (fontSize / 32);
+    const chars = Math.max(3, Math.floor(width / advance) - 1);
+    return value.length > chars ? `${value.slice(0, chars - 1)}…` : value;
+  }
+
   private renderCensus(): void {
-    for (const t of [...this.censusRowsTexts, ...this.censusHeader]) t.destroy();
+    for (const t of [...this.censusRowsTexts, ...this.censusHeader, ...this.censusMarks]) t.destroy();
     this.censusRowsTexts = [];
     this.censusHeader = [];
+    this.censusMarks = [];
     const rows = sortCensus(filterCensus(censusRows(this.snapshot.plan, this.now()), this.censusFilter), this.censusSort.key, this.censusSort.descending);
     this.censusVisible = rows;
     const H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420));
-    const rowH = 22;
-    const visibleRows = Math.max(1, Math.floor((H - 70) / rowH));
+    const width = Math.max(280, this.census.width || 580);
+    const { rowH, font, head, headerY } = this.censusMetrics();
+    const visibleRows = Math.max(1, Math.floor((H - headerY - 28) / rowH));
     this.censusScroll = Math.min(this.censusScroll, Math.max(0, rows.length - visibleRows));
-    const title = ink(
+    const title = ink(this, 18, 14, "LOT CENSUS", { fontSize: "15px", color: GOLD });
+    const filter = this.censusFilter ? ` matching “${this.censusFilter}”` : "";
+    const meta = ink(
       this,
-      16,
-      10,
-      `LOT CENSUS · ${rows.length} of ${this.snapshot.plan.placements.length} repositories${this.censusFilter ? ` matching “${this.censusFilter}”` : ""} · sorted by ${this.censusSort.key} ${this.censusSort.descending ? "↓" : "↑"} · scroll or ↑↓ to browse, Enter to inspect`,
-      { fontSize: "11px", color: GOLD, wordWrap: { width: Math.max(220, (this.census.width || 380) - 56) } },
+      18,
+      38,
+      `${rows.length} of ${this.snapshot.plan.placements.length}${filter} · ${this.censusSort.key} ${this.censusSort.descending ? "↓" : "↑"} · scroll or ↑↓ · Enter inspect`,
+      { fontSize: "12px", color: MUTED },
     );
-    this.census.add(title);
-    this.censusHeader.push(title);
-    let x = 16;
+    this.census.add([title, meta]);
+    this.censusHeader.push(title, meta);
+    const headBand = this.add.rectangle(12, headerY - 8, width - 24, 28, 0x2a2e26, 0.62).setOrigin(0, 0);
+    this.census.add(headBand);
+    this.censusMarks.push(headBand);
+    let x = 18;
     for (const column of this.columns()) {
       const sortable = ["repo", "stars", "issues", "prs", "band", "district"].includes(column.key);
-      const header = ink(this, x, 34, `${column.label}${this.censusSort.key === column.key ? (this.censusSort.descending ? " ↓" : " ↑") : ""}`, {
-        fontSize: "11px",
-        color: sortable ? INK : MUTED,
-        fontStyle: "bold",
+      const header = ink(this, x, headerY, `${column.label}${this.censusSort.key === column.key ? (this.censusSort.descending ? " ↓" : " ↑") : ""}`, {
+        fontSize: `${head}px`,
+        color: sortable ? GOLD : MUTED,
       });
       if (sortable) {
         header.setInteractive({ useHandCursor: true });
@@ -769,29 +788,30 @@ export class HudScene extends Phaser.Scene {
     }
     const slice = rows.slice(this.censusScroll, this.censusScroll + visibleRows);
     slice.forEach((row, i) => {
-      const y = 58 + i * rowH;
+      const y = headerY + 28 + i * rowH;
       const selected = row.repo === this.selected?.lot.fullName;
-      let cx = 16;
-      const line = ink(this, 0, y, "", { fontSize: "11px", color: selected ? GOLD : INK });
-      let text = "";
+      const band = this.add
+        .rectangle(12, y - 6, width - 24, rowH - 2, selected ? 0x5c5330 : i % 2 ? 0x3a3e34 : 0x2f332c, selected ? 0.52 : 0.42)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      band.on("pointerup", () => this.actions.select(row.repo, true));
+      this.census.add(band);
+      this.censusMarks.push(band);
+      let cx = 18;
+      const inkColor = selected ? GOLD : INK;
       for (const column of this.columns()) {
-        const value = String(cellValue(row, column.key));
-        const chars = Math.max(3, Math.floor(column.width / 7.2) - 1);
-        text += (value.length > chars ? `${value.slice(0, chars - 1)}…` : value).padEnd(chars + 1);
+        const label = ink(this, cx, y, this.clipCell(String(cellValue(row, column.key)), column.width, font), {
+          fontSize: `${font}px`,
+          color: inkColor,
+        });
+        this.census.add(label);
+        this.censusRowsTexts.push(label);
         cx += column.width;
       }
-      line.setText(text.trimEnd());
-      line.setInteractive({ useHandCursor: true });
-      line.on("pointerover", () => line.setTint(0xffffff));
-      line.on("pointerout", () => line.setTint(tint(selected ? GOLD : INK)));
-      line.on("pointerup", () => this.actions.select(row.repo, true));
-      this.census.add(line);
-      this.censusRowsTexts.push(line);
-      void cx;
     });
     if (rows.length > visibleRows) {
-      const more = ink(this, (this.census.width || this.scale.width) - 16, H - 18, `${this.censusScroll + slice.length}/${rows.length}`, {
-        fontSize: "10px",
+      const more = ink(this, width - 16, H - 18, `${this.censusScroll + slice.length}/${rows.length}`, {
+        fontSize: "12px",
         color: MUTED,
       }).setOrigin(1, 1);
       this.census.add(more);
@@ -806,9 +826,9 @@ export class HudScene extends Phaser.Scene {
     const index = Math.max(0, Math.min(this.censusVisible.length - 1, this.censusVisible.findIndex((r) => r.repo === this.selected?.lot.fullName) + delta));
     const row = this.censusVisible[index];
     if (!row) return undefined;
-    const rowH = 22,
+    const { rowH, headerY } = this.censusMetrics(),
       H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420)),
-      visibleRows = Math.max(1, Math.floor((H - 70) / rowH));
+      visibleRows = Math.max(1, Math.floor((H - headerY - 28) / rowH));
     if (index < this.censusScroll) this.censusScroll = index;
     if (index >= this.censusScroll + visibleRows) this.censusScroll = index - visibleRows + 1;
     this.renderCensus();

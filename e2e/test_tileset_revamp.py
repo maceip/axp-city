@@ -145,6 +145,12 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         click_hud(page, "census")
         page.wait_for_function("window.__AXP.diagnostics().censusOpen === true")
         page.screenshot(path=str(SHOTS / "tileset-hud-census.png"), full_page=False)
+        ledger = SHOTS / "tileset-hud-census-ledger.png"
+        page.screenshot(path=str(ledger), clip={"x": 16, "y": 98, "width": 680, "height": 200})
+        title = SHOTS / "tileset-hud-census-title.png"
+        page.screenshot(path=str(title), clip={"x": 30, "y": 108, "width": 220, "height": 36})
+        title_ink = cream_ink_width(title)
+        assert 85 <= title_ink <= 170, f"census title stamp still dense or doubled ({title_ink}px, expected ~98px for 15px LOT CENSUS)"
         click_hud(page, "census")
 
         page.locator("#repo-search").fill("studio/lot-00")
