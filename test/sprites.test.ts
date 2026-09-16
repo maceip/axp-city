@@ -313,36 +313,62 @@ print(f"{sr/n:.1f} {sg/n:.1f} {sb/n:.1f} {pale/n:.3f} {dollar} {bg} {bb}")
     expect(bankBlue, "bank-office is the finished civic, not a stage").toBeGreaterThan(10);
   });
 
-  it("crushes Jane church/villa odds onto catalog cream-slate, not lemon Realty yellow", () => {
+  it("replaces Jane church/villa silhouettes with unused AXP family buildings", () => {
     const script = `
 from PIL import Image
 civic = Image.open("assets/city-sprites/civic-kit-k1.png").convert("RGBA")
-boxes = [(588, 8, 171, 202), (1208, 319, 159, 157)]
 px = civic.load()
-n = yellow = satish = 0
-for x0, y0, w, h in boxes:
-    for y in range(y0, y0 + h):
-        for x in range(x0, x0 + w):
-            r, g, b, a = px[x, y]
+
+def steeples(box):
+    x0,y0,w,h = box
+    top = y0 + int(h * 0.28)
+    cols = []
+    for x in range(x0, x0+w):
+        dark = 0
+        for y in range(y0, top):
+            r,g,b,a = px[x,y]
+            if a > 16 and (r+g+b)/3 < 80:
+                dark += 1
+        if dark >= 6:
+            cols.append(x)
+    if not cols:
+        return 0
+    groups = 1
+    for i in range(1, len(cols)):
+        if cols[i] > cols[i-1] + 3:
+            groups += 1
+    return groups
+
+def opaque(box):
+    x0,y0,w,h = box
+    n=glass=0
+    for y in range(y0,y0+h):
+        for x in range(x0,x0+w):
+            r,g,b,a = px[x,y]
             if a < 16:
                 continue
             n += 1
-            sat = max(r, g, b) - min(r, g, b)
-            if sat > 70:
-                satish += 1
-            if r > 180 and g > 150 and b < 120:
-                yellow += 1
-print(f"{n} {yellow} {satish/n:.3f}")
+            if b > r + 8 and b > g - 6:
+                glass += 1
+    return n, glass
+
+s2 = steeples((588, 8, 171, 202))
+n2,g2 = opaque((588, 8, 171, 202))
+n6,g6 = opaque((1208, 319, 159, 157))
+n3,_ = opaque((767, 8, 144, 139))
+print(f"{s2} {n2} {g2} {n6} {g6} {n3}")
 `;
-    const [opaque, yellow, satFrac] = execFileSync("python3", ["-c", script], {
+    const [steeples, n2, glass2, n6, glass6, n3] = execFileSync("python3", ["-c", script], {
       encoding: "utf8",
     })
       .trim()
       .split(/\s+/)
       .map(Number);
-    expect(opaque, "church/villa frames emptied").toBeGreaterThan(20000);
-    expect(yellow, "Jane lemon walls still stamped on odd-2/odd-6").toBe(0);
-    expect(satFrac, "church/villa still high-sat cartoon Jane").toBeLessThan(0.10);
+    expect(steeples, "odd-2 still has Jane twin church steeples").toBeLessThan(2);
+    expect(n2, "odd-2 frame emptied").toBeGreaterThan(4000);
+    expect(glass2, "odd-2 is still a cream Jane mass, not catalog glass").toBeGreaterThan(80);
+    expect(n6, "odd-6 frame emptied").toBeGreaterThan(4000);
+    expect(glass6 + n3, "replacement odds missing catalog mass").toBeGreaterThan(4000);
   });
 
   it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {

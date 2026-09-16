@@ -320,6 +320,26 @@ JANE_ODD_BOXES = {
     "city-hall": (436, 8, 144, 125),
 }
 
+# Phaser civic frames for every still-Jane silhouette, including the gray store.
+CATALOG_ODD_BOXES = {
+    "odd-2": (588, 8, 171, 202),
+    "odd-3": (767, 8, 144, 139),
+    "odd-4": (919, 8, 108, 122),
+    "odd-6": (1208, 319, 159, 157),
+    "city-hall": (436, 8, 144, 125),
+}
+
+# Unused large evolutions from ChatGPT AXP CITY family sheet (08_01_22 AM (1)).
+# Not the $ bank, not Jane church/villa/hall/store/mill, not FarmVille interiors.
+AXP_FAMILY_SHEET = SRC2 / "ChatGPT Image Sep 16, 2026, 08_01_22 AM (1).png"
+AXP_ODD_CELLS = {
+    "odd-2": 7,       # analytics tower
+    "odd-3": 2,       # data-center slab
+    "odd-4": 9,       # utility plant (catalog turbine, not Jane mill)
+    "odd-6": 5,       # community center
+    "city-hall": 4,   # security hub
+}
+
 
 def restyle_jane_odd(im: Image.Image) -> Image.Image:
     """Lemon / cartoon-tan Jane walls → catalog cream-khaki; toy-blue glass → slate."""
@@ -363,6 +383,46 @@ def stamp_jane_odd_frames(path: Path = OUT / "civic-kit-k1.png") -> None:
         print("stamped", name, "jane-odd →", (x, y, w, h))
     kit.save(path)
     print("crushed Jane church/villa/mill/hall onto catalog cream-slate")
+
+
+def extract_axp_family_odds() -> dict[str, Image.Image]:
+    """Single large buildings from the unused AXP family sheet (not S/M/L lot grid)."""
+    if not AXP_FAMILY_SHEET.exists():
+        raise SystemExit(f"AXP family sheet missing: {AXP_FAMILY_SHEET}")
+    im = key_near_white(open_rgba(AXP_FAMILY_SHEET), thresh=236)
+    w, h = im.size
+    rows = [(70, 500), (500, h)]
+    cols = 5
+    cells: list[Image.Image] = []
+    for y0, y1 in rows:
+        cw = w / cols
+        for c in range(cols):
+            x0 = int(c * cw + cw * 0.55)
+            x1 = int((c + 1) * cw - 4)
+            cell = im.crop((x0, y0, x1, y1))
+            blobs = [b for b in components(cell, min_px=500) if b[2] > 80 and b[3] > 90]
+            blobs.sort(key=lambda b: (b[3], b[2] * b[3]), reverse=True)
+            if not blobs:
+                raise SystemExit(f"no AXP family building in cell {len(cells)}")
+            cells.append(restyle(trim(blobs[0][4]), sat=0.78, contrast=1.04))
+    picked = {}
+    for name, idx in AXP_ODD_CELLS.items():
+        picked[name] = cells[idx]
+    return picked
+
+
+def stamp_catalog_odds(path: Path = OUT / "civic-kit-k1.png") -> None:
+    """Replace Jane church/villa/store/mill/hall geometry in place. $ bank stays put."""
+    odds = extract_axp_family_odds()
+    kit = open_rgba(path)
+    for name, (x, y, w, h) in CATALOG_ODD_BOXES.items():
+        spr = scale_to(trim(odds[name]), w, h)
+        cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        cell.alpha_composite(spr, ((w - spr.width) // 2, h - spr.height))
+        kit.paste(cell, (x, y))
+        print("stamped", name, "catalog-odd", spr.size, "→", (x, y, w, h))
+    kit.save(path)
+    print("replaced Jane odd silhouettes with unused AXP family buildings")
 
 
 # Measured Phaser frames (src/render/sprites.ts). Roof remap stays in-box.
@@ -919,6 +979,7 @@ def write_civic_and_hud() -> tuple[dict, dict]:
         place(f"bike-{i}", tile, 72, 42)
 
     civic.save(OUT / "civic-kit-k1.png")
+    stamp_catalog_odds()
     pack_large_street_tiles(civic_boxes)
 
     kit, hud_boxes = hud_kit()
@@ -1210,7 +1271,7 @@ def main() -> None:
                 "Attached construction / parking / gates / bank, restyled",
                 "Construction-city HUD: beveled wood/slate plaques + brass rivets (not Jane chrome)",
                 "Jane's houses only after saturation crush",
-                "Jane church / villa / mill / hall after cream-slate remap (not raw lemon Realty)",
+                "Jane church / villa / mill / hall / store replaced by unused AXP family buildings (not cream-tinted Jane geometry)",
                 "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
@@ -1283,6 +1344,8 @@ if __name__ == "__main__":
         stamp_scaffold_frames()
     elif "--stamp-jane-odds" in sys.argv:
         stamp_jane_odd_frames()
+    elif "--stamp-catalog-odds" in sys.argv:
+        stamp_catalog_odds()
     elif "--stamp-catalog-roofs" in sys.argv:
         stamp_catalog_roofs()
     elif "--civic-only" in sys.argv:
@@ -1296,6 +1359,7 @@ if __name__ == "__main__":
         MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
         boost_civic_readability()
         crush_catalog_vibe()
+        stamp_catalog_odds()
         print("civic", len(civic_boxes), "hud", len(hud_boxes))
         for k, v in civic_boxes.items():
             print(k, v)
