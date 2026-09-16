@@ -204,7 +204,27 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
       );
       if (kind === "freeway") {
         const local = ((wy % STRIDE_Y) + STRIDE_Y) % STRIDE_Y;
-        if (Math.abs(local - STRIDE_Y * 0.47) < 0.55) {
+        g.fillStyle(0xa89c68, 1);
+        g.fillPoints(
+          [
+            { x: p.sx + width / 2 - 12, y: p.sy + 11 },
+            { x: p.sx + width / 2 + 22, y: p.sy + 16 },
+            { x: p.sx + width / 2 + 16, y: p.sy + 26 },
+            { x: p.sx + width / 2 - 18, y: p.sy + 21 },
+          ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
+          true,
+        );
+        g.fillStyle(0xece3b8, 0.96);
+        g.fillPoints(
+          [
+            { x: p.sx + width / 2 - 10, y: p.sy + 14 },
+            { x: p.sx + width / 2 + 4, y: p.sy + 12 },
+            { x: p.sx + width / 2 + 14, y: p.sy + 18 },
+            { x: p.sx + width / 2 + 2, y: p.sy + 22 },
+          ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
+          true,
+        );
+        if (Math.abs(local - STRIDE_Y * 0.18) < 0.45 || Math.abs(local - STRIDE_Y * 0.82) < 0.45) {
           g.lineStyle(1.5, 0xe6cf8b, 0.85);
           g.lineBetween(p.sx + width / 2 - 8, p.sy + 13, p.sx + width / 2 + 12, p.sy + 23);
         }
@@ -261,7 +281,7 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
 
 /** Civic dressing: plaza, station, park paths, pond, benches, lamps and labels. */
 export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObjects.GameObject[] {
-  const g = scene.add.graphics().setDepth(-99_990);
+  const g = scene.add.graphics().setDepth(-80_000);
   const objects: Phaser.GameObjects.GameObject[] = [g];
   function diamond(x: number, y: number, w: number, h: number, color: number, alpha = 1) {
     const p = [project(x, y), project(x + w, y), project(x + w, y + h), project(x, y + h)].map(
