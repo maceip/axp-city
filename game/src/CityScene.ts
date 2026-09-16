@@ -67,6 +67,7 @@ export class CityScene extends Phaser.Scene {
   private drag?: { id: number; x: number; y: number; startX: number; startY: number; moved: boolean };
   private pinch?: { distance: number; x: number; y: number };
   private generation = 0;
+  private extents = new WeakMap<LotPlacement, Rect>();
   private clockOffset = 0;
   private connectionState: ConnectionState = "connecting";
   private frameTimes: number[] = [];
@@ -500,9 +501,7 @@ export class CityScene extends Phaser.Scene {
     const padded = { x: view.x - 220, y: view.y - 260, width: view.width + 440, height: view.height + 480 };
     const wanted = new Set<string>();
     for (const place of this.city.plan.placements) {
-      const bounds = lotBounds(place);
-      const anchor = project(place.x + 2, place.y + 1);
-      if (!overlaps(padded, { x: Math.min(bounds.x, anchor.sx - 150), y: bounds.y - 60, width: Math.max(bounds.width, 300), height: bounds.height + 170 })) continue;
+      if (!overlaps(padded, this.extentOf(place))) continue;
       const name = place.lot.fullName;
       wanted.add(name);
       const previous = this.lots.get(name);
@@ -518,6 +517,19 @@ export class CityScene extends Phaser.Scene {
     const developed = center.x >= b.minX && center.x <= b.maxX && center.y >= b.minY && center.y <= b.maxY;
     if (this.hudReady)
       this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
+  }
+
+  /** Screen-space extent a lot can draw into (yard, building, label). Placements are
+   *  immutable objects replaced on each snapshot, so the cache keys itself by identity. */
+  private extentOf(place: LotPlacement): Rect {
+    let rect = this.extents.get(place);
+    if (!rect) {
+      const bounds = lotBounds(place);
+      const anchor = project(place.x + 2, place.y + 1);
+      rect = { x: Math.min(bounds.x, anchor.sx - 150), y: bounds.y - 60, width: Math.max(bounds.width, 300), height: bounds.height + 170 };
+      this.extents.set(place, rect);
+    }
+    return rect;
   }
 
   private drawSelection(): void {
