@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { project } from "../../src/render/iso.js";
 import { hash01, type CityPlan, type CivicKind, tileKind } from "../../src/world/index.js";
-import { LOT_D, SHOULDER, STRIDE_X, STRIDE_Y } from "../../src/world/constants.js";
+import { BIKE_BAND, LOT_D, SHOULDER, STRIDE_X, STRIDE_Y } from "../../src/world/constants.js";
 import { CHUNK_SIZE } from "../../src/game/visibility.js";
 import {
   WILD_SHEETS,
@@ -28,7 +28,7 @@ const COLORS: Record<string, number> = {
   lot: 0x9daf7c,
   vacant: 0x96b776,
   street: 0x5e6662,
-  bike: 0x5f9a32,
+  bike: 0x3d7a1c,
   grass: 0x91b477,
   dirt: 0xb7ae80,
   water: 0x89b49b,
@@ -218,19 +218,26 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
         g.lineBetween(p.sx + width / 2 - 10, p.sy + 16, p.sx + width / 2 + 10, p.sy + 26);
       }
       if (kind === "bike") {
-        g.fillStyle(0x5f9a32, 0.95);
+        g.fillStyle(0x3d7a1c, 1);
         g.fillPoints(
           [
-            { x: p.sx + width / 2, y: p.sy + 8 },
-            { x: p.sx + width / 2 + 16, y: p.sy + 16 },
-            { x: p.sx + width / 2, y: p.sy + 24 },
-            { x: p.sx + width / 2 - 16, y: p.sy + 16 },
+            { x: p.sx + width / 2, y: p.sy + 2 },
+            { x: p.sx + width / 2 + 28, y: p.sy + 16 },
+            { x: p.sx + width / 2, y: p.sy + 30 },
+            { x: p.sx + width / 2 - 28, y: p.sy + 16 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
-        g.lineStyle(2.6, 0xf4efc2, 0.98);
-        g.lineBetween(p.sx + width / 2 - 10, p.sy + 12, p.sx + width / 2 + 4, p.sy + 19);
-        g.lineBetween(p.sx + width / 2 - 2, p.sy + 15, p.sx + width / 2 + 12, p.sy + 22);
+        g.fillStyle(0xfff4b0, 0.95);
+        g.fillPoints(
+          [
+            { x: p.sx + width / 2 - 6, y: p.sy + 10 },
+            { x: p.sx + width / 2 + 2, y: p.sy + 14 },
+            { x: p.sx + width / 2 - 6, y: p.sy + 18 },
+            { x: p.sx + width / 2 + 10, y: p.sy + 16 },
+          ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
+          true,
+        );
       }
       if (kind === "river" && hash01(wx, wy, 29) < 0.3) {
         g.lineStyle(1, 0xc1e0d4, 0.4);
@@ -352,12 +359,26 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const x = plan.slotBounds.minSx * STRIDE_X;
     const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
     const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
-    diamond(x, streetY + 0.55, w, 0.55, 0x5e6662, 0.96);
-    diamond(x, streetY, w, 0.58, 0x4e8628, 0.98);
-    diamond(x, streetY + 0.18, w, 0.22, 0xf4efc2, 0.94);
+    diamond(x, streetY + BIKE_BAND, w, 0.58, 0x5e6662, 0.96);
+    diamond(x, streetY, w, BIKE_BAND, 0x3d7a1c, 0.98);
+    diamond(x, streetY + BIKE_BAND - 0.08, w, 0.1, 0xf4efc2, 0.96);
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
-      diamond(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.15, streetY + 0.12, 0.85, 0.28, 0xfff6cd, 0.95);
+      const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
+      diamond(laneX + 0.55, streetY + 0.12, 1.55, 0.42, 0xfff4b0, 0.96);
+      diamond(laneX + 2.35, streetY + 0.28, 1.15, 0.32, 0xfff4b0, 0.88);
     }
+    const labelAt = project(x + 1.6, streetY + BIKE_BAND * 0.42);
+    objects.push(
+      scene.add
+        .text(labelAt.sx, labelAt.sy, "BIKE LANE", {
+          fontFamily: "monospace",
+          fontSize: "12px",
+          color: "#fff4b0",
+          letterSpacing: 2,
+        })
+        .setOrigin(0.5)
+        .setDepth(-90_000),
+    );
   }
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];

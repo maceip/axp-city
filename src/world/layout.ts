@@ -1,5 +1,6 @@
 import type { CityLot } from "../types.js";
 import {
+  BIKE_BAND,
   CONSTRUCTION_MS,
   FREEWAY_SY,
   LOT_D,
@@ -345,7 +346,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       x: minSx * STRIDE_X,
       y: minSy * STRIDE_Y + LOT_D + SHOULDER,
       w: (maxSx - minSx + 1) * STRIDE_X,
-      h: ROAD_D * 0.62,
+      h: BIKE_BAND,
     },
   ];
 
@@ -416,14 +417,14 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
         kind: "road",
         id: `road-${sx}-${row}`,
         x: origin.x + LOT_W * 0.55,
-        y: origin.y + LOT_D + SHOULDER + 0.72,
+        y: origin.y + LOT_D + SHOULDER + BIKE_BAND + 0.18,
         sprite: ((sx + row) & 1) === 0 ? "road-0" : "road-1",
       });
       civics.push({
         kind: "bike",
         id: `bike-${sx}-${row}`,
         x: origin.x + LOT_W * 0.55,
-        y: origin.y + LOT_D + SHOULDER + 0.08,
+        y: origin.y + LOT_D + SHOULDER + 0.22,
         sprite: ((sx + row) & 1) === 0 ? "bike-0" : "bike-1",
       });
     }

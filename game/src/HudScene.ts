@@ -113,6 +113,7 @@ export class HudScene extends Phaser.Scene {
   private dpad!: Phaser.GameObjects.Container;
   private tools!: Phaser.GameObjects.Container;
   private kitRail!: Phaser.GameObjects.Image;
+  private mast!: Phaser.GameObjects.Image;
   private listeners = new Set<(event: string, detail?: unknown) => void>();
   private constructionStamp?: string;
   private lastView?: Rect;
@@ -161,6 +162,8 @@ export class HudScene extends Phaser.Scene {
     this.constructionStamp = undefined;
     this.cameras.main.setRoundPixels(true);
     if (this.input.keyboard) this.input.keyboard.enabled = false;
+    this.mast = this.hudPanel("rail", 900, 86);
+    this.mast.setName("mast");
     this.plate = this.add.container(16, 16);
     const plateBg = this.hudPanel("plate", 250, 78);
     const title = this.add.text(14, 12, "SURVEY DESK", { fontFamily: FONT, fontSize: "11px", color: GOLD, letterSpacing: 3 });
@@ -355,9 +358,10 @@ export class HudScene extends Phaser.Scene {
     const W = this.scale.width,
       H = this.scale.height;
     const small = W < 700;
+    this.mast.setVisible(!small);
+    this.mast.setPosition(10, 10);
+    this.mast.setDisplaySize(W - 20, 86);
     this.tools.setPosition(W - 336, 16);
-    this.compass.setPosition(W - 68, 92);
-    this.massContainer.setPosition(W - 336, 92);
     this.massContainer.setVisible(!small || !this.card.visible);
     const mapW = small ? 120 : 180,
       mapH = small ? 78 : 118;
@@ -382,6 +386,8 @@ export class HudScene extends Phaser.Scene {
     this.hint.setOrigin(0, 1).setPosition(190, H - 60).setVisible(!small && !this.censusOpen && W >= 1100);
     if (small) {
       this.kitRail.setVisible(false);
+      this.compass.setPosition(W - 60, 92);
+      this.massContainer.setPosition(W - 210, 92);
       const y0 = H - 248;
       let x = 16;
       for (const name of ["census", "capture", "svg"]) {
@@ -405,8 +411,10 @@ export class HudScene extends Phaser.Scene {
       const kitY = H - 46 - kitH;
       for (const name of toolbar) this.buttons.get(name)!.container.setScale(1);
       this.kitRail.setVisible(true);
-      this.kitRail.setPosition(kitX - 8, kitY - 10);
-      this.kitRail.setDisplaySize(kitW + 16, kitH + 18);
+      this.kitRail.setPosition(kitX - 8, kitY - 58);
+      this.kitRail.setDisplaySize(kitW + 16, kitH + 66);
+      this.massContainer.setPosition(kitX - 4, kitY - 50);
+      this.compass.setPosition(W - 64, kitY - 54);
       let y = kitY;
       for (const name of toolbar) {
         const b = this.buttons.get(name)!;
@@ -667,10 +675,19 @@ export class HudScene extends Phaser.Scene {
     if (!this.censusOpen) return;
     const W = this.scale.width,
       H = this.scale.height;
-    const height = Math.min(H * 0.5, 420);
-    this.census.setPosition(0, H - height).setSize(W, height);
-    this.censusBg.setDisplaySize(W, height);
-    this.buttons.get("close-census")!.container.setPosition(W - 44, 8);
+    const small = W < 700;
+    if (small) {
+      const height = Math.min(H * 0.5, 420);
+      this.census.setPosition(0, H - height).setSize(W, height);
+      this.censusBg.setDisplaySize(W, height);
+      this.buttons.get("close-census")!.container.setPosition(W - 44, 8);
+    } else {
+      const width = Math.min(540, Math.max(380, W * 0.34));
+      const height = H - 122;
+      this.census.setPosition(16, 106).setSize(width, height);
+      this.censusBg.setDisplaySize(width, height);
+      this.buttons.get("close-census")!.container.setPosition(width - 44, 8);
+    }
     this.census.setDepth(45);
     this.renderCensus();
   }
@@ -686,15 +703,12 @@ export class HudScene extends Phaser.Scene {
           { key: "crew", label: "Crew", width: 90 },
         ]
       : [
-          { key: "repo", label: "Repo", width: 250 },
-          { key: "district", label: "District", width: 110 },
-          { key: "stars", label: "Stars", width: 70 },
-          { key: "issues", label: "Issues", width: 60 },
-          { key: "prs", label: "PRs", width: 50 },
-          { key: "band", label: "Bld", width: 40 },
-          { key: "crew", label: "Crew", width: 120 },
-          { key: "yard", label: "Yard", width: 130 },
-          { key: "props", label: "Loading zone", width: 260 },
+          { key: "repo", label: "Repo", width: 168 },
+          { key: "district", label: "District", width: 88 },
+          { key: "stars", label: "Stars", width: 52 },
+          { key: "prs", label: "PRs", width: 40 },
+          { key: "band", label: "Bld", width: 36 },
+          { key: "crew", label: "Crew", width: 88 },
         ];
   }
 
@@ -704,7 +718,7 @@ export class HudScene extends Phaser.Scene {
     this.censusHeader = [];
     const rows = sortCensus(filterCensus(censusRows(this.snapshot.plan, this.now()), this.censusFilter), this.censusSort.key, this.censusSort.descending);
     this.censusVisible = rows;
-    const H = Math.min(this.scale.height * 0.5, 420);
+    const H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420));
     const rowH = 22;
     const visibleRows = Math.max(1, Math.floor((H - 70) / rowH));
     this.censusScroll = Math.min(this.censusScroll, Math.max(0, rows.length - visibleRows));
@@ -751,7 +765,7 @@ export class HudScene extends Phaser.Scene {
       void cx;
     });
     if (rows.length > visibleRows) {
-      const more = this.add.text(this.scale.width - 60, H - 18, `${this.censusScroll + slice.length}/${rows.length}`, { fontFamily: FONT, fontSize: "10px", color: MUTED }).setOrigin(1, 1);
+      const more = this.add.text((this.census.width || this.scale.width) - 16, H - 18, `${this.censusScroll + slice.length}/${rows.length}`, { fontFamily: FONT, fontSize: "10px", color: MUTED }).setOrigin(1, 1);
       this.census.add(more);
       this.censusHeader.push(more);
     }
@@ -765,7 +779,7 @@ export class HudScene extends Phaser.Scene {
     const row = this.censusVisible[index];
     if (!row) return undefined;
     const rowH = 22,
-      H = Math.min(this.scale.height * 0.5, 420),
+      H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420)),
       visibleRows = Math.max(1, Math.floor((H - 70) / rowH));
     if (index < this.censusScroll) this.censusScroll = index;
     if (index >= this.censusScroll + visibleRows) this.censusScroll = index - visibleRows + 1;

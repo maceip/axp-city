@@ -1,5 +1,5 @@
 import type { CityPlan } from "./layout.js";
-import { LOT_D, LOT_W, SHOULDER, STRIDE_X, STRIDE_Y } from "./constants.js";
+import { BIKE_BAND, LOT_D, LOT_W, SHOULDER, STRIDE_X, STRIDE_Y } from "./constants.js";
 import { hash01 } from "./hash.js";
 import { isFreewaySlot, isParkSlot, isRiverSlot, isTramSlot } from "./slots.js";
 
@@ -38,7 +38,7 @@ export function tileKind(ix: number, iy: number, plan: CityPlan): GroundKind {
     const localX = ix - sx * STRIDE_X;
     const localY = iy - sy * STRIDE_Y;
     if (localY >= LOT_D + SHOULDER || localX >= LOT_W + SHOULDER) {
-      if (localY >= LOT_D + SHOULDER && localY < LOT_D + SHOULDER + 0.62)
+      if (localY >= LOT_D + SHOULDER && localY < LOT_D + SHOULDER + BIKE_BAND)
         return "bike";
       return "street";
     }
