@@ -39,6 +39,7 @@ export {
   type VacantPlot,
 } from "./layout.js";
 export {
+  isCorridorShoulderSlot,
   isFreewaySlot,
   isParkSlot,
   isReservedSlot,

@@ -40,6 +40,14 @@ export function isReservedSlot(sx: number, sy: number): boolean {
 }
 
 /**
+ * Slots that hug the freeway. Tall odd/parking stamps here sit on the
+ * asphalt; unused buildings belong on inland vacant plots instead.
+ */
+export function isCorridorShoulderSlot(_sx: number, sy: number): boolean {
+  return sy === FREEWAY_SY - 1 || sy === FREEWAY_SY + 1;
+}
+
+/**
  * Perimeter of the ring that hugs the park bbox expanded by `ring`.
  * Ring 1 is the Moore neighborhood of the 2×2 park.
  */

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { parseCity } from "../src/parser/index.js";
 import {
   CONSTRUCTION_MS,
+  FREEWAY_SY,
+  STRIDE_Y,
+  isCorridorShoulderSlot,
   isReservedSlot,
   lotSlot,
   planCity,
@@ -71,6 +74,31 @@ describe("planCity", () => {
     expect(office!.x).toBeGreaterThan(park.x);
     expect(office!.x).toBeLessThan(park.x + park.w);
     expect(plan.placements.every((p) => p.lot.fullName !== "city-office")).toBe(true);
+  });
+
+  it("keeps odd unused buildings and parking off the freeway and bike bands", () => {
+    expect(isCorridorShoulderSlot(0, FREEWAY_SY - 1)).toBe(true);
+    expect(isCorridorShoulderSlot(0, FREEWAY_SY + 1)).toBe(true);
+    expect(isCorridorShoulderSlot(0, FREEWAY_SY + 2)).toBe(false);
+    for (const n of [8, 9, 24, 36]) {
+      const plan = planCity(lots(n));
+      expect(plan.civics.some((c) => c.kind === "odd"), `${n} lots lost unused buildings`).toBe(true);
+      const freeway = plan.features.find((f) => f.kind === "freeway")!;
+      const bikes = plan.features.filter((f) => f.kind === "bike");
+      for (const c of plan.civics.filter((m) => m.kind === "odd" || m.kind === "parking")) {
+        const plotY = c.y - 1.0;
+        const sy = Math.round(plotY / STRIDE_Y);
+        expect(sy, `${c.id} on freeway row`).not.toBe(FREEWAY_SY);
+        expect(Math.abs(sy - FREEWAY_SY), `${c.id} on freeway shoulder`).toBeGreaterThan(1);
+        expect(c.y < freeway.y - 0.2 || c.y > freeway.y + freeway.h + 1.6, `${c.id} in freeway band`).toBe(true);
+        for (const band of bikes) {
+          expect(
+            c.y < band.y - 0.2 || c.y > band.y + band.h + 0.2,
+            `${c.id} in bike band ${band.id}`,
+          ).toBe(true);
+        }
+      }
+    }
   });
 
   it("paints bike lanes on the street shoulder without shuffling lot addresses", () => {

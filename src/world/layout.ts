@@ -19,7 +19,7 @@ import {
   TRAM_SX,
 } from "./constants.js";
 import { hash01 } from "./hash.js";
-import { isReservedSlot, lotSlot, slotKey } from "./slots.js";
+import { isCorridorShoulderSlot, isReservedSlot, lotSlot, slotKey } from "./slots.js";
 
 /**
  * Version of the slot-assignment algorithm. Persisted with every lot so a
@@ -179,6 +179,14 @@ export function districtName(sx: number, sy: number): string {
   return "East Ward";
 }
 
+function onTravelLane(x: number, y: number, features: CityFeature[]): boolean {
+  return features.some((f) => {
+    if (f.kind !== "freeway" && f.kind !== "bike") return false;
+    const pad = f.kind === "freeway" ? 1.8 : 0.35;
+    return x >= f.x && x <= f.x + f.w && y >= f.y - pad && y <= f.y + f.h + pad;
+  });
+}
+
 function isConstructing(
   fullName: string,
   options: PlanOptions,
@@ -256,8 +264,9 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
               ? "dirt"
               : "grass";
       vacancies.push({ sx, sy, x: origin.x, y: origin.y, variant });
-      // Occasional odd unused buildings — never assigned to a repository.
-      if (variant === "plaza" && hash01(sx, sy, 41) < 0.55) {
+      const shoulder = isCorridorShoulderSlot(sx, sy);
+      // Occasional odd unused buildings — vacant inland plots, never the street.
+      if (!shoulder && variant === "plaza" && hash01(sx, sy, 41) < 0.55) {
         const odd = ["odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"];
         civics.push({
           kind: "odd",
@@ -274,7 +283,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
           y: origin.y + 0.6 + hash01(sx, sy, 13) * 1.0,
           sprite: `plant-${Math.floor(hash01(sx, sy, 17) * 4)}`,
         });
-      } else if (variant === "dirt" && hash01(sx, sy, 29) < 0.3) {
+      } else if (!shoulder && variant === "dirt" && hash01(sx, sy, 29) < 0.3) {
         civics.push({
           kind: "parking",
           id: `parking-${sx}-${sy}`,
@@ -369,10 +378,13 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     y: parkCy + 0.15,
     sprite: "office",
   });
-  // Dense lot sets can miss the plaza-roll; keep unused odd buildings on vacant plots.
+  // Dense lot sets can miss the plaza-roll; keep unused odd buildings inland.
   if (!civics.some((c) => c.kind === "odd")) {
     const oddSprites = ["odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"];
-    for (const v of vacancies.slice(0, 3)) {
+    const inland = vacancies.filter((v) => !isCorridorShoulderSlot(v.sx, v.sy));
+    const plazas = inland.filter((v) => v.variant === "plaza");
+    const pool = plazas.length ? plazas : inland;
+    for (const v of pool.slice(0, 3)) {
       civics.push({
         kind: "odd",
         id: `odd-spare-${v.sx}-${v.sy}`,
@@ -458,11 +470,16 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     Math.abs(maxSy),
   );
 
+  const travelSafe = civics.filter((c) => {
+    if (c.kind !== "odd" && c.kind !== "parking") return true;
+    return !onTravelLane(c.x, c.y, features);
+  });
+
   return {
     placements,
     features,
     vacancies,
-    civics,
+    civics: travelSafe,
     slotBounds: { minSx, maxSx, minSy, maxSy },
     bounds: {
       minX: minSx * STRIDE_X - 1,
