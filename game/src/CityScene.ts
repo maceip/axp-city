@@ -41,6 +41,9 @@ function lotBounds(place: LotPlacement): Rect {
   return b;
 }
 
+/** Street/home zoom keeps plaque ink; flyover hides them so the city leads. */
+const BIKE_PLAQUE_MIN_ZOOM = 0.82;
+
 export class CityScene extends Phaser.Scene {
   private city!: CitySnapshot;
   private hud!: HudScene;
@@ -334,6 +337,7 @@ export class CityScene extends Phaser.Scene {
               type: mark.type,
               kind,
               glance: Boolean(object.getData("bikeLaneGlance")),
+              visible: object.visible,
             };
           });
       },
@@ -605,15 +609,17 @@ export class CityScene extends Phaser.Scene {
     if (this.hudReady)
       this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
     const zoom = this.cameras.main.zoom;
-    const plaqueScale = Math.min(2.4, Math.max(1, 0.95 / zoom));
+    const showPlaques = zoom >= BIKE_PLAQUE_MIN_ZOOM;
     for (const object of this.civics) {
+      if (object.getData("bikeLanePlaque")) {
+        object.setVisible(showPlaques);
+        continue;
+      }
       if (!object.getData("bikeLaneGlance")) continue;
       const screenW = object.getData("markScreenW") as number | undefined;
       const screenH = object.getData("markScreenH") as number | undefined;
       if (screenW && screenH) {
         (object as Phaser.GameObjects.Image).setDisplaySize(screenW / zoom, screenH / zoom);
-      } else if (!object.getData("bikeLaneChevron")) {
-        (object as Phaser.GameObjects.Container).setScale(plaqueScale);
       }
     }
   }

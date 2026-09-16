@@ -176,7 +176,8 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         on_screen = [
             m
             for m in marks
-            if m["width"] > 12
+            if m.get("visible", True)
+            and m["width"] > 12
             and m["height"] > 8
             and 0 < m["x"] + m["width"] / 2 < 1600
             and 80 < m["y"] + m["height"] / 2 < 900
@@ -188,8 +189,8 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
             if m.get("kind") == "chevron" and m.get("glance") and m["width"] > 40 and m["height"] > 16
         ]
         assert len(chevrons) >= 2, f"overview painted chevrons missing: {len(chevrons)} of {len(on_screen)}"
-        plaques = [m for m in on_screen if m.get("kind") == "plaque" and 40 < m["width"] < 280]
-        assert len(plaques) >= 2, f"BIKE LANE plaques disappeared: {len(plaques)}"
+        flyover_plaques = [m for m in on_screen if m.get("kind") == "plaque"]
+        assert flyover_plaques == [], f"flyover still plaque-first: {len(flyover_plaques)} visible plaques"
         freeway_chevrons = [m for m in chevrons if 90 < m["y"] + m["height"] / 2 < 380]
         mark = min(
             freeway_chevrons or chevrons,
@@ -210,6 +211,24 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert fw_c >= 0.04, f"freeway clip has no cream arrow body ({fw_c:.3f})"
         assert cream_ink_width(SHOTS / "tileset-freeway-bike.png") >= 48, "freeway chevron clip missing cream arrow ink"
         assert fw_lime < 0.12, f"freeway mark clip drifted to neon lime ({fw_k:.3f}/{fw_c:.3f}/{fw_lime:.3f})"
+        corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
+        assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
+
+        click_hud(page, "home")
+        page.wait_for_timeout(500)
+        page.screenshot(path=str(SHOTS / "tileset-center-office.png"), full_page=False)
+        page.screenshot(path=str(SHOTS / "tileset-street-home.png"), full_page=False)
+        home_marks = page.evaluate("window.__AXP.bikeMarkScreens()")
+        plaques = [
+            m
+            for m in home_marks
+            if m.get("visible", True)
+            and m.get("kind") == "plaque"
+            and 40 < m["width"] < 280
+            and 0 < m["x"] + m["width"] / 2 < 1600
+            and 80 < m["y"] + m["height"] / 2 < 900
+        ]
+        assert len(plaques) >= 2, f"home-zoom BIKE LANE plaques disappeared: {len(plaques)}"
         plaque = plaques[len(plaques) // 2]
         plaque_pad = 64
         plaque_clip = {
@@ -219,14 +238,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
             "height": min(1000, plaque["y"] + plaque["height"] + plaque_pad) - max(0, plaque["y"] - plaque_pad),
         }
         page.screenshot(path=str(SHOTS / "tileset-freeway-bike-plaque.png"), clip=plaque_clip)
-        assert cream_ink_width(SHOTS / "tileset-freeway-bike-plaque.png") >= 36, "freeway plaque clip missing BIKE LANE ink"
-        corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
-        assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
-
-        click_hud(page, "home")
-        page.wait_for_timeout(500)
-        page.screenshot(path=str(SHOTS / "tileset-center-office.png"), full_page=False)
-        page.screenshot(path=str(SHOTS / "tileset-street-home.png"), full_page=False)
+        assert cream_ink_width(SHOTS / "tileset-freeway-bike-plaque.png") >= 36, "home plaque clip missing BIKE LANE ink"
         home_k, _home_c, home_lime = street_lane_share(SHOTS / "tileset-street-home.png", (200, 180, 1400, 520))
         assert home_k >= 0.10, f"home-zoom bike corridor still recedes ({home_k:.3f} khaki)"
         assert home_lime < 0.12, f"home-zoom bike paint drifted to neon lime ({home_lime:.3f})"
