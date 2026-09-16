@@ -459,8 +459,10 @@ def test_repository_turning_private_is_withdrawn_from_every_public_path(browser,
     ready(b, server.url)
     repo = server.metrics[6]["fullName"]  # acme/stale
     assert server.webhook(repo, "stale-public") == 202
-    a.wait_for_function("r => window.__AXP.snapshot().plan.placements.some(p => p.lot.fullName === r)", arg=repo)
-    assert any(e["repo"] == repo for e in server.get("/events"))
+    deadline = time.time() + 15
+    while not any(e["repo"] == repo for e in server.get("/events")):  # the delivery is processed asynchronously
+        assert time.time() < deadline, "public event for the delivery never appeared"
+        time.sleep(0.2)
     select(a, repo)
     server.metrics[6]["isPrivate"] = True
     server.save()
