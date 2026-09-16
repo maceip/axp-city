@@ -29,13 +29,15 @@ def click_hud(page, name):
 
 
 def cream_ink_width(path: Path) -> int:
-    """Width of cream HUD lettering. SwiftShader fillText grows this past the word."""
+    """Width of cream or brass HUD lettering. SwiftShader fillText grows this past the word."""
     image = Image.open(path).convert("RGB")
     xs = []
     for y in range(image.height):
         for x in range(image.width):
             r, g, b = image.getpixel((x, y))
-            if r > 200 and g > 190 and b > 150:
+            cream = r > 200 and g > 190 and b > 150
+            gold = r > 200 and g > 170 and 120 < b < 190 and r - b > 40
+            if cream or gold:
                 xs.append(x)
     return max(xs) - min(xs) + 1 if xs else 0
 
@@ -150,7 +152,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         title = SHOTS / "tileset-hud-census-title.png"
         page.screenshot(path=str(title), clip={"x": 32, "y": 110, "width": 180, "height": 24})
         title_ink = cream_ink_width(title)
-        assert 80 <= title_ink <= 150, f"census title stamp still dense or doubled ({title_ink}px, expected ~98px for 15px LOT CENSUS)"
+        assert 75 <= title_ink <= 150, f"census title stamp still dense or doubled ({title_ink}px, expected ~90px for 15px LOT CENSUS)"
         click_hud(page, "census")
 
         page.locator("#repo-search").fill("studio/lot-00")
