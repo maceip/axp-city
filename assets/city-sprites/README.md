@@ -120,7 +120,7 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   lots that share a silhouette do not look like the same house.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
   stamped larger than any repo lot), Jane's city hall / church / villa / store
-  (odd unused buildings), attached construction stages (pad→posts→roof→shell,
+  (odd unused buildings, cream-slate remap — not raw lemon Realty), attached construction stages (pad→posts→roof→shell,
   never the finished bank), parking, gates, bank, isometric plants from the
   v5 ground kit, and full-size restyled road/bike tiles that read at overview
   zoom (not the leftover 4px diamonds).

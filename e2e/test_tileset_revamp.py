@@ -151,6 +151,10 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert kinds.get("office", 0) >= 1
         assert kinds.get("plant", 0) >= 4, f"missing park/vacant plants: {kinds}"
         assert kinds.get("odd", 0) >= 1, f"missing unused odd buildings: {kinds}"
+        odds = info.get("oddSprites") or []
+        assert odds, f"odd civic sprites missing from diagnostics: {odds}"
+        known_odds = {"odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"}
+        assert set(odds) <= known_odds, f"unexpected inland odd sprites: {odds}"
         assert kinds.get("road", 0) >= 4, f"restyled roads not in the plan: {kinds}"
         assert kinds.get("bike", 0) >= 4, f"bike-lane stamps missing from the plan: {kinds}"
         assert kinds.get("gate", 0) >= 1

@@ -261,6 +261,38 @@ print(f"{sr/n:.1f} {sg/n:.1f} {sb/n:.1f} {pale/n:.3f} {dollar} {bg} {bb}")
     expect(bankBlue, "bank-office is the finished civic, not a stage").toBeGreaterThan(10);
   });
 
+  it("crushes Jane church/villa odds onto catalog cream-slate, not lemon Realty yellow", () => {
+    const script = `
+from PIL import Image
+civic = Image.open("assets/city-sprites/civic-kit-k1.png").convert("RGBA")
+boxes = [(588, 8, 171, 202), (1208, 319, 159, 157)]
+px = civic.load()
+n = yellow = satish = 0
+for x0, y0, w, h in boxes:
+    for y in range(y0, y0 + h):
+        for x in range(x0, x0 + w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            n += 1
+            sat = max(r, g, b) - min(r, g, b)
+            if sat > 70:
+                satish += 1
+            if r > 180 and g > 150 and b < 120:
+                yellow += 1
+print(f"{n} {yellow} {satish/n:.3f}")
+`;
+    const [opaque, yellow, satFrac] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(opaque, "church/villa frames emptied").toBeGreaterThan(20000);
+    expect(yellow, "Jane lemon walls still stamped on odd-2/odd-6").toBe(0);
+    expect(satFrac, "church/villa still high-sat cartoon Jane").toBeLessThan(0.10);
+  });
+
   it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {
     const script = `
 from PIL import Image

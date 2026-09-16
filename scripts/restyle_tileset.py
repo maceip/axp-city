@@ -311,6 +311,58 @@ SCAFFOLD_BOXES = {
     "scaffold-3": (1416, 8, 95, 110),
 }
 
+# Jane Realty lemon church / tan villa / mill / hall. Boxes stay put; $ bank is not here.
+JANE_ODD_BOXES = {
+    "odd-2": (588, 8, 171, 202),
+    "odd-4": (919, 8, 108, 122),
+    "odd-6": (1208, 319, 159, 157),
+    "city-hall": (436, 8, 144, 125),
+}
+
+
+def restyle_jane_odd(im: Image.Image) -> Image.Image:
+    """Lemon / cartoon-tan Jane walls → catalog cream-khaki; toy-blue glass → slate."""
+    out = im.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            sat = max(r, g, b) - min(r, g, b)
+            lemon = r > 155 and g > 130 and b < r - 25 and sat > 40
+            tan = r > 140 and g > 100 and b < 130 and r - b > 40 and sat > 45
+            toy_blue = b > r + 12 and b >= g - 8 and sat > 30 and luma < 200
+            if lemon or tan:
+                t = max(0.0, min(1.0, (luma - 80) / 160))
+                px[x, y] = (
+                    int(168 + t * 56),
+                    int(156 + t * 52),
+                    int(128 + t * 48),
+                    a,
+                )
+            elif toy_blue:
+                t = max(0.0, min(1.0, (luma - 40) / 160))
+                px[x, y] = (
+                    int(72 + t * 50),
+                    int(82 + t * 48),
+                    int(78 + t * 46),
+                    a,
+                )
+    return out
+
+
+def stamp_jane_odd_frames(path: Path = OUT / "civic-kit-k1.png") -> None:
+    """Crush leftover Jane lemon/tan odds in place. Does not move other civics."""
+    kit = open_rgba(path)
+    for name, (x, y, w, h) in JANE_ODD_BOXES.items():
+        crop = restyle_jane_odd(kit.crop((x, y, x + w, y + h)).copy())
+        kit.paste(crop, (x, y))
+        print("stamped", name, "jane-odd →", (x, y, w, h))
+    kit.save(path)
+    print("crushed Jane church/villa/mill/hall onto catalog cream-slate")
+
 
 def stamp_scaffold_frames(path: Path = OUT / "civic-kit-k1.png") -> None:
     """Re-extract scaffold-0..3 into existing boxes. Does not move other civics."""
@@ -674,10 +726,10 @@ def write_civic_and_hud() -> tuple[dict, dict]:
 
     hall = extract_last_building(SRC2 / "PC _ Computer - Jane's Realty - Buildings - City Hall.png", "teal")
     if hall:
-        place("city-hall", hall, 200, 200)
+        place("city-hall", restyle_jane_odd(hall), 200, 200)
     church = extract_last_building(SRC2 / "PC _ Computer - Jane's Realty - Buildings - Church.png", "teal")
     if church:
-        place("odd-2", church, 180, 220)
+        place("odd-2", restyle_jane_odd(church), 180, 220)
     store = extract_last_building(SRC2 / "PC _ Computer - Jane's Realty - Buildings - Store.png", "teal")
     if store and not is_gray_pad(store) and not is_fragment(store) and store.height > 90:
         place("odd-3", store, 180, 200)
@@ -687,7 +739,7 @@ def write_civic_and_hud() -> tuple[dict, dict]:
         mill = key_color(mill, lambda r, g, b: g > r + 18 and g > b + 12 and g > 70, grow=1)
         mill = trim(mill)
         if mill.getbbox() and mill.height > 50 and not is_gray_pad(mill):
-            place("odd-4", restyle(mill, sat=0.62), 160, 160)
+            place("odd-4", restyle_jane_odd(restyle(mill, sat=0.62)), 160, 160)
 
     if ATTACHED.exists():
         att = open_rgba(ATTACHED)
@@ -718,7 +770,7 @@ def write_civic_and_hud() -> tuple[dict, dict]:
 
     villa = extract_last_building(SRC2 / "PC _ Computer - Jane's Realty - Buildings - Spanish Villa.png", "teal")
     if villa and not is_gray_pad(villa) and villa.height > 90:
-        place("odd-6", villa, 180, 200)
+        place("odd-6", restyle_jane_odd(villa), 180, 200)
 
     ground = OUT / "v5-ground-tiles-kit-k1.png"
     if ground.exists():
@@ -1028,6 +1080,7 @@ def main() -> None:
                 "Attached construction / parking / gates / bank, restyled",
                 "Construction-city HUD: beveled wood/slate plaques + brass rivets (not Jane chrome)",
                 "Jane's houses only after saturation crush",
+                "Jane church / villa / mill / hall after cream-slate remap (not raw lemon Realty)",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
             ],
@@ -1097,6 +1150,8 @@ if __name__ == "__main__":
         boost_civic_readability()
     elif "--stamp-scaffolds" in sys.argv:
         stamp_scaffold_frames()
+    elif "--stamp-jane-odds" in sys.argv:
+        stamp_jane_odd_frames()
     elif "--civic-only" in sys.argv:
         civic_boxes, hud_boxes = write_civic_and_hud()
         existing = {}

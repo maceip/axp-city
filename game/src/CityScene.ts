@@ -258,6 +258,9 @@ export class CityScene extends Phaser.Scene {
           acc[civic.kind] = (acc[civic.kind] ?? 0) + 1;
           return acc;
         }, {}),
+        oddSprites: (this.city.plan.civics ?? [])
+          .filter((civic) => civic.kind === "odd")
+          .map((civic) => civic.sprite),
         hasBikeLane: Boolean(this.city.plan.features.some((f) => f.kind === "bike")),
         hasFreewayBikeLane: Boolean(this.city.plan.features.some((f) => f.id === "freeway-bike-lane")),
         freewayBikeBand: this.city.plan.features.find((f) => f.id === "freeway-bike-lane")?.h ?? 0,
