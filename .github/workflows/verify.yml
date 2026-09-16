@@ -8,7 +8,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -23,9 +23,34 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: pip install -r e2e/requirements.txt
-      - run: python -m playwright install --with-deps chromium
-      - run: python -m pytest e2e -v
+      # Browser tests run in the hosted Azure Playwright workspace when its
+      # credentials are configured; otherwise a local SwiftShader Chromium runs
+      # the same suite as a software-rendered correctness pass. Either way the
+      # performance report records the actual driver and profile.
+      - name: Choose browser backend
+        id: backend
         env:
+          PLAYWRIGHT_SERVICE_URL: ${{ secrets.PLAYWRIGHT_SERVICE_URL }}
+          PLAYWRIGHT_SERVICE_ACCESS_TOKEN: ${{ secrets.PLAYWRIGHT_SERVICE_ACCESS_TOKEN }}
+        run: |
+          if [ -n "$PLAYWRIGHT_SERVICE_URL" ] && [ -n "$PLAYWRIGHT_SERVICE_ACCESS_TOKEN" ]; then
+            echo "hosted=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "hosted=0" >> "$GITHUB_OUTPUT"
+            python -m playwright install --with-deps chromium
+          fi
+      - name: Browser suite (hosted Azure Playwright workspace)
+        if: steps.backend.outputs.hosted == '1'
+        run: python -m pytest e2e -v
+        env:
+          PLAYWRIGHT_SERVICE_URL: ${{ secrets.PLAYWRIGHT_SERVICE_URL }}
+          PLAYWRIGHT_SERVICE_ACCESS_TOKEN: ${{ secrets.PLAYWRIGHT_SERVICE_ACCESS_TOKEN }}
+          PLAYWRIGHT_SERVICE_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Browser suite (local SwiftShader Chromium, software-rendered correctness)
+        if: steps.backend.outputs.hosted != '1'
+        run: python -m pytest e2e -v
+        env:
+          CITY_LOCAL_BROWSER: "1"
           CITY_SOFTWARE_GL: "1"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

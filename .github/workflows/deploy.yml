@@ -1,0 +1,70 @@
+name: Deploy verified commit
+# Deploys the exact commit that passed "Verify Phaser city" on main. The job
+# only runs when the deploy secrets exist; it never falls back to a personal
+# credential. scripts/deploy.sh performs the release, loopback and public
+# verification, and rolls back automatically if anything after the switch fails.
+on:
+  workflow_run:
+    workflows: ["Verify Phaser city"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit to deploy (must have passed verification)
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - name: Require deploy secrets
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.CITY_DEPLOY_SSH_KEY }}
+          DEPLOY_HOST_KEY: ${{ secrets.CITY_DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_TARGET: ${{ secrets.CITY_DEPLOY_TARGET }}
+        run: |
+          test -n "$DEPLOY_SSH_KEY" -a -n "$DEPLOY_HOST_KEY" -a -n "$DEPLOY_TARGET" || {
+            echo "CITY_DEPLOY_SSH_KEY, CITY_DEPLOY_KNOWN_HOSTS and CITY_DEPLOY_TARGET must be configured in the production environment" >&2
+            exit 1
+          }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install deploy key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.CITY_DEPLOY_SSH_KEY }}
+          DEPLOY_HOST_KEY: ${{ secrets.CITY_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+          printf 'Host *\n  IdentityFile ~/.ssh/id_deploy\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n' > ~/.ssh/config
+      - name: Release, verify publicly, roll back on failure
+        env:
+          CITY_SKIP_CHECKS: "1" # the verify workflow already ran tests for this exact commit
+          CITY_PUBLIC_URL: ${{ vars.CITY_PUBLIC_URL || 'https://demo.glint.sh' }}
+        run: bash scripts/deploy.sh "${{ secrets.CITY_DEPLOY_TARGET }}"
+      - name: Public verification report
+        if: always()
+        env:
+          CITY_PUBLIC_URL: ${{ vars.CITY_PUBLIC_URL || 'https://demo.glint.sh' }}
+        run: node scripts/verify-city.mjs "$CITY_PUBLIC_URL" "$(git rev-parse HEAD)" --report public-verify.json || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: public-verification
+          path: public-verify.json
