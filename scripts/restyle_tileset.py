@@ -602,6 +602,7 @@ def write_civic_and_hud() -> tuple[dict, dict]:
         place(f"bike-{i}", tile, 72, 42)
 
     civic.save(OUT / "civic-kit-k1.png")
+    pack_large_street_tiles(civic_boxes)
 
     hud_src = SRC2 / "PC _ Computer - Jane's Realty - Interface - HUD Graphics.png"
     kit, hud_boxes = hud_kit(open_rgba(hud_src))
@@ -620,6 +621,44 @@ READABILITY_BOXES = {
     "bike-0": (480, 507, 66, 38),
     "bike-1": (554, 507, 66, 38),
 }
+
+
+def iso_diamond(width: int, height: int, fill: tuple[int, int, int], edge: tuple[int, int, int], dash: tuple[int, int, int] | None = None) -> Image.Image:
+    """Readable isometric pavement tile (not a 4px speck)."""
+    im = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+    cx, cy = width / 2, height / 2
+    pts = [(cx, 2), (width - 3, cy), (cx, height - 3), (3, cy)]
+    draw.polygon(pts, fill=fill + (255,), outline=edge + (255,))
+    if dash:
+        draw.line([(cx - width * 0.18, cy - 1), (cx + width * 0.18, cy + 1)], fill=dash + (230,), width=3)
+    return im
+
+
+def pack_large_street_tiles(civic_boxes: dict | None = None, path: Path = OUT / "civic-kit-k1.png") -> dict:
+    """Park full-size v5 road tiles + drawn bike diamonds on the civic kit."""
+    kit = open_rgba(path)
+    ground = open_rgba(OUT / "v5-ground-tiles-kit-k1.png")
+    boxes = {
+        "road-0": (8, 640, 146, 96),
+        "road-1": (162, 640, 144, 97),
+        "bike-0": (320, 640, 120, 70),
+        "bike-1": (448, 640, 120, 70),
+    }
+    road0 = restyle(trim(ground.crop((26, 182, 26 + 146, 182 + 96))), sat=0.62, contrast=1.08)
+    road1 = restyle(trim(ground.crop((190, 181, 190 + 144, 181 + 97))), sat=0.62, contrast=1.08)
+    kit.paste(road0, (8, 640 + 96 - road0.height))
+    kit.paste(road1, (162, 640 + 97 - road1.height))
+    bike0 = iso_diamond(120, 70, (143, 188, 106), (72, 98, 80), (244, 239, 194))
+    bike1 = iso_diamond(120, 70, (126, 176, 98), (72, 98, 80), (214, 202, 168))
+    kit.paste(bike0, (320, 640), bike0)
+    kit.paste(bike1, (448, 640), bike1)
+    kit.save(path)
+    if civic_boxes is not None:
+        for name, (x, y, w, h) in boxes.items():
+            civic_boxes[name] = {"x": x, "y": y, "w": w, "h": h}
+    print("packed large street tiles", boxes)
+    return boxes
 
 
 def boost_civic_readability(path: Path = OUT / "civic-kit-k1.png") -> None:
@@ -776,6 +815,14 @@ if __name__ == "__main__":
         existing["hud"] = hud_boxes
         MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
         print("hud", len(hud_boxes), OUT / "hud-kit-k1.png")
+    elif "--street-tiles" in sys.argv:
+        existing = {}
+        if MANIFEST.joinpath("tileset-manifest.json").exists():
+            existing = json.loads(MANIFEST.joinpath("tileset-manifest.json").read_text())
+        boxes = pack_large_street_tiles(existing.get("civic"))
+        if "civic" in existing:
+            existing["civic"].update({k: {"x": v[0], "y": v[1], "w": v[2], "h": v[3]} for k, v in boxes.items()})
+            MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
     elif "--boost-civic" in sys.argv:
         boost_civic_readability()
     elif "--civic-only" in sys.argv:

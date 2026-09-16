@@ -284,10 +284,10 @@ export const CIVIC_SPRITES: Record<string, SpriteBox> = {
   "plant-2": { x: 89, y: 507, w: 61, h: 107 },
   "plant-3": { x: 158, y: 507, w: 57, h: 105 },
   "plant-5": { x: 223, y: 507, w: 90, h: 65 },
-  "road-0": { x: 321, y: 507, w: 72, h: 47 },
-  "road-1": { x: 401, y: 507, w: 71, h: 48 },
-  "bike-0": { x: 480, y: 507, w: 66, h: 38 },
-  "bike-1": { x: 554, y: 507, w: 66, h: 38 },
+  "road-0": { x: 8, y: 640, w: 146, h: 96 },
+  "road-1": { x: 162, y: 640, w: 144, h: 97 },
+  "bike-0": { x: 320, y: 640, w: 120, h: 70 },
+  "bike-1": { x: 448, y: 640, w: 120, h: 70 },
   "odd-2": { x: 588, y: 8, w: 171, h: 202 },
   "odd-3": { x: 767, y: 8, w: 144, h: 139 },
   "odd-4": { x: 919, y: 8, w: 108, h: 122 },
@@ -302,6 +302,10 @@ export const CIVIC_SPRITES: Record<string, SpriteBox> = {
 
 /** On-screen width of the park-center HQ compound — larger than any repo lot. */
 export const OFFICE_STAMP_WIDTH = 480;
+
+/** Street / bike-lane stamps — sized to read at overview and home zoom. */
+export const ROAD_STAMP_WIDTH = 176;
+export const BIKE_STAMP_WIDTH = 112;
 
 export const CONSTRUCTION_STAGES: Record<string, SpriteBox> = {
   grading: CIVIC_SPRITES["scaffold-0"],

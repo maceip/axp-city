@@ -38,7 +38,7 @@ export function tileKind(ix: number, iy: number, plan: CityPlan): GroundKind {
     const localX = ix - sx * STRIDE_X;
     const localY = iy - sy * STRIDE_Y;
     if (localY >= LOT_D + SHOULDER || localX >= LOT_W + SHOULDER) {
-      if (localY >= LOT_D + SHOULDER && localY < LOT_D + SHOULDER + 0.32)
+      if (localY >= LOT_D + SHOULDER && localY < LOT_D + SHOULDER + 0.48)
         return "bike";
       return "street";
     }

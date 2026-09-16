@@ -57,8 +57,11 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert kinds.get("plant", 0) >= 4, f"missing park/vacant plants: {kinds}"
         assert kinds.get("odd", 0) >= 1, f"missing unused odd buildings: {kinds}"
         assert kinds.get("road", 0) >= 4, f"restyled roads not in the plan: {kinds}"
+        assert kinds.get("bike", 0) >= 4, f"bike-lane stamps missing from the plan: {kinds}"
         assert kinds.get("gate", 0) >= 1
         assert info["hasBikeLane"], "bike-lane feature missing from the city plan"
+        assert info["roadStampWidth"] >= 140, f"roads still stamp too small: {info['roadStampWidth']}"
+        assert info["bikeStampWidth"] >= 90, f"bike lanes still stamp too small: {info['bikeStampWidth']}"
         assert info["uniqueFacades"] >= 12, f"repo lots still look cloned: {info['uniqueFacades']} unique facades"
 
         click_hud(page, "zoom-out")
@@ -70,6 +73,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         click_hud(page, "home")
         page.wait_for_timeout(500)
         page.screenshot(path=str(SHOTS / "tileset-center-office.png"), full_page=False)
+        page.screenshot(path=str(SHOTS / "tileset-street-home.png"), full_page=False)
 
         def sample_lot(name):
             page.evaluate("repo => window.__AXP.select(repo)", name)

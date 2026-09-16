@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ANIM_SHEETS,
+  BIKE_STAMP_WIDTH,
   BUILDING_SHEETS,
   CIVIC_SHEET,
   CIVIC_SPRITES,
@@ -18,6 +19,7 @@ import {
   PLANNING_TABLES,
   PROP_BOXES,
   PROP_SHEETS,
+  ROAD_STAMP_WIDTH,
   propPlacement,
   sheetForBand,
   spriteBoxFor,
@@ -192,8 +194,10 @@ describe("civic and HUD kits", () => {
     }
     expect(CIVIC_SPRITES.office.w).toBeGreaterThan(400);
     expect(CIVIC_SPRITES["plant-0"].h).toBeGreaterThan(60);
-    expect(CIVIC_SPRITES["road-0"].w).toBeGreaterThan(40);
-    expect(CIVIC_SPRITES["bike-0"].w).toBeGreaterThan(40);
+    expect(CIVIC_SPRITES["road-0"].w).toBeGreaterThan(120);
+    expect(CIVIC_SPRITES["bike-0"].w).toBeGreaterThan(100);
+    expect(ROAD_STAMP_WIDTH).toBeGreaterThanOrEqual(140);
+    expect(BIKE_STAMP_WIDTH).toBeGreaterThanOrEqual(90);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);
   });

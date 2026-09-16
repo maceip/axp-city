@@ -122,7 +122,8 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   stamped larger than any repo lot), Jane's city hall / church / villa / store
   (odd unused buildings), attached construction stages (pad→posts→roof→shell,
   never the finished bank), parking, gates, bank, isometric plants from the
-  v5 ground kit, and iso bike/road diamonds from SimCity tiles after restyle.
+  v5 ground kit, and full-size restyled road/bike tiles that read at overview
+  zoom (not the leftover 4px diamonds).
 - `hud-kit-k1.png` — olive-slate + gold panels painted to Jane's chrome sizes
   so the overlay matches the catalog vibe; leftover orange HUD is not used.
 

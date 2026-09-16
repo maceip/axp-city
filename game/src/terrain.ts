@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { project } from "../../src/render/iso.js";
 import { hash01, type CityPlan, type CivicKind, tileKind } from "../../src/world/index.js";
-import { STRIDE_X, STRIDE_Y } from "../../src/world/constants.js";
+import { LOT_D, SHOULDER, STRIDE_X, STRIDE_Y } from "../../src/world/constants.js";
 import { CHUNK_SIZE } from "../../src/game/visibility.js";
 import {
   WILD_SHEETS,
@@ -12,7 +12,9 @@ import {
   DECOR_LAMP,
   CIVIC_SHEET,
   CIVIC_SPRITES,
+  BIKE_STAMP_WIDTH,
   OFFICE_STAMP_WIDTH,
+  ROAD_STAMP_WIDTH,
 } from "../../src/render/sprites.js";
 import { imagePool, type ObjectPool } from "./pool.js";
 import { ensureFrame } from "./stamps.js";
@@ -25,8 +27,8 @@ const COLORS: Record<string, number> = {
   river: 0x69adb0,
   lot: 0x9daf7c,
   vacant: 0x96b776,
-  street: 0x89938b,
-  bike: 0x7eb8a4,
+  street: 0x5e6662,
+  bike: 0x8fbc6a,
   grass: 0x91b477,
   dirt: 0xb7ae80,
   water: 0x89b49b,
@@ -211,11 +213,15 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
         for (const offset of [-5, 5])
           g.lineBetween(p.sx + width / 2 + offset, p.sy + 5, p.sx + width / 2 - 25 + offset, p.sy + 18);
       }
+      if (kind === "street") {
+        g.lineStyle(1.4, 0xd8c889, 0.55);
+        g.lineBetween(p.sx + width / 2 - 10, p.sy + 16, p.sx + width / 2 + 10, p.sy + 26);
+      }
       if (kind === "bike") {
-        g.lineStyle(1.6, 0xe8f6c8, 0.9);
-        g.lineBetween(p.sx + width / 2 - 10, p.sy + 14, p.sx + width / 2 + 10, p.sy + 24);
-        g.lineStyle(1.1, 0x3f7d4a, 0.55);
-        g.lineBetween(p.sx + width / 2 - 12, p.sy + 18, p.sx + width / 2 + 8, p.sy + 28);
+        g.lineStyle(2.4, 0xf4efc2, 0.95);
+        g.lineBetween(p.sx + width / 2 - 12, p.sy + 13, p.sx + width / 2 + 12, p.sy + 25);
+        g.lineStyle(1.6, 0x3f6d44, 0.7);
+        g.lineBetween(p.sx + width / 2 - 14, p.sy + 17, p.sx + width / 2 + 10, p.sy + 29);
       }
       if (kind === "river" && hash01(wx, wy, 29) < 0.3) {
         g.lineStyle(1, 0xc1e0d4, 0.4);
@@ -330,19 +336,28 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     odd: 120,
     parking: 138,
     gate: 100,
-    road: 54,
+    road: ROAD_STAMP_WIDTH,
+    bike: BIKE_STAMP_WIDTH,
   };
+  for (const row of plan.streetRows) {
+    const x = plan.slotBounds.minSx * STRIDE_X;
+    const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
+    const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
+    diamond(x, streetY + 0.42, w, 0.62, 0x5e6662, 0.96);
+    diamond(x, streetY, w, 0.4, 0x8fbc6a, 0.94);
+  }
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];
     if (!box) continue;
     const width = civicWidth[marker.kind] ?? 100;
     const a = project(marker.x, marker.y);
+    const pavement = marker.kind === "road" || marker.kind === "bike";
     objects.push(
       scene.add
         .image(a.sx, a.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, box))
         .setOrigin(0.5, 1)
         .setDisplaySize(width, width * (box.h / box.w))
-        .setDepth(a.sy + (marker.kind === "office" ? 8 : 0)),
+        .setDepth(pavement ? -99_996 : a.sy + (marker.kind === "office" ? 8 : 0)),
     );
     if (marker.kind === "office") {
       objects.push(
@@ -355,23 +370,6 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
           })
           .setOrigin(0.5)
           .setDepth(-90_000),
-      );
-    }
-  }
-  const bikeLane = plan.features.find((f) => f.kind === "bike");
-  const bikeA = CIVIC_SPRITES["bike-0"];
-  const bikeB = CIVIC_SPRITES["bike-1"];
-  if (bikeLane && bikeA && bikeB) {
-    for (let t = 0.6; t < bikeLane.w - 0.4; t += 2.4) {
-      const box = Math.floor(t / 2.4) % 2 === 0 ? bikeA : bikeB;
-      const a = project(bikeLane.x + t, bikeLane.y + bikeLane.h * 0.55);
-      objects.push(
-        scene.add
-          .image(a.sx, a.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, box))
-          .setOrigin(0.5, 1)
-        .setDisplaySize(52, 52 * (box.h / box.w))
-        .setDepth(-99_997)
-        .setAlpha(0.96),
       );
     }
   }
