@@ -35,10 +35,10 @@ const INK = "#f2efe2";
 const MUTED = "#b9c4b3";
 
 /** Desktop kit and census stay city-first: the ledger is a sheet, not a curtain. */
-const KIT_BTN_W = 118;
-const KIT_BTN_H = 34;
+const KIT_BTN_W = 96;
+const KIT_BTN_H = 28;
 const KIT_GAP = 6;
-const CARD_W = 268;
+const CARD_W = 330;
 const CENSUS_MIN_W = 392;
 const CENSUS_MAX_W = 448;
 const CENSUS_MAX_H = 540;

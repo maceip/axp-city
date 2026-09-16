@@ -90,15 +90,17 @@ def cream_ink_width(path: Path) -> int:
     return max(xs) - min(xs) + 1 if xs else 0
 
 
-def clip_hud(page, name, dest: Path) -> Path:
+def clip_hud(page, name, dest: Path, inset_x: int = 0, inset_y: int = 0) -> Path:
     point = hud(page, name)
+    width = max(8, point["width"] - 2 * inset_x)
+    height = max(8, point["height"] - 2 * inset_y)
     page.screenshot(
         path=str(dest),
         clip={
-            "x": max(0, point["x"] - point["width"] / 2),
-            "y": max(0, point["y"] - point["height"] / 2),
-            "width": point["width"],
-            "height": point["height"],
+            "x": max(0, point["x"] - width / 2),
+            "y": max(0, point["y"] - height / 2),
+            "width": width,
+            "height": height,
         },
     )
     return dest
@@ -107,7 +109,8 @@ def clip_hud(page, name, dest: Path) -> Path:
 def assert_kit_label(page, name: str, expected: str) -> None:
     text = page.evaluate("name => window.__AXP.hudLabel(name)", name)
     assert text == expected, f"HUD {name} game text is {text!r}, expected {expected!r}"
-    dest = clip_hud(page, name, SHOTS / f"tileset-hud-label-{name}.png")
+    # Inset past plate rivets so cream span is lettering, not brass.
+    dest = clip_hud(page, name, SHOTS / f"tileset-hud-label-{name}.png", inset_x=12, inset_y=4)
     ink = cream_ink_width(dest)
     scale = 14 / 32
     expected_w = len(expected) * 19 * scale
