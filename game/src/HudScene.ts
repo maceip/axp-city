@@ -262,7 +262,7 @@ export class HudScene extends Phaser.Scene {
         fontFamily: FONT,
         fontSize: "11px",
         color: "#efe6c8",
-        backgroundColor: "rgba(72,54,32,0.92)",
+        backgroundColor: "rgba(58,62,52,0.92)",
         padding: { x: 12, y: 7 },
       })
       .setOrigin(0.5, 1);
@@ -535,7 +535,7 @@ export class HudScene extends Phaser.Scene {
               : f.kind === "office"
                 ? 0xc9b56a
                 : f.kind === "bike"
-                  ? 0x5f9a32
+                  ? 0x7a7558
                   : 0x768270;
       g.fillStyle(fill, 1);
       const pts = [project(f.x, f.y), project(f.x + f.w, f.y), project(f.x + f.w, f.y + f.h), project(f.x, f.y + f.h)].map(

@@ -412,9 +412,10 @@ def recolor_gold_widget(im: Image.Image) -> Image.Image:
     return restyle(keyed, sat=0.8, contrast=1.04)
 
 
-WOOD = (118, 90, 54)
-WOOD_DK = (72, 54, 32)
-WOOD_LT = (168, 136, 82)
+# Olive-umber timber — same family as lot grass / cream walls, not raw walnut.
+WOOD = (96, 88, 62)
+WOOD_DK = (58, 54, 40)
+WOOD_LT = (148, 138, 98)
 SLATE_DK = (40, 48, 42)
 SLATE_LT = (98, 110, 96)
 BRASS = (196, 162, 78)
@@ -644,7 +645,8 @@ def write_civic_and_hud() -> tuple[dict, dict]:
         for name, (x, y, w, h) in GROUND_CROPS.items():
             crop = trim(g.crop((x, y, x + w, y + h)))
             if crop.getbbox():
-                place(name, crop, 90 if name.startswith("plant") else 72, 110 if name.startswith("plant") else 48)
+                spr = restyle(crop, sat=0.52 if name.startswith("plant") else 0.62)
+                place(name, spr, 90 if name.startswith("plant") else 72, 110 if name.startswith("plant") else 48)
 
     for i, tile in enumerate(extract_bike_road()[:8]):
         if tile.width < 20:
@@ -717,8 +719,9 @@ def pack_large_street_tiles(civic_boxes: dict | None = None, path: Path = OUT / 
     road1 = restyle(trim(ground.crop((190, 181, 190 + 144, 181 + 97))), sat=0.62, contrast=1.08)
     kit.paste(road0, (8, 640 + 96 - road0.height))
     kit.paste(road1, (162, 640 + 97 - road1.height))
-    bike0 = iso_diamond(120, 70, (74, 132, 42), (236, 228, 168), CREAM, chevrons=True)
-    bike1 = iso_diamond(120, 70, (62, 118, 38), (236, 228, 168), CREAM, chevrons=True)
+    # Packed olive-khaki haul path + cream chevrons (catalog vibe, not neon lime).
+    bike0 = iso_diamond(120, 70, (118, 112, 86), CREAM, (214, 206, 168), chevrons=True)
+    bike1 = iso_diamond(120, 70, (102, 98, 76), (220, 212, 184), (214, 206, 168), chevrons=True)
     kit.paste(bike0, (320, 640), bike0)
     kit.paste(bike1, (448, 640), bike1)
     kit.save(path)
@@ -761,6 +764,50 @@ def boost_civic_readability(path: Path = OUT / "civic-kit-k1.png") -> None:
         kit.paste(crop, (x, y))
     kit.save(path)
     print("boosted", ", ".join(READABILITY_BOXES), "on", path)
+
+
+# Civic boxes whose foliage still arrived chartreuse after the first sat crush.
+FOLIAGE_BOXES = {
+    "office": (8, 8, 420, 303),
+    "plant-0": (1375, 319, 74, 101),
+    "plant-1": (8, 507, 73, 101),
+    "plant-2": (89, 507, 61, 107),
+    "plant-3": (158, 507, 57, 105),
+    "plant-5": (223, 507, 90, 65),
+    "odd-2": (588, 8, 171, 202),
+    "odd-3": (767, 8, 144, 139),
+    "odd-4": (919, 8, 108, 122),
+    "odd-6": (1208, 319, 159, 157),
+}
+
+
+def crush_catalog_vibe(path: Path = OUT / "civic-kit-k1.png") -> None:
+    """Pull leftover neon greens on office/plants/odds toward olive-cream-slate."""
+    kit = open_rgba(path)
+    olive = (108, 114, 78)
+    for name, (x, y, w, h) in FOLIAGE_BOXES.items():
+        crop = kit.crop((x, y, x + w, y + h)).copy()
+        px = crop.load()
+        for yy in range(crop.height):
+            for xx in range(crop.width):
+                r, g, b, a = px[xx, yy]
+                if a < 16:
+                    continue
+                sat = max(r, g, b) - min(r, g, b)
+                yellow = g > r + 18 and b < 55
+                neon = g > r + 22 and g > b + 16 and sat > 48
+                if yellow or neon:
+                    t = min(1.0, ((sat - 36) / 70) if neon else 0.72)
+                    t = max(0.35, t)
+                    px[xx, yy] = (
+                        int(r * (1 - 0.50 * t) + olive[0] * 0.50 * t),
+                        int(g * (1 - 0.62 * t) + olive[1] * 0.62 * t),
+                        int(b * (1 - 0.55 * t) + olive[2] * 0.55 * t),
+                        a,
+                    )
+        kit.paste(crop, (x, y))
+    kit.save(path)
+    print("crushed catalog vibe on", ", ".join(FOLIAGE_BOXES), "→", path)
 
 
 def fill_band(needed: int, primary: list[Image.Image], *pools: list[Image.Image]) -> list[Image.Image]:
@@ -890,6 +937,19 @@ if __name__ == "__main__":
         if "civic" in existing:
             existing["civic"].update({k: {"x": v[0], "y": v[1], "w": v[2], "h": v[3]} for k, v in boxes.items()})
             MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
+    elif "--catalog-vibe" in sys.argv:
+        existing = {}
+        if MANIFEST.joinpath("tileset-manifest.json").exists():
+            existing = json.loads(MANIFEST.joinpath("tileset-manifest.json").read_text())
+        boxes = pack_large_street_tiles(existing.get("civic"))
+        crush_catalog_vibe()
+        kit, hud_boxes = hud_kit()
+        kit.save(OUT / "hud-kit-k1.png")
+        if "civic" in existing:
+            existing["civic"].update({k: {"x": v[0], "y": v[1], "w": v[2], "h": v[3]} for k, v in boxes.items()})
+        existing["hud"] = hud_boxes
+        MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
+        print("catalog vibe restyle", boxes, "hud", len(hud_boxes))
     elif "--boost-civic" in sys.argv:
         boost_civic_readability()
     elif "--civic-only" in sys.argv:
@@ -902,6 +962,7 @@ if __name__ == "__main__":
         MANIFEST.mkdir(parents=True, exist_ok=True)
         MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
         boost_civic_readability()
+        crush_catalog_vibe()
         print("civic", len(civic_boxes), "hud", len(hud_boxes))
         for k, v in civic_boxes.items():
             print(k, v)

@@ -28,7 +28,7 @@ const COLORS: Record<string, number> = {
   lot: 0x9daf7c,
   vacant: 0x96b776,
   street: 0x5e6662,
-  bike: 0x3d7a1c,
+  bike: 0x767056,
   grass: 0x91b477,
   dirt: 0xb7ae80,
   water: 0x89b49b,
@@ -218,7 +218,7 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
         g.lineBetween(p.sx + width / 2 - 10, p.sy + 16, p.sx + width / 2 + 10, p.sy + 26);
       }
       if (kind === "bike") {
-        g.fillStyle(0x3d7a1c, 1);
+        g.fillStyle(0x767056, 1);
         g.fillPoints(
           [
             { x: p.sx + width / 2, y: p.sy + 2 },
@@ -228,7 +228,7 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
-        g.fillStyle(0xfff4b0, 0.95);
+        g.fillStyle(0xd6cea8, 0.95);
         g.fillPoints(
           [
             { x: p.sx + width / 2 - 6, y: p.sy + 10 },
@@ -305,14 +305,14 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const center = project(cx, cy);
     const fountain = scene.add.graphics().setDepth(center.sy);
     fountain.fillStyle(0xdcd5b7).fillEllipse(center.sx, center.sy, 76, 38);
-    fountain.fillStyle(0x75b8c0).fillEllipse(center.sx, center.sy - 3, 60, 27);
+    fountain.fillStyle(0x6a9aa4).fillEllipse(center.sx, center.sy - 3, 60, 27);
     fountain.lineStyle(2, 0xd8eeee, 0.9);
     fountain.lineBetween(center.sx, center.sy - 28, center.sx, center.sy - 6);
     fountain.strokeEllipse(center.sx, center.sy - 8, 25, 10);
     objects.push(fountain);
   }
   // Pond in the south-east quadrant.
-  diamond(park.x + park.w * 0.66, park.y + park.h * 0.62, 2.0, 1.4, 0x4ea2d6);
+  diamond(park.x + park.w * 0.66, park.y + park.h * 0.62, 2.0, 1.4, 0x6a9aa4);
   stamp(GROUND_TILES.waterTile, park.x + park.w * 0.66 + 1.0, park.y + park.h * 0.62 + 1.3, 70);
   stamp(GROUND_TILES.sandTile, park.x + park.w * 0.66 - 0.2, park.y + park.h * 0.62 + 0.3, 40);
   // Benches and lamps along the ring path.
@@ -360,12 +360,12 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
     const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
     diamond(x, streetY + BIKE_BAND, w, 0.58, 0x5e6662, 0.96);
-    diamond(x, streetY, w, BIKE_BAND, 0x3d7a1c, 0.98);
-    diamond(x, streetY + BIKE_BAND - 0.08, w, 0.1, 0xf4efc2, 0.96);
+    diamond(x, streetY, w, BIKE_BAND, 0x767056, 0.98);
+    diamond(x, streetY + BIKE_BAND - 0.08, w, 0.1, 0xd4cbb0, 0.96);
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      diamond(laneX + 0.55, streetY + 0.12, 1.55, 0.42, 0xfff4b0, 0.96);
-      diamond(laneX + 2.35, streetY + 0.28, 1.15, 0.32, 0xfff4b0, 0.88);
+      diamond(laneX + 0.55, streetY + 0.12, 1.55, 0.42, 0xd6cea8, 0.96);
+      diamond(laneX + 2.35, streetY + 0.28, 1.15, 0.32, 0xd6cea8, 0.88);
     }
     const labelAt = project(x + 1.6, streetY + BIKE_BAND * 0.42);
     objects.push(
@@ -373,7 +373,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
         .text(labelAt.sx, labelAt.sy, "BIKE LANE", {
           fontFamily: "monospace",
           fontSize: "12px",
-          color: "#fff4b0",
+          color: "#d6cea8",
           letterSpacing: 2,
         })
         .setOrigin(0.5)

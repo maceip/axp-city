@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -200,5 +201,39 @@ describe("civic and HUD kits", () => {
     expect(BIKE_STAMP_WIDTH).toBeGreaterThanOrEqual(180);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);
+  });
+
+  it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {
+    const script = `
+from PIL import Image
+civic = Image.open("assets/city-sprites/civic-kit-k1.png").convert("RGBA")
+hud = Image.open("assets/city-sprites/hud-kit-k1.png").convert("RGB")
+bx, by, bw, bh = 320, 640, 120, 70
+lime = n = 0
+sr = sg = sb = 0
+px = civic.load()
+for y in range(by, by + bh):
+    for x in range(bx, bx + bw):
+        r, g, b, a = px[x, y]
+        if a < 40:
+            continue
+        n += 1
+        sr += r; sg += g; sb += b
+        if g > r + 28 and g > b + 20 and (max(r, g, b) - min(r, g, b)) > 55:
+            lime += 1
+mr, mg, mb = sr / n, sg / n, sb / n
+pr, pg, pb = hud.getpixel((20, 20))
+print(f"{mr:.1f} {mg:.1f} {mb:.1f} {lime/n:.3f} {pr} {pg} {pb}")
+`;
+    const [mr, mg, mb, limeFrac, pr, pg, pb] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(limeFrac, `bike-0 still has neon lime (${mr},${mg},${mb})`).toBeLessThan(0.08);
+    expect(mg - mr, "bike-0 green channel still dominates red").toBeLessThan(18);
+    expect(Math.abs(pr - pg), "HUD plate still reads as raw walnut, not olive timber").toBeLessThan(20);
+    expect(pb, "HUD plate should stay in the cream-slate family").toBeGreaterThan(40);
   });
 });
