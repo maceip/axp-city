@@ -180,7 +180,8 @@ describe("Phaser scene planning", () => {
     for (const car of cars) {
       for (const p of car.path) {
         expect(p.y).toBeGreaterThan(freeway.y);
-        expect(p.y).toBeLessThan(freewayBike.y);
+        expect(p.y).toBeLessThan(freeway.y + freeway.h);
+        expect(p.y < freewayBike.y || p.y > freewayBike.y + freewayBike.h).toBe(true);
       }
       expect(car.motion).toBe("wrap");
     }
