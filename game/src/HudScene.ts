@@ -555,7 +555,7 @@ export class HudScene extends Phaser.Scene {
               ? 0xc4b69a
               : f.kind === "office"
                 ? 0xc9b56a
-                : f.kind === "bike"
+                : f.kind === "bike" || f.kind === "freeway"
                   ? 0xa89c68
                   : 0x768270;
       g.fillStyle(fill, 1);

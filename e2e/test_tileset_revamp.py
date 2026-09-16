@@ -138,8 +138,8 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.screenshot(path=str(SHOTS / "tileset-city-overview.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-roads-bikes-civics.png"), full_page=False)
         khaki, cream, lime = street_lane_share(SHOTS / "tileset-city-overview.png", (480, 180, 1400, 520))
-        assert khaki >= 0.10, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
-        assert khaki + cream >= 0.16, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
+        assert khaki >= 0.14, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
+        assert khaki + cream >= 0.20, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
         assert lime < 0.12, f"overview bike paint drifted to neon lime ({lime:.3f})"
         corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
         assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"

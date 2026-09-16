@@ -23,7 +23,7 @@ import { ensureFrame } from "./stamps.js";
 const trees = WILD_TREES.filter((box) => box.h >= 50 && box.w < 130);
 const COLORS: Record<string, number> = {
   park: 0x7a9460,
-  freeway: 0x52606b,
+  freeway: 0xa89c68,
   tram: 0x8f9890,
   river: 0x6a9094,
   lot: 0x8a9c72,
