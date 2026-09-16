@@ -285,12 +285,13 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
     server.repo_rules("acme/forge", building=dict(version=1, buildingId=42), loading_zone=dict(version=2, props=dict(issues=["materials", "lamp", "bench"]), layout=dict(bays=3, slots=[])))
     assert server.webhook("acme/forge") == 202  # persisted, then processed by the worker
     for tab in [page, other]:
-        tab.wait_for_function("window.__AXP.snapshot().plan.placements[0].lot.buildingId === 42")
+        tab.wait_for_function("window.__AXP.snapshot().plan.placements[0].lot.buildingId === 42 && window.__AXP.snapshot().plan.placements[0].lot.stars === 42000")
         lot = tab.evaluate("window.__AXP.snapshot().plan.placements[0].lot")
         assert lot["stars"] == 42000 and lot["openIssues"] == 9 and lot["showMaterials"] and not lot["showBlueprint"]
         assert lot["extraProps"] == ["lamp", "bench"] and lot["layout"]["bays"] == 3 and lot["rulesSource"] == "repository"
     # The rule change is visible in the drawn lot in both browsers, not only in the data.
     page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
+    page.wait_for_function("window.__AXP.drawnRenderKey('acme/forge') && window.__AXP.drawnRenderKey('acme/forge').includes('lamp') && window.__AXP.drawnRenderKey('acme/forge').includes('\"bays\":3')", timeout=15000)
     with_rules = rendered_change(page, "acme/forge", original, "catalog building 42 + three bays + decor props")
     other.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
     assert pixel_distance(lot_pixels(other, "acme/forge"), with_rules) < pixel_distance(lot_pixels(other, "acme/forge"), original)

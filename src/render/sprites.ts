@@ -25,57 +25,58 @@ export const BUILDING_SHEETS: Record<BuildingBand, SpriteSheet> = {
   L: { file: "buildings-large-35-50-k1.png", width: 1280, height: 720 },
 };
 
+/** Restyled 2026-09-16 catalog: ChatGPT AXP families on a 5-column grid + original pagoda. */
 export const BUILDING_SPRITES: Record<number, SpriteBox> = {
-  1: { x: 137, y: 93, w: 156, h: 120 },
-  2: { x: 340, y: 85, w: 167, h: 130 },
-  3: { x: 558, y: 76, w: 158, h: 139 },
-  4: { x: 768, y: 75, w: 149, h: 138 },
-  5: { x: 976, y: 70, w: 156, h: 146 },
-  6: { x: 141, y: 240, w: 142, h: 131 },
-  7: { x: 345, y: 245, w: 159, h: 126 },
-  8: { x: 564, y: 240, w: 142, h: 131 },
-  9: { x: 762, y: 237, w: 163, h: 135 },
-  10: { x: 972, y: 256, w: 164, h: 116 },
-  11: { x: 138, y: 386, w: 148, h: 148 },
-  12: { x: 344, y: 386, w: 155, h: 148 },
-  13: { x: 563, y: 386, w: 147, h: 146 },
-  14: { x: 763, y: 386, w: 157, h: 148 },
-  15: { x: 981, y: 386, w: 144, h: 147 },
-  16: { x: 140, y: 557, w: 151, h: 127 },
-  17: { x: 566, y: 551, w: 139, h: 134 },
-  18: { x: 81, y: 25, w: 195, h: 161 },
-  19: { x: 318, y: 10, w: 167, h: 176 },
-  20: { x: 550, y: 24, w: 169, h: 162 },
-  21: { x: 775, y: 20, w: 193, h: 166 },
-  22: { x: 1014, y: 19, w: 176, h: 167 },
-  23: { x: 79, y: 204, w: 183, h: 159 },
-  24: { x: 313, y: 199, w: 172, h: 164 },
-  25: { x: 538, y: 206, w: 193, h: 157 },
-  26: { x: 772, y: 199, w: 192, h: 164 },
-  27: { x: 1002, y: 212, w: 201, h: 150 },
-  28: { x: 78, y: 372, w: 175, h: 160 },
-  29: { x: 301, y: 372, w: 214, h: 162 },
-  30: { x: 535, y: 372, w: 196, h: 162 },
-  31: { x: 771, y: 372, w: 187, h: 162 },
-  32: { x: 1009, y: 372, w: 181, h: 160 },
-  33: { x: 421, y: 529, w: 169, h: 160 },
-  34: { x: 659, y: 530, w: 211, h: 160 },
-  35: { x: 225, y: 6, w: 117, h: 169 },
-  36: { x: 440, y: 13, w: 154, h: 161 },
-  37: { x: 682, y: 11, w: 135, h: 165 },
-  38: { x: 902, y: 10, w: 179, h: 166 },
-  39: { x: 212, y: 197, w: 140, h: 159 },
-  40: { x: 461, y: 193, w: 109, h: 162 },
-  41: { x: 695, y: 192, w: 200, h: 164 },
-  42: { x: 888, y: 191, w: 205, h: 165 },
-  43: { x: 184, y: 367, w: 194, h: 155 },
-  44: { x: 424, y: 367, w: 191, h: 154 },
-  45: { x: 703, y: 370, w: 89, h: 152 },
-  46: { x: 897, y: 367, w: 178, h: 155 },
-  47: { x: 209, y: 529, w: 147, h: 165 },
-  48: { x: 420, y: 542, w: 192, h: 152 },
-  49: { x: 653, y: 544, w: 194, h: 151 },
-  50: { x: 923, y: 541, w: 132, h: 151 },
+  1: { x: 78, y: 65, w: 99, h: 111 },
+  2: { x: 329, y: 56, w: 110, h: 120 },
+  3: { x: 579, y: 61, w: 121, h: 115 },
+  4: { x: 831, y: 52, w: 129, h: 124 },
+  5: { x: 1087, y: 55, w: 129, h: 121 },
+  6: { x: 63, y: 244, w: 130, h: 112 },
+  7: { x: 322, y: 237, w: 123, h: 119 },
+  8: { x: 579, y: 253, w: 122, h: 103 },
+  9: { x: 837, y: 238, w: 117, h: 118 },
+  10: { x: 1094, y: 239, w: 115, h: 117 },
+  11: { x: 22, y: 364, w: 211, h: 172 },
+  12: { x: 283, y: 364, w: 202, h: 172 },
+  13: { x: 546, y: 364, w: 187, h: 172 },
+  14: { x: 806, y: 364, w: 179, h: 172 },
+  15: { x: 1053, y: 364, w: 198, h: 172 },
+  16: { x: 20, y: 544, w: 215, h: 172 },
+  17: { x: 298, y: 545, w: 171, h: 171 },
+  18: { x: 82, y: 4, w: 91, h: 172 },
+  19: { x: 333, y: 4, w: 101, h: 172 },
+  20: { x: 584, y: 4, w: 111, h: 172 },
+  21: { x: 834, y: 4, w: 124, h: 172 },
+  22: { x: 1094, y: 4, w: 115, h: 172 },
+  23: { x: 65, y: 184, w: 126, h: 172 },
+  24: { x: 325, y: 184, w: 118, h: 172 },
+  25: { x: 573, y: 184, w: 134, h: 172 },
+  26: { x: 839, y: 184, w: 114, h: 172 },
+  27: { x: 1097, y: 184, w: 109, h: 172 },
+  28: { x: 35, y: 364, w: 186, h: 172 },
+  29: { x: 297, y: 364, w: 174, h: 172 },
+  30: { x: 550, y: 364, w: 179, h: 172 },
+  31: { x: 815, y: 364, w: 162, h: 172 },
+  32: { x: 1062, y: 364, w: 180, h: 172 },
+  33: { x: 41, y: 544, w: 173, h: 172 },
+  34: { x: 279, y: 544, w: 210, h: 172 },
+  35: { x: 129, y: 5, w: 61, h: 171 },
+  36: { x: 448, y: 4, w: 64, h: 172 },
+  37: { x: 765, y: 4, w: 70, h: 172 },
+  38: { x: 1082, y: 4, w: 75, h: 172 },
+  39: { x: 122, y: 184, w: 76, h: 172 },
+  40: { x: 440, y: 184, w: 80, h: 172 },
+  41: { x: 765, y: 184, w: 70, h: 172 },
+  42: { x: 1079, y: 184, w: 82, h: 172 },
+  43: { x: 127, y: 364, w: 66, h: 172 },
+  44: { x: 448, y: 364, w: 63, h: 172 },
+  45: { x: 718, y: 364, w: 163, h: 172 },
+  46: { x: 1042, y: 364, w: 155, h: 172 },
+  47: { x: 82, y: 544, w: 156, h: 172 },
+  48: { x: 406, y: 544, w: 148, h: 172 },
+  49: { x: 719, y: 544, w: 161, h: 172 },
+  50: { x: 1045, y: 544, w: 149, h: 172 },
 };
 
 export function sheetForBand(band: BuildingBand): SpriteSheet {
@@ -260,6 +261,97 @@ export const GROUND_SHEET: PropSheet = {
   file: "v5-ground-tiles-kit-k1.png",
   width: 1280,
   height: 720,
+};
+
+/** Restyled civic atlas: center office, construction stages, plants, roads, odd unused buildings. */
+export const CIVIC_SHEET: PropSheet = {
+  file: "civic-kit-k1.png",
+  width: 1536,
+  height: 1024,
+};
+
+export const CIVIC_SPRITES: Record<string, SpriteBox> = {
+  office: { x: 8, y: 8, w: 420, h: 303 },
+  "city-hall": { x: 436, y: 8, w: 144, h: 125 },
+  "bank-office": { x: 1035, y: 8, w: 99, h: 114 },
+  "scaffold-0": { x: 1142, y: 8, w: 87, h: 73 },
+  "scaffold-1": { x: 1237, y: 8, w: 75, h: 99 },
+  "scaffold-2": { x: 1320, y: 8, w: 88, h: 110 },
+  "scaffold-3": { x: 1416, y: 8, w: 95, h: 110 },
+  parking: { x: 86, y: 319, w: 174, h: 180 },
+  "plant-0": { x: 1375, y: 319, w: 74, h: 101 },
+  "plant-1": { x: 8, y: 507, w: 73, h: 101 },
+  "plant-2": { x: 89, y: 507, w: 61, h: 107 },
+  "plant-3": { x: 158, y: 507, w: 57, h: 105 },
+  "plant-5": { x: 223, y: 507, w: 90, h: 65 },
+  "road-0": { x: 8, y: 640, w: 146, h: 96 },
+  "road-1": { x: 162, y: 640, w: 144, h: 97 },
+  "bike-0": { x: 320, y: 640, w: 120, h: 70 },
+  "bike-1": { x: 448, y: 640, w: 120, h: 70 },
+  "odd-2": { x: 588, y: 8, w: 171, h: 202 },
+  "odd-3": { x: 767, y: 8, w: 144, h: 139 },
+  "odd-4": { x: 919, y: 8, w: 108, h: 122 },
+  "odd-6": { x: 1208, y: 319, w: 159, h: 157 },
+  "gate-0": { x: 268, y: 319, w: 156, h: 65 },
+  "gate-1": { x: 432, y: 319, w: 156, h: 68 },
+  "gate-2": { x: 596, y: 319, w: 145, h: 68 },
+  "gate-3": { x: 749, y: 319, w: 145, h: 68 },
+  "gate-4": { x: 902, y: 319, w: 145, h: 68 },
+  "gate-5": { x: 1055, y: 319, w: 145, h: 50 },
+};
+
+/** On-screen width of the park-center HQ compound — larger than any repo lot. */
+export const OFFICE_STAMP_WIDTH = 480;
+
+/** Street / bike-lane stamps — sized to read at overview and home zoom. */
+export const ROAD_STAMP_WIDTH = 176;
+export const BIKE_STAMP_WIDTH = 200;
+
+export const CONSTRUCTION_STAGES: Record<string, SpriteBox> = {
+  grading: CIVIC_SPRITES["scaffold-0"],
+  framing: CIVIC_SPRITES["scaffold-1"],
+  cladding: CIVIC_SPRITES["scaffold-2"],
+  finishing: CIVIC_SPRITES["scaffold-3"],
+};
+
+export const CIVIC_PLANTS = [
+  CIVIC_SPRITES["plant-0"],
+  CIVIC_SPRITES["plant-1"],
+  CIVIC_SPRITES["plant-2"],
+  CIVIC_SPRITES["plant-3"],
+  CIVIC_SPRITES["plant-5"],
+];
+
+export const CIVIC_ODD = [
+  CIVIC_SPRITES["odd-2"],
+  CIVIC_SPRITES["odd-3"],
+  CIVIC_SPRITES["odd-4"],
+  CIVIC_SPRITES["odd-6"],
+  CIVIC_SPRITES["bank-office"],
+  CIVIC_SPRITES["city-hall"],
+];
+
+/** Construction-city HUD: beveled wood/slate plaques with brass rivets. */
+export const HUD_SHEET: PropSheet = {
+  file: "hud-kit-k1.png",
+  width: 1024,
+  height: 768,
+};
+
+export const HUD_FRAMES: Record<string, SpriteBox> = {
+  plate: { x: 8, y: 8, w: 250, h: 78 },
+  status: { x: 270, y: 8, w: 320, h: 62 },
+  mass: { x: 600, y: 8, w: 186, h: 44 },
+  card: { x: 8, y: 100, w: 330, h: 260 },
+  census: { x: 8, y: 380, w: 900, h: 120 },
+  minimap: { x: 350, y: 100, w: 200, h: 140 },
+  toast: { x: 8, y: 520, w: 360, h: 48 },
+  btn: { x: 580, y: 100, w: 92, h: 36 },
+  "btn-wide": { x: 580, y: 148, w: 140, h: 36 },
+  "btn-sq": { x: 580, y: 196, w: 46, h: 46 },
+  dpad: { x: 740, y: 100, w: 150, h: 150 },
+  compass: { x: 910, y: 8, w: 100, h: 100 },
+  rail: { x: 740, y: 260, w: 130, h: 220 },
 };
 
 export const GROUND_TILES: Record<string, SpriteBox> = {

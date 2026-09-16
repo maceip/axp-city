@@ -16,11 +16,16 @@ function yardOrigin(x: number, y: number) {
 import {
   ANIM_SHEETS,
   BUILDING_SHEETS,
+  CIVIC_PLANTS,
+  CIVIC_SHEET,
+  CIVIC_SPRITES,
+  CONSTRUCTION_STAGES,
   CREW_CARRY,
   CREW_WALK,
   DRONE_QUADS,
   GROUND_SHEET,
   GROUND_TILES,
+  HUD_SHEET,
   LOT_TILE_DIRT,
   LOT_TILE_GRASS,
   MATERIAL_LOOSE,
@@ -65,6 +70,8 @@ export interface ImageStamp {
   repo?: string;
   pixelated?: boolean;
   alpha?: number;
+  /** Multiply tint (0xffffff = none). Parser `facadeTint` for repo buildings. */
+  tint?: number;
   /** Same-origin URL for artwork that is not part of the bundled sprite kit. */
   url?: string;
 }
@@ -169,11 +176,14 @@ function lotTileOps(
   images: ImageStamp[],
 ): void {
   const { lot, x, y } = place;
+  const loading = (lot.layout?.bays ?? 1) > 1;
   const worked = lot.yard === "fully_dormant" || lot.yard.startsWith("prs_");
-  const tile: SpriteBox = worked
-    ? LOT_TILE_DIRT
-    : LOT_TILE_GRASS[index % LOT_TILE_GRASS.length];
-  const bed = worked ? "c9a06b" : "8fc46a";
+  const tile: SpriteBox = loading
+    ? GROUND_TILES.asphaltSlab
+    : worked
+      ? LOT_TILE_DIRT
+      : LOT_TILE_GRASS[index % LOT_TILE_GRASS.length];
+  const bed = loading ? "5c6168" : worked ? "c9a06b" : "8fc46a";
   diamonds.push({
     kind: "diamond",
     x: x + 0.15,
@@ -182,8 +192,8 @@ function lotTileOps(
     d: LOT_D - 0.3,
     fill: hex(bed),
     fillAlpha: 1,
-    stroke: hex("283c23"),
-    strokeAlpha: 0.18,
+    stroke: hex(loading ? "d4b45a" : "283c23"),
+    strokeAlpha: loading ? 0.7 : 0.18,
     depth: -100_000,
   });
   const bc = {
@@ -199,6 +209,7 @@ function lotTileOps(
     false,
     -99_999,
     "ground",
+    loading ? { repo: lot.fullName, tag: "loading-pad" } : undefined,
   );
   stamp.scaleX = ((LOT_W + LOT_D) * 36) / tile.w;
   stamp.scaleY = ((LOT_W + LOT_D) * 18) / tile.h;
@@ -531,8 +542,8 @@ const DEFAULT_SLOTS: Record<string, { x: number; y: number }> = {
 
 const DECOR_BOXES: Record<DecorPropName, { box: SpriteBox; width: number }> = {
   cones: { box: GROUND_TILES.cone, width: 20 },
-  lamp: { box: GROUND_TILES.lampPost, width: 16 },
-  bench: { box: GROUND_TILES.benchProp, width: 40 },
+  lamp: { box: GROUND_TILES.lampPost, width: 22 },
+  bench: { box: GROUND_TILES.benchProp, width: 52 },
   tree: { box: GROUND_TILES.treeRoundA, width: 40 },
   bush: { box: GROUND_TILES.bushA, width: 38 },
   planter: { box: GROUND_TILES.sandTile, width: 34 },
@@ -569,6 +580,7 @@ function yardOps(
   images: ImageStamp[],
   anims: RawAnim[],
   ellipses: EllipseOp[],
+  diamonds: DiamondOp[],
 ): void {
   const { lot } = place;
   const origin = yardOrigin(place.x, place.y);
@@ -591,11 +603,33 @@ function yardOps(
     const p = at("materials");
     matsOps(p.x, p.y, lot, images, anims, depth);
     const bays = lot.layout?.bays ?? 1;
+    if (bays > 1) {
+      diamonds.push({
+        kind: "diamond",
+        x: place.x + 1.85,
+        y: place.y + 0.22,
+        w: 2.05,
+        d: 2.05,
+        fill: hex("5c6168"),
+        fillAlpha: 0.95,
+        stroke: hex("d4b45a"),
+        strokeAlpha: 0.7,
+        depth: -99_990,
+      });
+      const apron = project(yx + 1.05, yy + 1.15);
+      images.push(
+        imageStamp(GROUND_SHEET, GROUND_TILES.asphaltSlab, apron.sx, apron.sy, 128, false, depth - 1.2, "world", {
+          repo: lot.fullName,
+          tag: "loading-apron",
+        }),
+      );
+    }
     for (let bay = 1; bay < bays; bay++) {
       const pallet = MATERIAL_PALLETS[(lot.buildingId + bay * 2) % MATERIAL_PALLETS.length];
-      const a = project(p.x + 0.9 + bay * 0.42, p.y + 0.85 - bay * 0.38);
+      // Toward the camera (higher x+y) so extra bays are not hidden by the building.
+      const a = project(place.x + 1.15 + bay * 0.85, place.y + 1.55 - bay * 0.12);
       images.push(
-        imageStamp(PROP_SHEETS.materials, pallet, a.sx, a.sy, 52, !lot.recentActivity, depth + 0.2, "world", {
+        imageStamp(PROP_SHEETS.materials, pallet, a.sx, a.sy, 78, !lot.recentActivity, depth + 0.2, "world", {
           repo: lot.fullName,
           tag: `bay:${bay + 1}`,
         }),
@@ -612,6 +646,33 @@ function yardOps(
     droneOps(p.x, p.y, lot, images, anims, ellipses, depth);
   }
   decorOps(yx, yy, lot, images, depth);
+  if (lot.dressingProp && lot.dressingProp !== "none") {
+    const at = slotFor(lot, lot.dressingProp) ?? { x: 1.55, y: 1.55 };
+    const anchor = project(yx + at.x, yy + at.y);
+    const plant = CIVIC_PLANTS[lot.buildingId % CIVIC_PLANTS.length];
+    const box =
+      lot.dressingProp === "lamp"
+        ? GROUND_TILES.lampPost
+        : lot.dressingProp === "planter"
+          ? GROUND_TILES.bushA
+          : lot.dressingProp === "bush"
+            ? GROUND_TILES.bushA
+            : plant;
+    const sheet = lot.dressingProp === "tree" ? CIVIC_SHEET : GROUND_SHEET;
+    images.push(
+      imageStamp(
+        sheet,
+        box,
+        anchor.sx,
+        anchor.sy,
+        lot.dressingProp === "lamp" ? 14 : 36,
+        false,
+        depth,
+        "decor",
+        { repo: lot.fullName, tag: `dressing:${lot.dressingProp}` },
+      ),
+    );
+  }
 }
 
 function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
@@ -635,6 +696,7 @@ function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
       repo: lot.fullName,
       tag: "building",
       url: lot.artwork.url,
+      tint: lot.facadeTint,
     });
     return;
   }
@@ -652,9 +714,68 @@ function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
       !lot.recentActivity,
       depthAt(place.x, place.y, 6),
       "world",
-      { repo: lot.fullName, tag: "building" },
+      { repo: lot.fullName, tag: "building", tint: lot.facadeTint },
     ),
   );
+}
+
+function roofOps(place: LotPlacement, images: ImageStamp[]): void {
+  const { lot } = place;
+  const bays = lot.layout?.bays ?? 1;
+  const extras = lot.extraProps ?? [];
+  if (bays <= 1 && extras.length === 0) return;
+  const size = buildingSize(lot);
+  const foot = project(place.x + 1, place.y + LOT_D / 2);
+  const roofX = foot.sx;
+  const roofY = foot.sy - size.height * 0.86;
+  const depth = depthAt(place.x, place.y, 8);
+  if (bays > 1) {
+    images.push(
+      imageStamp(
+        CIVIC_SHEET,
+        CIVIC_SPRITES["bank-office"],
+        roofX,
+        roofY + 28,
+        58,
+        false,
+        depth,
+        "world",
+        { repo: lot.fullName, tag: "roof-sign" },
+      ),
+    );
+    for (let bay = 1; bay < bays; bay++) {
+      const pallet = MATERIAL_PALLETS[(lot.buildingId + bay * 3) % MATERIAL_PALLETS.length];
+      images.push(
+        imageStamp(
+          PROP_SHEETS.materials,
+          pallet,
+          roofX - 36 + bay * 36,
+          roofY + 52,
+          68,
+          false,
+          depth,
+          "world",
+          { repo: lot.fullName, tag: `roof-bay:${bay + 1}` },
+        ),
+      );
+    }
+  }
+  if (extras.includes("lamp")) {
+    images.push(
+      imageStamp(GROUND_SHEET, GROUND_TILES.lampPost, roofX + 24, roofY + 48, 20, false, depth, "decor", {
+        repo: lot.fullName,
+        tag: "roof-lamp",
+      }),
+    );
+  }
+  if (extras.includes("bench")) {
+    images.push(
+      imageStamp(GROUND_SHEET, GROUND_TILES.benchProp, roofX - 22, roofY + 52, 42, false, depth, "decor", {
+        repo: lot.fullName,
+        tag: "roof-bench",
+      }),
+    );
+  }
 }
 
 /** Behaviour implied by a robot-atlas animation, used to pick the human equivalent. */
@@ -698,6 +819,8 @@ export function requiredSheets(): string[] {
     BUILDING_SHEETS.M.file,
     BUILDING_SHEETS.L.file,
     GROUND_SHEET.file,
+    CIVIC_SHEET.file,
+    HUD_SHEET.file,
     PROP_SHEETS.materials.file,
     PROP_SHEETS.planning.file,
     PROP_SHEETS.crew.file,
@@ -729,7 +852,10 @@ export function planLot(
   const raw: RawAnim[] = [];
   lotTileOps(place, place.lot.buildingId, result.diamonds, result.images);
   buildingOp(place, result.images);
-  if (detail) yardOps(place, result.images, raw, result.ellipses);
+  if (detail) {
+    yardOps(place, result.images, raw, result.ellipses, result.diamonds);
+    roofOps(place, result.images);
+  }
   result.hits.push({
     kind: "hit",
     repo: place.lot.fullName,
@@ -747,6 +873,23 @@ export function planLot(
   if (site.stage !== "complete") {
     result.construction = site;
     if (building) building.alpha = Math.min(building.alpha ?? 1, site.buildingAlpha);
+    const stageBox = CONSTRUCTION_STAGES[site.stage];
+    if (stageBox) {
+      const a = project(place.x + 1.0, place.y + LOT_D / 2);
+      result.images.push(
+        imageStamp(
+          CIVIC_SHEET,
+          stageBox,
+          a.sx,
+          a.sy,
+          buildingSize(place.lot).width * 0.92,
+          false,
+          a.sy + 2,
+          "world",
+          { repo: place.lot.fullName, tag: "scaffold-art" },
+        ),
+      );
+    }
     if (site.siteDressing) {
       result.diamonds.push({
         kind: "diamond",

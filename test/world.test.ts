@@ -53,6 +53,35 @@ describe("planCity", () => {
     expect(park!.h).toBeGreaterThan(4);
   });
 
+  it("places a distinct center office, bike lanes, plants, and occasional odd buildings", () => {
+    const plan = planCity(lots(24));
+    expect(plan.features.some((f) => f.kind === "office" && f.id === "city-office")).toBe(true);
+    expect(plan.features.some((f) => f.kind === "bike")).toBe(true);
+    const office = plan.civics.find((c) => c.kind === "office");
+    expect(office?.sprite).toBe("office");
+    expect(plan.civics.filter((c) => c.kind === "plant").length).toBeGreaterThan(4);
+    expect(plan.civics.some((c) => c.kind === "odd")).toBe(true);
+    expect(plan.civics.some((c) => c.kind === "gate")).toBe(true);
+    expect(plan.civics.filter((c) => c.kind === "road").length).toBeGreaterThan(3);
+    expect(plan.civics.filter((c) => c.kind === "bike").length).toBeGreaterThan(3);
+    expect(plan.civics.every((c) => c.kind !== "road" || c.sprite.startsWith("road-"))).toBe(true);
+    expect(plan.civics.every((c) => c.kind !== "bike" || c.sprite.startsWith("bike-"))).toBe(true);
+    expect(planCity(lots(36)).civics.some((c) => c.kind === "odd")).toBe(true);
+    const park = plan.features.find((f) => f.kind === "park")!;
+    expect(office!.x).toBeGreaterThan(park.x);
+    expect(office!.x).toBeLessThan(park.x + park.w);
+    expect(plan.placements.every((p) => p.lot.fullName !== "city-office")).toBe(true);
+  });
+
+  it("paints bike lanes on the street shoulder without shuffling lot addresses", () => {
+    const small = planCity(lots(4));
+    const large = planCity(lots(24));
+    expect(small.placements[0].x).toBe(large.placements[0].x);
+    expect(small.placements[0].y).toBe(large.placements[0].y);
+    const street = large.placements[0];
+    expect(tileKind(street.x, street.y + 2.85, large)).toBe("bike");
+  });
+
   it("grows freeway and tram with the lot set, without moving plots", () => {
     const small = planCity(lots(4));
     const large = planCity(lots(24));

@@ -3,7 +3,9 @@ import { CITY_ANIMATIONS, GENERATED_ANIMATIONS } from "../../src/game/plan.js";
 import {
   ANIM_SHEETS,
   BUILDING_SHEETS,
+  CIVIC_SHEET,
   GROUND_SHEET,
+  HUD_SHEET,
   PROP_SHEETS,
   WILD_SHEETS,
 } from "../../src/render/sprites.js";
@@ -18,6 +20,8 @@ export const CORE_SHEETS = [
   BUILDING_SHEETS.M.file,
   BUILDING_SHEETS.L.file,
   GROUND_SHEET.file,
+  CIVIC_SHEET.file,
+  HUD_SHEET.file,
   WILD_SHEETS.trees.file,
 ];
 

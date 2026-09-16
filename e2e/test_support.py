@@ -43,7 +43,9 @@ def test_unsupported_browser_gets_an_explicit_error_screen(browser, server):
 def test_webgl_context_loss_recovers_camera_and_selection(page):
     page.evaluate("window.__AXP.select('acme/robots')")
     page.wait_for_function("window.__AXP.diagnostics().cardVisible")
+    page.wait_for_function("!window.__AXP.diagnostics().panRunning")
     page.keyboard.press("d")
+    page.wait_for_timeout(80)
     before = page.evaluate("window.__AXP.diagnostics()")
     lost = page.evaluate(
         """() => { const gl = window.__AXP.game.renderer.gl; const ext = gl.getExtension('WEBGL_lose_context'); if (!ext) return false; window.__AXP_EXT = ext; ext.loseContext(); return true; }"""

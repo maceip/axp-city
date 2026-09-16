@@ -1,4 +1,4 @@
-import { buildingSize } from "../src/game/geometry.js";
+import { buildingBounds, buildingSize, lotSampleBounds } from "../src/game/geometry.js";
 import { describe, expect, it } from "vitest";
 import { planLot, requiredSheets } from "../src/game/plan.js";
 import { ambientActors, pointAlong } from "../src/game/ambient.js";
@@ -19,6 +19,19 @@ describe("Phaser scene planning", () => {
       expect(size.width).toBeLessThanOrEqual(168.000001);
       expect(size.height).toBeLessThanOrEqual(210.000001);
     }
+  });
+  it("samples the building crown so neighbouring civic stamps cannot hide the lot", () => {
+    const place = planCity(
+      parseCity([metrics({ fullName: "acme/forge", stars: 25000 })], { now: FIXED_NOW }),
+    ).placements[0];
+    place.lot.buildingId = 42;
+    place.lot.buildingBand = "L";
+    const tower = buildingBounds(place);
+    const sample = lotSampleBounds(place);
+    expect(sample.y).toBeLessThanOrEqual(tower.y);
+    expect(sample.height).toBeLessThan(tower.height);
+    expect(sample.y + sample.height).toBeLessThan(tower.y + tower.height);
+    expect(sample.width).toBeGreaterThan(tower.width);
   });
   it("preserves the shared world addresses and gives every lot its own building and loading zone", () => {
     const places = planCity(
@@ -113,6 +126,7 @@ describe("Phaser scene planning", () => {
     expect(finishing.construction?.stage).toBe("finishing");
     expect(finishing.anims.some((a) => a.anim === "craneArm")).toBe(false);
     expect(finishing.images.some((i) => i.tag?.startsWith("cone:"))).toBe(false);
+    expect(finishing.images.some((i) => i.tag === "scaffold-art")).toBe(true);
     const done = at(46_000);
     expect(done.construction).toBeUndefined();
     expect(done.images.find((i) => i.tag === "building")?.alpha).toBe(1);
@@ -128,6 +142,14 @@ describe("Phaser scene planning", () => {
     place.lot.extraProps = ["cones", "lamp", "bench"];
     const custom = planLot(place);
     expect(custom.images.filter((i) => i.tag?.startsWith("bay:"))).toHaveLength(2);
+    expect(custom.images.some((i) => i.tag === "loading-apron")).toBe(true);
+    expect(custom.images.some((i) => i.tag === "loading-pad")).toBe(true);
+    expect(custom.images.some((i) => i.tag === "roof-sign")).toBe(true);
+    expect(custom.images.some((i) => i.tag === "roof-lamp")).toBe(true);
+    expect(custom.images.some((i) => i.tag === "roof-bench")).toBe(true);
+    expect(custom.images.filter((i) => i.tag?.startsWith("roof-bay:")).length).toBe(2);
+    expect(base.images.some((i) => i.tag === "loading-pad")).toBe(false);
+    expect(custom.diamonds.length).toBeGreaterThan(base.diamonds.length);
     expect(custom.images.filter((i) => i.tag?.startsWith("decor:")).map((i) => i.tag)).toEqual([
       "decor:cones",
       "decor:lamp",
@@ -211,5 +233,33 @@ describe("Phaser scene planning", () => {
     expect(unproject(p.sx, p.sy).x).toBeCloseTo(-201.5);
     expect(unproject(p.sx, p.sy).y).toBeCloseTo(340.2);
     expect(new Set(requiredSheets()).size).toBe(requiredSheets().length);
+    expect(requiredSheets()).toContain("civic-kit-k1.png");
+    expect(requiredSheets()).toContain("hud-kit-k1.png");
+  });
+  it("tints repo facades and stamps dressing plus construction art from the civic kit", () => {
+    const places = planCity(
+      parseCity(
+        [
+          metrics({ fullName: "acme/tint-a", stars: 12 }),
+          metrics({ fullName: "acme/tint-b", stars: 12 }),
+        ],
+        { now: FIXED_NOW },
+      ),
+    ).placements;
+    const a = planLot(places[0]).images.find((i) => i.tag === "building")!;
+    const b = planLot(places[1]).images.find((i) => i.tag === "building")!;
+    expect(a.tint).toBe(places[0].lot.facadeTint);
+    expect(b.tint).toBe(places[1].lot.facadeTint);
+    const dressed = places.find((p) => p.lot.dressingProp !== "none") ?? places[0];
+    if (dressed.lot.dressingProp !== "none") {
+      expect(planLot(dressed).images.some((i) => i.tag === `dressing:${dressed.lot.dressingProp}`)).toBe(true);
+    }
+    const site = planCity(
+      parseCity([metrics({ fullName: "acme/new", stars: 30000 })], { now: FIXED_NOW }),
+      { now: FIXED_NOW, addedAt: { "acme/new": FIXED_NOW } },
+    ).placements[0];
+    const grading = planLot(site, true, Date.parse(FIXED_NOW) + 2_000);
+    expect(grading.construction?.stage).toBe("grading");
+    expect(grading.images.some((i) => i.tag === "scaffold-art" && i.sheet === "civic-kit-k1.png")).toBe(true);
   });
 });

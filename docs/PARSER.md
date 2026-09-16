@@ -25,6 +25,8 @@ By default, `buildingId` is the lower catalog ID plus `hash(fullName) % bandSize
 
 `sizeKb` and language bytes are stored on the lot for display. They do not change the band.
 
+A second, independent hash of `fullName` (`pickFacade`) assigns a muted `facadeTint` (one of eight isometric roof/wall tints) and a `dressingProp` (`tree`, `bush`, `planter`, `lamp`, or `none`). This does not change `buildingId` or lot address. Neighbours may share a silhouette; they still read as different houses because tint and yard dressing differ. Custom artwork still uses the tint when present.
+
 ## Yard kind
 
 Evaluate in this order. **Open PRs beat open issues** for the kind. When both exist, the yard is still a _combined_ set: PR materials plus a small blueprint.
