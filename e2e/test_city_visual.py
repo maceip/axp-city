@@ -841,11 +841,17 @@ def test_mobile_tap_dpad_pinch_and_layout(browser, server):
     assert diag(page)["cardVisible"]
     card = hud(page, "card")
     assert card["y"] > 400  # bottom sheet on phones
+    # The sheet withdraws the toolbar and D-pad it covers as soon as it opens.
+    assert all(hud_or_none(page, name) is None for name in ["dpad", "census", "capture", "svg", "motion", "follow"])
     page.screenshot(path=str(SHOTS / "mobile-inspect.png"))
     close = hud(page, "close-card")
     page.touchscreen.tap(close["x"], close["y"])
     page.wait_for_function("!window.__AXP.diagnostics().cardVisible")
     point = page.evaluate("window.__AXP.screenPoint('acme/forge')")
+    # The framed lot's tap target lies below the stacked plaques, not under the MASS bar
+    # (WebKit's taller card text used to push the framing up into it).
+    mass = hud(page, "mass")
+    assert point["y"] > mass["y"] + mass["height"] / 2 + 8, (point, mass)
     page.touchscreen.tap(point["x"], point["y"])
     page.wait_for_function("window.__AXP.diagnostics().selected === 'acme/forge'")
     close = hud(page, "close-card")

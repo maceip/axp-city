@@ -416,12 +416,8 @@ export class HudScene extends Phaser.Scene {
     this.buttons.get("zoom-in")!.container.setPosition(zoomX + 108, zoomY);
     this.dpad.setPosition(16, H - 166);
     this.dpad.setScale(small ? 0.85 : 1);
-    // A phone's bottom sheets (card, census) cover the d-pad and the toolbar; both
-    // return when the sheet closes, and the card carries its own Follow meanwhile.
-    const sheet = small && (this.card.visible || this.censusOpen);
-    this.dpad.setVisible(!sheet);
     const toolbar = ["census", "capture", "svg", "motion", "follow"];
-    for (const name of toolbar) this.buttons.get(name)!.container.setVisible(!sheet);
+    this.coverBySheets();
     this.hint.setOrigin(0, 1).setPosition(190, H - 60).setVisible(!small && !this.censusOpen && W >= 1100);
     if (small) {
       this.kitRail.setVisible(false);
@@ -695,11 +691,20 @@ export class HudScene extends Phaser.Scene {
     this.buttons.get("close-card")!.container.setPosition(width - 40, 8);
     this.buttons.get("open-repo")!.container.setPosition(16, height - 44);
     this.buttons.get("follow-card")!.container.setPosition(width - 118 - 16, height - 44);
-    if (small) {
-      this.dpad.setVisible(false);
-      this.hint.setVisible(false);
-    }
+    if (small) this.hint.setVisible(false);
+    this.coverBySheets();
     this.card.setDepth(40);
+  }
+
+  /**
+   * A phone's bottom sheets (card, census) cover the D-pad and the toolbar. The
+   * covered controls are withdrawn rather than left showing through the plaque and
+   * return when the sheet closes; the card carries its own Follow meanwhile.
+   */
+  private coverBySheets(): void {
+    const sheet = this.scale.width < 700 && (this.card.visible || this.censusOpen);
+    this.dpad.setVisible(!sheet);
+    for (const name of ["census", "capture", "svg", "motion", "follow"]) this.buttons.get(name)!.container.setVisible(!sheet);
   }
 
   get cardVisible(): boolean {
@@ -710,6 +715,10 @@ export class HudScene extends Phaser.Scene {
   }
   get cardBottom(): number {
     return this.card.visible ? this.card.y : this.scale.height;
+  }
+  /** Bottom edge of the fixed HUD stack at the top of the screen (phones stack four plaques). */
+  get topInset(): number {
+    return this.scale.width < 700 ? 222 + 44 + 12 : 96;
   }
 
   // ---- Census ------------------------------------------------------------

@@ -703,7 +703,10 @@ export class CityScene extends Phaser.Scene {
     const small = camera.width < 700;
     const targetX = small ? camera.width / 2 : (camera.width - 340) / 2;
     const cardTop = this.hudReady ? this.hud.cardBottom : camera.height;
-    const targetY = small ? Math.max(170, (140 + cardTop) / 2) : camera.height / 2;
+    // On a phone the lot is framed between the HUD stack (plate, search, status,
+    // MASS) and the card sheet, so its tap target is not under a plaque.
+    const top = this.hudReady ? this.hud.topInset : 140;
+    const targetY = small ? Math.max(top + 60, (top + cardTop) / 2) : camera.height / 2;
     const x = bounds.x + bounds.width / 2 + (camera.width / 2 - targetX) / camera.zoom;
     const y = bounds.y + bounds.height * 0.55 + (camera.height / 2 - targetY) / camera.zoom;
     if (this.reducedMotion) camera.centerOn(x, y);
