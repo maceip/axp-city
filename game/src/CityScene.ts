@@ -314,14 +314,15 @@ export class CityScene extends Phaser.Scene {
         return this.civics
           .filter((object) => object.getData("bikeLaneMark"))
           .map((object) => {
-            const width = ("displayWidth" in object ? Number(object.displayWidth) : Number(object.width) || 96) * zoom;
-            const height = ("displayHeight" in object ? Number(object.displayHeight) : Number(object.height) || 28) * zoom;
+            const mark = object as Phaser.GameObjects.Container | Phaser.GameObjects.Image;
+            const width = ("displayWidth" in mark ? mark.displayWidth : mark.width || 96) * zoom;
+            const height = ("displayHeight" in mark ? mark.displayHeight : mark.height || 28) * zoom;
             return {
-              x: (object.x - view.x) * zoom - width / 2,
-              y: (object.y - view.y) * zoom - height / 2,
+              x: (mark.x - view.x) * zoom - width / 2,
+              y: (mark.y - view.y) * zoom - height / 2,
               width,
               height,
-              type: object.type,
+              type: mark.type,
             };
           });
       },
@@ -594,7 +595,7 @@ export class CityScene extends Phaser.Scene {
       this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
     const markScale = Math.min(3.4, Math.max(1, 1.05 / this.cameras.main.zoom));
     for (const object of this.civics) {
-      if (object.getData("bikeLaneMark")) object.setScale(markScale);
+      if (object.getData("bikeLaneMark")) (object as Phaser.GameObjects.Container).setScale(markScale);
     }
   }
 
