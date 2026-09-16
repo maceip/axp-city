@@ -246,6 +246,7 @@ export class CityScene extends Phaser.Scene {
         freshness: this.city.freshness,
         reducedMotion: this.reducedMotion,
         censusOpen: this.hudReady && this.hud.censusIsOpen,
+        censusFrame: this.hudReady ? this.hud.censusFrame() : null,
         cardVisible: this.hudReady && this.hud.cardVisible,
         office: this.city.plan.civics?.find((c) => c.kind === "office") ?? null,
         officeStampWidth: OFFICE_STAMP_WIDTH,

@@ -270,9 +270,14 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
 
         click_hud(page, "census")
         page.wait_for_function("window.__AXP.diagnostics().censusOpen === true")
+        census = page.evaluate("window.__AXP.diagnostics()")
+        frame = census["censusFrame"]
+        assert frame and frame["width"] <= 460, f"census still curtains the city ({frame})"
+        assert frame["height"] <= 560, f"census still runs the full viewport ({frame})"
+        assert census["cardVisible"] is False, "inspect card must yield while the census sheet is open"
         page.screenshot(path=str(SHOTS / "tileset-hud-census.png"), full_page=False)
         ledger = SHOTS / "tileset-hud-census-ledger.png"
-        page.screenshot(path=str(ledger), clip={"x": 16, "y": 98, "width": 680, "height": 200})
+        page.screenshot(path=str(ledger), clip={"x": 16, "y": 98, "width": int(frame["width"]), "height": 200})
         title = SHOTS / "tileset-hud-census-title.png"
         page.screenshot(path=str(title), clip={"x": 32, "y": 110, "width": 180, "height": 24})
         title_ink = cream_ink_width(title)

@@ -34,6 +34,15 @@ const GOLD = "#f6dd91";
 const INK = "#f2efe2";
 const MUTED = "#b9c4b3";
 
+/** Desktop kit and census stay city-first: the ledger is a sheet, not a curtain. */
+const KIT_BTN_W = 96;
+const KIT_BTN_H = 28;
+const KIT_GAP = 6;
+const CARD_W = 268;
+const CENSUS_MIN_W = 392;
+const CENSUS_MAX_W = 448;
+const CENSUS_MAX_H = 540;
+
 function tint(color: string): number {
   return Number.parseInt(color.replace("#", ""), 16);
 }
@@ -291,20 +300,20 @@ export class HudScene extends Phaser.Scene {
       fontSize: "11px",
       color: "#efe6c8",
     }).setOrigin(0, 1);
-    this.kitRail = this.hudPanel("rail", 136, 220);
+    this.kitRail = this.hudPanel("rail", KIT_BTN_W + 12, 180);
     this.kitRail.setName("kit-rail");
-    this.button("census", "CENSUS", 118, 34, () => this.toggleCensus());
-    this.button("capture", "CAPTURE", 118, 34, () => this.actions.capture());
-    this.button("svg", "SVG MAP", 118, 34, () => window.open(document.querySelector<HTMLMetaElement>('meta[name="city-svg"]')?.content || "/api/city/export.svg", "_blank", "noopener"));
-    this.button("motion", "MOTION ON", 118, 34, () => {
+    this.button("census", "CENSUS", KIT_BTN_W, KIT_BTN_H, () => this.toggleCensus());
+    this.button("capture", "CAPTURE", KIT_BTN_W, KIT_BTN_H, () => this.actions.capture());
+    this.button("svg", "SVG MAP", KIT_BTN_W, KIT_BTN_H, () => window.open(document.querySelector<HTMLMetaElement>('meta[name="city-svg"]')?.content || "/api/city/export.svg", "_blank", "noopener"));
+    this.button("motion", "MOTION ON", KIT_BTN_W, KIT_BTN_H, () => {
       this.motion = this.actions.toggleMotion();
       this.buttons.get("motion")!.label.setText(this.motion ? "MOTION ON" : "MOTION OFF");
       this.emit("motion", this.motion);
     });
-    this.button("follow", "FOLLOW", 118, 34, () => this.actions.follow());
+    this.button("follow", "FOLLOW", KIT_BTN_W, KIT_BTN_H, () => this.actions.follow());
 
     this.card = this.add.container(0, 0).setVisible(false).setName("card");
-    this.cardBg = this.hudPanel("card", 330, 260);
+    this.cardBg = this.hudPanel("card", CARD_W, 260);
     this.card.add(this.cardBg);
     const close = this.button("close-card", "×", 32, 32, () => this.actions.select(undefined));
     this.card.add(close.container);
@@ -381,7 +390,7 @@ export class HudScene extends Phaser.Scene {
     this.mast.setPosition(10, 10);
     this.mast.setDisplaySize(W - 20, 86);
     this.tools.setPosition(W - 336, 16);
-    this.massContainer.setVisible(!small || !this.card.visible);
+    // Desktop MASS lives on the inspect card; the extra plate covered the city.
     const mapW = small ? 120 : 180,
       mapH = small ? 78 : 118;
     if (mapW !== this.minimapSize.w) {
@@ -407,12 +416,14 @@ export class HudScene extends Phaser.Scene {
     this.hintPlate.setOrigin(0, 1).setPosition(186, H - 54).setDisplaySize(Math.min(780, W - 420), 26).setVisible(hintOn);
     if (small) {
       this.kitRail.setVisible(false);
+      this.massContainer.setVisible(!this.card.visible && !this.censusOpen);
       this.compass.setPosition(W - 60, 92);
       this.massContainer.setPosition(W - 210, 92);
       const y0 = H - 248;
       let x = 16;
       for (const name of ["census", "capture", "svg"]) {
         const b = this.buttons.get(name)!;
+        b.container.setVisible(true);
         b.container.setScale(0.82);
         b.container.setPosition(x, y0);
         x += b.width * 0.82 + 6;
@@ -420,27 +431,32 @@ export class HudScene extends Phaser.Scene {
       x = 16;
       for (const name of ["motion", "follow"]) {
         const b = this.buttons.get(name)!;
+        b.container.setVisible(true);
         b.container.setScale(0.82);
         b.container.setPosition(x, y0 + 36);
         x += b.width * 0.82 + 6;
       }
     } else {
-      const kitW = 118;
-      const kitX = W - mapW - 22 - kitW - 14;
-      const kitH = toolbar.length * 42;
+      const kitW = KIT_BTN_W;
+      const kitX = W - mapW - 22 - kitW - 10;
+      const kitH = toolbar.length * (KIT_BTN_H + KIT_GAP) - KIT_GAP;
       // Bottom-align with the minimap so Follow stays on-screen.
       const kitY = H - 46 - kitH;
-      for (const name of toolbar) this.buttons.get(name)!.container.setScale(1);
-      this.kitRail.setVisible(true);
-      this.kitRail.setPosition(kitX - 8, kitY - 58);
-      this.kitRail.setDisplaySize(kitW + 16, kitH + 66);
-      this.massContainer.setPosition(kitX - 4, kitY - 50);
-      this.compass.setPosition(W - 64, kitY - 54);
+      this.massContainer.setVisible(false);
+      this.compass.setPosition(W - 64, kitY - 8);
+      const hideDock = this.censusOpen;
+      this.kitRail.setVisible(!hideDock);
+      this.kitRail.setPosition(kitX - 6, kitY - 8);
+      this.kitRail.setDisplaySize(kitW + 12, kitH + 16);
       let y = kitY;
       for (const name of toolbar) {
         const b = this.buttons.get(name)!;
-        b.container.setPosition(kitX, y);
-        y += b.height + 8;
+        b.container.setScale(1);
+        const show = !hideDock || name === "census";
+        b.container.setVisible(show);
+        if (!show) continue;
+        b.container.setPosition(kitX, hideDock ? H - 46 - KIT_BTN_H - 8 : y);
+        y += b.height + KIT_GAP;
       }
     }
     this.toastBg.setPosition(W / 2, H - (small ? 230 : 70));
@@ -633,13 +649,14 @@ export class HudScene extends Phaser.Scene {
       y += t.height + 6;
     }
     this.card.setData("height", y + 52);
-    this.card.setVisible(true);
-    this.layoutCard();
+    this.card.setVisible(!this.censusOpen);
+    if (this.card.visible) this.layoutCard();
+    else this.layout();
     this.emit("selection", { place, lines: lines.map((l) => l[0]) });
   }
 
   private cardWidth(): number {
-    return this.scale.width < 700 ? this.scale.width - 24 : 330;
+    return this.scale.width < 700 ? this.scale.width - 24 : CARD_W;
   }
 
   private layoutCard(): void {
@@ -675,12 +692,19 @@ export class HudScene extends Phaser.Scene {
     this.censusOpen = open;
     this.census.setVisible(open);
     this.censusScroll = 0;
+    // Ledger + inspect card together buried the city; keep one overlay.
+    this.card.setVisible(Boolean(this.selected) && !open);
     if (open) this.renderCensus();
     this.layout();
     this.emit("census", open);
   }
   get censusIsOpen(): boolean {
     return this.censusOpen;
+  }
+
+  censusFrame(): { x: number; y: number; width: number; height: number } | null {
+    if (!this.censusOpen) return null;
+    return frameOf(this.census);
   }
 
   setCensusFilter(query: string): void {
@@ -706,8 +730,8 @@ export class HudScene extends Phaser.Scene {
       this.censusBg.setDisplaySize(W, height);
       this.buttons.get("close-census")!.container.setPosition(W - 44, 8);
     } else {
-      const width = Math.min(720, Math.max(580, W * 0.42));
-      const height = H - 112;
+      const width = Math.min(CENSUS_MAX_W, Math.max(CENSUS_MIN_W, Math.round(W * 0.28)));
+      const height = Math.min(H - 120, CENSUS_MAX_H);
       this.census.setPosition(16, 98).setSize(width, height);
       this.censusBg.setDisplaySize(width, height);
       this.buttons.get("close-census")!.container.setPosition(width - 44, 8);
@@ -727,12 +751,12 @@ export class HudScene extends Phaser.Scene {
           { key: "crew", label: "Crew", width: 100 },
         ]
       : [
-          { key: "repo", label: "Repository", width: 236 },
-          { key: "district", label: "District", width: 132 },
-          { key: "stars", label: "Stars", width: 80 },
-          { key: "prs", label: "PRs", width: 60 },
-          { key: "band", label: "Bld", width: 52 },
-          { key: "crew", label: "Crew", width: 124 },
+          { key: "repo", label: "Repository", width: 148 },
+          { key: "district", label: "District", width: 80 },
+          { key: "stars", label: "Stars", width: 52 },
+          { key: "prs", label: "PRs", width: 36 },
+          { key: "band", label: "Bld", width: 32 },
+          { key: "crew", label: "Crew", width: 72 },
         ];
   }
 
