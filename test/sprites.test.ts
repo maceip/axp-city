@@ -8,6 +8,7 @@ import {
   BUILDING_SHEETS,
   CIVIC_SHEET,
   CIVIC_SPRITES,
+  CONSTRUCTION_STAGES,
   CREW_CARRY,
   CREW_WALK,
   DRONE_QUADS,
@@ -204,6 +205,60 @@ describe("civic and HUD kits", () => {
     expect(BIKE_STAMP_WIDTH).toBeGreaterThanOrEqual(180);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);
+    expect(Object.keys(CONSTRUCTION_STAGES)).toEqual(["grading", "framing", "cladding", "finishing"]);
+    expect(CONSTRUCTION_STAGES.grading).toEqual(CIVIC_SPRITES["scaffold-0"]);
+    expect(CONSTRUCTION_STAGES.framing).toEqual(CIVIC_SPRITES["scaffold-1"]);
+    expect(CONSTRUCTION_STAGES.cladding).toEqual(CIVIC_SPRITES["scaffold-2"]);
+    expect(CONSTRUCTION_STAGES.finishing).toEqual(CIVIC_SPRITES["scaffold-3"]);
+    expect(CIVIC_SPRITES["scaffold-4"]).toBeUndefined();
+    expect(CONSTRUCTION_STAGES.finishing).not.toEqual(CIVIC_SPRITES["bank-office"]);
+  });
+
+  it("stamps olive-cream-slate scaffold-0..3 and never the finished $ bank", () => {
+    const script = `
+from PIL import Image
+civic = Image.open("assets/city-sprites/civic-kit-k1.png").convert("RGBA")
+boxes = [(1142, 8, 87, 73), (1237, 8, 75, 99), (1320, 8, 88, 110), (1416, 8, 95, 110)]
+bank = (1035, 8, 99, 114)
+px = civic.load()
+pale = dollar = n = 0
+sr = sg = sb = 0
+for x0, y0, w, h in boxes:
+    for y in range(y0, y0 + h):
+        for x in range(x0, x0 + w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            n += 1
+            sr += r; sg += g; sb += b
+            if (r + g + b) / 3 > 220:
+                pale += 1
+            if g > 90 and r < 80 and b < 90:
+                dollar += 1
+br = bg = bb = bn = 0
+for y in range(bank[1], bank[1] + bank[3]):
+    for x in range(bank[0], bank[0] + bank[2]):
+        r, g, b, a = px[x, y]
+        if a < 16:
+            continue
+        bn += 1
+        if b > r + 25 and b > g + 8:
+            bb += 1
+        if g > 90 and r < 80 and b < 90:
+            bg += 1
+print(f"{sr/n:.1f} {sg/n:.1f} {sb/n:.1f} {pale/n:.3f} {dollar} {bg} {bb}")
+`;
+    const [mr, mg, mb, paleFrac, dollar, bankGreen, bankBlue] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(paleFrac, `scaffolds still ghost-white (${mr},${mg},${mb})`).toBeLessThan(0.12);
+    expect(mr - mb, "scaffolds should sit in cream, not cool grey").toBeGreaterThan(8);
+    expect(dollar, "scaffold frames must not include the $ bank mark").toBe(0);
+    expect(bankGreen, "bank-office lost its $ mark").toBeGreaterThan(4);
+    expect(bankBlue, "bank-office is the finished civic, not a stage").toBeGreaterThan(10);
   });
 
   it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {

@@ -234,9 +234,55 @@ def jane_houses(hud: Image.Image) -> list[Image.Image]:
     return houses[:24]
 
 
+def looks_like_bank(spr: Image.Image) -> bool:
+    """The finished $ bank is a civic, never a construction stage."""
+    px = spr.load()
+    dollar = blue_roof = yellow = n = 0
+    for y in range(0, spr.height, 2):
+        for x in range(0, spr.width, 2):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            n += 1
+            if g > 90 and r < 80 and b < 90:
+                dollar += 1
+            if b > r + 25 and b > g + 8:
+                blue_roof += 1
+            if r > 160 and g > 140 and b < 120:
+                yellow += 1
+    if n < 80:
+        return False
+    return dollar > 6 or (blue_roof > n * 0.10 and yellow > 8)
+
+
+def restyle_scaffold(im: Image.Image) -> Image.Image:
+    """Ghost-white / cool-grey construction → cream timber and olive-slate, keep edges."""
+    out = im.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            # Cool blue cladding → olive slate (windows stay darker).
+            if b > r + 10 and b >= g - 6 and luma < 200:
+                t = max(0.0, min(1.0, (luma - 40) / 160))
+                px[x, y] = (int(62 + t * 78), int(70 + t * 72), int(58 + t * 58), a)
+                continue
+            # Posts, ridges, window ink stay slate; pads and roof fills stay cream.
+            if luma < 180:
+                t = max(0.0, min(1.0, luma / 180))
+                px[x, y] = (int(58 + t * 64), int(56 + t * 58), int(46 + t * 48), a)
+            else:
+                t = max(0.0, min(1.0, (luma - 180) / 75))
+                px[x, y] = (int(198 + t * 30), int(186 + t * 26), int(152 + t * 24), a)
+    return outline(out, (52, 46, 34, 240))
+
+
 def extract_construction(sheet: Image.Image, bg: str) -> list[Image.Image]:
     keyed = key_mauve(sheet) if bg == "mauve" else key_teal(sheet) if bg == "teal" else key_near_white(sheet)
-    # Left column of construction stages.
+    # Left column of construction stages: pad → posts → roof → unfinished shell.
     left = keyed.crop((0, 0, min(220, keyed.width), keyed.height))
     blobs = components(left, min_px=250)
     blobs.sort(key=lambda b: b[1])
@@ -244,11 +290,46 @@ def extract_construction(sheet: Image.Image, bg: str) -> list[Image.Image]:
     for b in blobs:
         if b[2] < 40 or b[3] < 40:
             continue
-        # Finished $ bank sits at the bottom of the attached column.
-        if b[1] > keyed.height * 0.72:
+        # Dark-roof finish and $ bank sit in the lower third.
+        if b[1] > keyed.height * 0.55:
             continue
-        stages.append(outline(restyle(trim(b[4]), sat=0.78, contrast=1.16)))
+        spr = trim(b[4])
+        if looks_like_bank(spr):
+            continue
+        stages.append(restyle_scaffold(spr))
+        if len(stages) == 4:
+            break
     return stages
+
+
+# Civic-kit boxes for the four stamped stages. The leftover $ bank that once
+# landed at (8, 319) as scaffold-4 is cleared, never used as a stage.
+SCAFFOLD_BOXES = {
+    "scaffold-0": (1142, 8, 87, 73),
+    "scaffold-1": (1237, 8, 75, 99),
+    "scaffold-2": (1320, 8, 88, 110),
+    "scaffold-3": (1416, 8, 95, 110),
+}
+
+
+def stamp_scaffold_frames(path: Path = OUT / "civic-kit-k1.png") -> None:
+    """Re-extract scaffold-0..3 into existing boxes. Does not move other civics."""
+    if not ATTACHED.exists():
+        raise SystemExit(f"attached construction sheet missing: {ATTACHED}")
+    stages = extract_construction(open_rgba(ATTACHED), "mauve")
+    if len(stages) != 4:
+        raise SystemExit(f"expected 4 construction stages, got {len(stages)}")
+    kit = open_rgba(path)
+    leftover = (8, 319, 70, 116)
+    kit.paste(Image.new("RGBA", leftover[2:4], (0, 0, 0, 0)), leftover[:2])
+    for spr, (name, (x, y, w, h)) in zip(stages, SCAFFOLD_BOXES.items()):
+        spr = scale_to(trim(spr), w, h)
+        cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        cell.alpha_composite(spr, ((w - spr.width) // 2, h - spr.height))
+        kit.paste(cell, (x, y))
+        print(name, spr.size, "→", (x, y, w, h))
+    kit.save(path)
+    print("stamped scaffold-0..3; cleared leftover $ bank at", leftover)
 
 
 def extract_finished_column(sheet: Image.Image, bg: str) -> Image.Image | None:
@@ -613,9 +694,9 @@ def write_civic_and_hud() -> tuple[dict, dict]:
         bank = extract_last_building(ATTACHED, "mauve")
         if bank:
             place("bank-office", bank, 180, 200)
-        # First five left-column stages only (pad → posts → roof → cladding →
-        # unfinished shell). The finished $ bank is bank-office, not a scaffold.
-        for i, st in enumerate(extract_construction(att, "mauve")[:5]):
+        # Four left-column stages only (pad → posts → roof → unfinished shell).
+        # The finished $ bank is bank-office, never a scaffold.
+        for i, st in enumerate(extract_construction(att, "mauve")[:4]):
             if st.width >= 40 and st.height >= 40:
                 place(f"scaffold-{i}", st, 140, 180)
         park_crop = att.crop((148, 208, 352, 418))
@@ -664,17 +745,9 @@ def write_civic_and_hud() -> tuple[dict, dict]:
     return civic_boxes, hud_boxes
 
 
-# Measured civic-kit boxes that arrived too pale after the first sat crush.
-READABILITY_BOXES = {
-    "scaffold-0": (1142, 8, 87, 73),
-    "scaffold-1": (1237, 8, 75, 99),
-    "scaffold-2": (1320, 8, 88, 110),
-    "scaffold-3": (1416, 8, 95, 110),
-    "road-0": (321, 507, 72, 47),
-    "road-1": (401, 507, 71, 48),
-    "bike-0": (480, 507, 66, 38),
-    "bike-1": (554, 507, 66, 38),
-}
+# Scaffold boxes only. Road/bike leftovers at 507 were superseded by the
+# packed 640-row tiles; boosting those coords would clobber other civics.
+READABILITY_BOXES = dict(SCAFFOLD_BOXES)
 
 
 def iso_diamond(
@@ -733,37 +806,16 @@ def pack_large_street_tiles(civic_boxes: dict | None = None, path: Path = OUT / 
 
 
 def boost_civic_readability(path: Path = OUT / "civic-kit-k1.png") -> None:
-    """Regrade washed-out scaffolds / road diamonds in place; boxes stay put."""
+    """Re-stamp construction stages from the attached sheet; boxes stay put."""
+    if ATTACHED.exists():
+        stamp_scaffold_frames(path)
+        return
     kit = open_rgba(path)
     for name, (x, y, w, h) in READABILITY_BOXES.items():
-        crop = kit.crop((x, y, x + w, y + h)).copy()
-        px = crop.load()
-        for yy in range(crop.height):
-            for xx in range(crop.width):
-                r, g, b, a = px[xx, yy]
-                if a < 16:
-                    continue
-                luma = (r + g + b) / 3
-                if name.startswith("scaffold"):
-                    # Ghost-white frames → cream timber + slate posts.
-                    if luma > 210:
-                        px[xx, yy] = (214, 202, 168, a)
-                    elif luma > 160:
-                        px[xx, yy] = (168, 156, 128, a)
-                    else:
-                        px[xx, yy] = (98, 92, 78, a)
-                else:
-                    # Pale road/bike diamonds → slate asphalt with cream edge.
-                    if luma > 200:
-                        px[xx, yy] = (210, 204, 186, a)
-                    elif luma > 80:
-                        px[xx, yy] = (86, 92, 88, a)
-                    else:
-                        px[xx, yy] = (58, 64, 60, a)
-        crop = outline(crop, (52, 58, 50, 230))
+        crop = restyle_scaffold(kit.crop((x, y, x + w, y + h)).copy())
         kit.paste(crop, (x, y))
+        print("boosted", name)
     kit.save(path)
-    print("boosted", ", ".join(READABILITY_BOXES), "on", path)
 
 
 # Civic boxes whose foliage still arrived chartreuse after the first sat crush.
@@ -1043,6 +1095,8 @@ if __name__ == "__main__":
         print("wild + ground vibe restyle")
     elif "--boost-civic" in sys.argv:
         boost_civic_readability()
+    elif "--stamp-scaffolds" in sys.argv:
+        stamp_scaffold_frames()
     elif "--civic-only" in sys.argv:
         civic_boxes, hud_boxes = write_civic_and_hud()
         existing = {}
