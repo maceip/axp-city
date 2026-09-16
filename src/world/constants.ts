@@ -10,7 +10,7 @@ export const BIKE_BAND = 1.08;
  * Bike shoulder on the reserved freeway row. Wider than the lot-street band so
  * the corridor still reads at flyover. Does not change STRIDE_Y or lot addresses.
  */
-export const FREEWAY_BIKE_BAND = 1.72;
+export const FREEWAY_BIKE_BAND = 2.85;
 export const STRIDE_X = 5.0;
 export const STRIDE_Y = LOT_D + ROAD_D + SHOULDER * 2;
 export const ROAD_TOP0 = -SHOULDER - ROAD_D;

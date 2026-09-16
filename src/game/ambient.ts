@@ -79,7 +79,7 @@ export function ambientActors(plan: CityPlan): AmbientActor[] {
   const actors: AmbientActor[] = [];
   const freeway = plan.features.find((f) => f.kind === "freeway");
   if (freeway) {
-    const lanes = [freeway.y + freeway.h * 0.26, freeway.y + freeway.h * 0.44];
+    const lanes = [freeway.y + freeway.h * 0.1, freeway.y + freeway.h * 0.2];
     const count = Math.min(28, Math.max(4, Math.round(freeway.w / 5)));
     for (let i = 0; i < count; i++) {
       const eastbound = i % 2 === 0;

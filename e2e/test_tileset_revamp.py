@@ -127,7 +127,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert kinds.get("gate", 0) >= 1
         assert info["hasBikeLane"], "bike-lane feature missing from the city plan"
         assert info["hasFreewayBikeLane"], "freeway bike shoulder missing from the city plan"
-        assert info["freewayBikeBand"] >= 1.6, f"freeway bike shoulder still too thin: {info['freewayBikeBand']}"
+        assert info["freewayBikeBand"] >= 2.5, f"freeway bike shoulder still too thin: {info['freewayBikeBand']}"
         assert info["roadStampWidth"] >= 140, f"roads still stamp too small: {info['roadStampWidth']}"
         assert info["bikeStampWidth"] >= 180, f"bike lanes still stamp too small: {info['bikeStampWidth']}"
         assert info["uniqueFacades"] >= 12, f"repo lots still look cloned: {info['uniqueFacades']} unique facades"
@@ -137,9 +137,9 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.wait_for_timeout(400)
         page.screenshot(path=str(SHOTS / "tileset-city-overview.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-roads-bikes-civics.png"), full_page=False)
-        khaki, cream, lime = street_lane_share(SHOTS / "tileset-city-overview.png", (200, 470, 900, 560))
-        assert khaki >= 0.08, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
-        assert khaki + cream >= 0.12, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
+        khaki, cream, lime = street_lane_share(SHOTS / "tileset-city-overview.png", (480, 180, 1400, 520))
+        assert khaki >= 0.10, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
+        assert khaki + cream >= 0.16, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
         assert lime < 0.12, f"overview bike paint drifted to neon lime ({lime:.3f})"
         corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
         assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"

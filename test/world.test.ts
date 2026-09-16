@@ -85,7 +85,7 @@ describe("planCity", () => {
     const freeway = large.features.find((f) => f.kind === "freeway")!;
     const freewayBike = large.features.find((f) => f.id === "freeway-bike-lane")!;
     expect(freewayBike).toBeTruthy();
-    expect(freewayBike.h).toBeGreaterThanOrEqual(1.6);
+    expect(freewayBike.h).toBeGreaterThanOrEqual(2.5);
     expect(tileKind(freeway.x + 1, freeway.y + 0.5, large)).toBe("freeway");
     expect(tileKind(freeway.x + 1, freeway.y + freeway.h - 0.4, large)).toBe("bike");
     expect(large.civics.some((c) => c.id.startsWith("bike-freeway-"))).toBe(true);

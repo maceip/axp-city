@@ -367,12 +367,12 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     bike: BIKE_STAMP_WIDTH,
   };
   const paintBikeBand = (x: number, streetY: number, w: number, band: number, labelSize: number) => {
-    diamond(x, streetY, w, band, 0xa89c68, 1);
-    diamond(x, streetY + band - 0.24, w, 0.24, 0xe4d8a8, 0.98);
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      diamond(laneX + 0.12, streetY + band * 0.12, 3.1, Math.min(0.86, band * 0.42), 0xece3b8, 0.98);
-      diamond(laneX + 2.0, streetY + band * 0.38, 2.4, Math.min(0.64, band * 0.3), 0xe4d8a8, 0.94);
+      diamond(laneX, streetY, STRIDE_X, band, 0xa89c68, 1);
+      diamond(laneX, streetY + band - 0.28, STRIDE_X, 0.28, 0xe4d8a8, 0.98);
+      diamond(laneX + 0.2, streetY + band * 0.16, 3.4, Math.min(1.05, band * 0.38), 0xece3b8, 0.98);
+      diamond(laneX + 1.8, streetY + band * 0.48, 2.6, Math.min(0.78, band * 0.26), 0xe4d8a8, 0.94);
     }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
     const step = Math.max(2, Math.ceil(span / 6));
