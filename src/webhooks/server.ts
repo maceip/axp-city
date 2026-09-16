@@ -389,6 +389,7 @@ export function createWebhookServer(
     if (statusTimer) return;
     statusTimer = setTimeout(() => {
       statusTimer = undefined;
+      if (!city.isOpen) return;
       status.broadcast({
         type: "status",
         serverTime: new Date().toISOString(),
@@ -490,7 +491,17 @@ export function createWebhookServer(
     }
     const recently = lastRefreshAt.get(event.repo.toLowerCase());
     let published = known.status === "published";
-    if (!recently || Date.now() - recently > coalesceMs) {
+    const receivedAt = Date.parse(delivery.receivedAt);
+    if (recently && Date.now() - recently <= coalesceMs) {
+      if (recently < receivedAt) {
+        // A burst of events for one repository becomes a single refresh at the
+        // end of the window; nothing is dropped.
+        city.deferDelivery(delivery.id, new Date(recently + coalesceMs + 1).toISOString());
+        scheduleDrain(coalesceMs + 50);
+        return;
+      }
+      // A refresh newer than this event already captured its effects.
+    } else {
       try {
         // A renamed repository is fetched under its new name; the store
         // matches it by repository id and keeps the address.
@@ -512,6 +523,7 @@ export function createWebhookServer(
               ? new Date(Date.now() + RETRY_SCHEDULE_MS[delivery.attempts]).toISOString()
               : null;
           city.failDelivery(delivery.id, message, retryAt);
+          if (retryAt) scheduleDrain(Date.parse(retryAt) - Date.now() + 50);
           log("warn", `delivery ${delivery.id} failed`, {
             repo: event.repo,
             attempt: delivery.attempts + 1,
@@ -561,6 +573,16 @@ export function createWebhookServer(
   }
 
   let worker: NodeJS.Timeout | undefined;
+  let wake: NodeJS.Timeout | undefined;
+  /** One-shot drain shortly after a deferred/retrying delivery becomes due. */
+  function scheduleDrain(delayMs: number): void {
+    if (wake) return;
+    wake = setTimeout(() => {
+      wake = undefined;
+      void drainDeliveries().catch(() => {});
+    }, delayMs);
+    wake.unref?.();
+  }
   function startWorker(intervalMs = 15_000): void {
     if (worker) return;
     worker = setInterval(() => {
@@ -573,7 +595,11 @@ export function createWebhookServer(
   }
   function stopWorker(): void {
     if (worker) clearInterval(worker);
+    if (wake) clearTimeout(wake);
+    if (statusTimer) clearTimeout(statusTimer);
     worker = undefined;
+    wake = undefined;
+    statusTimer = undefined;
   }
 
   function serveFile(

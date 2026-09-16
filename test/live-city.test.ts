@@ -363,6 +363,57 @@ describe("repository-owned rules", () => {
     });
   });
 
+  it("coalesces a burst of deliveries into one deferred refresh instead of dropping later events", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "axp-coalesce-"));
+    let stars = 100;
+    let calls = 0;
+    const runtime = createWebhookServer(
+      {
+        secret,
+        adminToken: "admin",
+        databasePath: join(dir, "city.sqlite"),
+        coalesceMs: 400,
+        resolveRepository: async (fullName) => {
+          calls++;
+          const m = metrics({ fullName, stars, isPrivate: false });
+          return { lot: parseLot(m), metrics: m };
+        },
+      },
+      0,
+    );
+    const base = await start(runtime);
+    await runtime.city.hydrate([parseLot(metrics({ fullName: "acme/widget", stars: 1 }))]);
+    const post = (id: string) => {
+      const body = JSON.stringify({ ref: "refs/heads/main", repository: { full_name: "acme/widget" }, sender: { login: "human" } });
+      return fetch(`${base}/webhooks/github`, {
+        method: "POST",
+        body,
+        headers: { "x-github-event": "push", "x-github-delivery": id, "x-hub-signature-256": signBody(Buffer.from(body), secret) },
+      });
+    };
+    try {
+      expect((await post("burst-1")).status).toBe(202);
+      await runtime.drainDeliveries();
+      expect(calls).toBe(1);
+      // Two more events arrive inside the window; the metric changed meanwhile.
+      stars = 250;
+      expect((await post("burst-2")).status).toBe(202);
+      expect((await post("burst-3")).status).toBe(202);
+      await runtime.drainDeliveries();
+      expect(calls).toBe(1);
+      expect(runtime.city.deliveryCounts()).toMatchObject({ pending: 2, done: 1, failed: 0 });
+      expect(runtime.city.lots()[0].stars).toBe(100);
+      // When the window ends the deferred deliveries run one refresh, which captures the change.
+      await new Promise((r) => setTimeout(r, 600));
+      await runtime.drainDeliveries();
+      expect(calls).toBe(2);
+      expect(runtime.city.lots()[0].stars).toBe(250);
+      expect(runtime.city.deliveryCounts()).toMatchObject({ pending: 0, done: 3, failed: 0 });
+    } finally {
+      await stop(runtime);
+    }
+  });
+
   it("uses defaults only for absent/invalid rules; auth and transport failures fail the refresh", async () => {
     const absent = (async () => new Response(null, { status: 404 })) as typeof fetch;
     expect((await loadRepositoryRules("acme/widget", DEFAULT_RULES, undefined, absent)).source).toBe(

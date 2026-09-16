@@ -140,6 +140,8 @@ export interface CityStore {
   completeDelivery(id: string, at?: string): void;
   ignoreDelivery(id: string, at?: string): void;
   failDelivery(id: string, error: string, retryAt: string | null): void;
+  /** Hold a delivery until `until` without counting an attempt (event coalescing). */
+  deferDelivery(id: string, until: string): void;
   deliveryCounts(): Record<DeliveryStatus, number>;
   /** Public diagnostic events (visibility already enforced at write time). */
   appendEvent(event: CityEvent): boolean;
@@ -149,6 +151,7 @@ export interface CityStore {
   backup(destination: string): Promise<void>;
   /** Probe that the database accepts writes; used by readiness checks. */
   writable(): boolean;
+  readonly isOpen: boolean;
   readonly path: string;
   readonly database: DatabaseSync;
 }
@@ -185,6 +188,7 @@ export function createCityStore(
     ...options.retention,
   };
   let db!: DatabaseSync;
+  let opened = false;
   let queue: Promise<unknown> = Promise.resolve();
   const listeners = new Set<(event: CityMutation) => void>();
   let cache: StoredLot[] | undefined;
@@ -299,6 +303,7 @@ export function createCityStore(
     db.prepare(
       "UPDATE deliveries SET status = 'pending' WHERE status = 'processing'",
     ).run();
+    opened = true;
   }
 
   function meta(key: string): string | undefined {
@@ -604,7 +609,12 @@ export function createCityStore(
       return { migrated };
     },
     close() {
+      if (!opened) return;
+      opened = false;
       db?.close();
+    },
+    get isOpen() {
+      return opened;
     },
     hydrate(lots, timestamps = {}, metrics = []) {
       return serial(async () => {
@@ -902,6 +912,12 @@ export function createCityStore(
       db.prepare(
         "UPDATE deliveries SET status = 'ignored', completed_at = ?, attempts = attempts + 1 WHERE id = ?",
       ).run(at, id);
+    },
+    deferDelivery(id, until) {
+      // Not a failure: the delivery simply waits for the coalescing window.
+      db.prepare(
+        "UPDATE deliveries SET status = 'pending', next_attempt_at = ? WHERE id = ?",
+      ).run(until, id);
     },
     failDelivery(id, error, retryAt) {
       db.prepare(
