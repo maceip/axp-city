@@ -153,7 +153,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert len(on_screen) >= 3, f"overview bike chevrons/labels missing: {len(marks)} marks"
         plaques = [m for m in on_screen if m.get("type") == "Container" and 40 < m["width"] < 280]
         mark = plaques[len(plaques) // 2] if plaques else max(on_screen, key=lambda m: m["width"] * m["height"])
-        pad = 48
+        pad = 72
         mark_clip = {
             "x": max(0, mark["x"] - pad),
             "y": max(0, mark["y"] - pad),

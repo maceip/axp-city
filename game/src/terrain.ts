@@ -407,12 +407,10 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       chevron.setData("bikeLaneGlance", glance);
       objects.push(chevron);
     }
-    if (glance) {
-      const labelStep = 3;
-      for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += labelStep) {
-        const at = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.6, streetY + band * 0.5);
-        objects.push(bikeLanePlaque(scene, at.sx, at.sy + 18, true));
-      }
+    const labelStep = glance ? 2 : Math.max(3, Math.ceil(span / 4));
+    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += labelStep) {
+      const at = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.6, streetY + band * 0.5);
+      objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 18 : 8), glance));
     }
   };
   for (const row of plan.streetRows) {
