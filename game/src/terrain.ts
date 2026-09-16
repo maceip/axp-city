@@ -282,6 +282,11 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     objects.push(image);
     return image;
   };
+  const placeName = (sx: number, sy: number, text: string, color: number, size: number) => {
+    objects.push(
+      scene.add.bitmapText(sx, sy, HUD_FONT.face, text, size).setTint(color).setOrigin(0.5).setDepth(-90_000),
+    );
+  };
   const plaza = plan.features.find((f) => f.kind === "plaza")!;
   diamond(plaza.x, plaza.y, plaza.w, plaza.h, 0xc4b69a);
   diamond(plaza.x + 0.25, plaza.y + 0.25, plaza.w - 0.5, plaza.h - 0.5, 0xd3c8a9);
@@ -291,12 +296,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   shelter.fillStyle(0x6b6f66, 1).fillRect(station.sx - 34, station.sy - 30, 68, 5);
   shelter.fillStyle(0x4f5450, 1).fillRect(station.sx - 32, station.sy - 25, 3, 26).fillRect(station.sx + 29, station.sy - 25, 3, 26);
   objects.push(shelter);
-  objects.push(
-    scene.add
-      .text(station.sx, station.sy + 8, "PARK STATION", { fontFamily: "monospace", fontSize: "9px", color: "#586348", letterSpacing: 1 })
-      .setOrigin(0.5)
-      .setDepth(-90_000),
-  );
+  placeName(station.sx, station.sy + 8, "PARK STATION", 0x586348, 12);
   stamp(DECOR_LAMP, plaza.x + 0.6, plaza.y + 0.6, 12);
   stamp(DECOR_LAMP, plaza.x + plaza.w - 0.6, plaza.y + plaza.h - 0.6, 12);
   stamp(DECOR_BENCH, plaza.x + plaza.w / 2 + 1.2, plaza.y + plaza.h / 2 + 1.1, 34);
@@ -305,6 +305,20 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   const cx = park.x + park.w / 2,
     cy = park.y + park.h / 2;
   const hasOffice = plan.civics?.some((c) => c.kind === "office");
+  diamond(park.x + 0.2, park.y + 0.2, park.w - 0.4, park.h - 0.4, 0x7a9460, 0.72);
+  const lawnTint = 0x8a9c70;
+  for (const [lx, ly] of [
+    [park.x + 1.5, park.y + 1.35],
+    [park.x + park.w - 1.5, park.y + 1.35],
+    [park.x + 1.5, park.y + park.h - 1.15],
+    [park.x + park.w - 1.5, park.y + park.h - 1.15],
+    [park.x + park.w * 0.5, park.y + 0.85],
+    [park.x + 0.95, park.y + park.h * 0.48],
+    [park.x + park.w - 0.95, park.y + park.h * 0.48],
+  ] as const) {
+    stamp(GROUND_TILES.parkGrass, lx, ly, 128).setTint(lawnTint);
+  }
+  stamp(GROUND_TILES.parkSteps, cx, park.y + park.h - 0.45, 96).setTint(0xc4b69a);
   // Paths: a cross and a ring around the fountain / office.
   diamond(cx - 0.18, park.y, 0.36, park.h, 0xdccfa7);
   diamond(park.x, cy - 0.18, park.w, 0.36, 0xdccfa7);
@@ -325,14 +339,14 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     objects.push(fountain);
   }
   // Pond in the south-east quadrant.
-  diamond(park.x + park.w * 0.66, park.y + park.h * 0.62, 2.0, 1.4, 0x6a9aa4);
-  stamp(GROUND_TILES.waterTile, park.x + park.w * 0.66 + 1.0, park.y + park.h * 0.62 + 1.3, 70);
-  stamp(GROUND_TILES.sandTile, park.x + park.w * 0.66 - 0.2, park.y + park.h * 0.62 + 0.3, 40);
+  diamond(park.x + park.w * 0.62, park.y + park.h * 0.58, 2.6, 1.8, 0x6a9094);
+  stamp(GROUND_TILES.waterTile, park.x + park.w * 0.66 + 1.0, park.y + park.h * 0.62 + 1.3, 96).setTint(0x7a9a90);
+  stamp(GROUND_TILES.sandTile, park.x + park.w * 0.66 - 0.2, park.y + park.h * 0.62 + 0.3, 52);
   // Benches and lamps along the ring path.
   for (const [dx, dy] of [[-2.2, -2.15], [2.0, -2.15], [-2.2, 1.95], [2.0, 1.95]] as const)
-    stamp(DECOR_BENCH, cx + dx, cy + dy, 34);
+    stamp(DECOR_BENCH, cx + dx, cy + dy, 40);
   for (const [dx, dy] of [[-3.0, -0.4], [3.0, -0.4], [-0.4, -2.9], [-0.4, 2.7]] as const)
-    stamp(DECOR_LAMP, cx + dx, cy + dy, 11);
+    stamp(DECOR_LAMP, cx + dx, cy + dy, 14);
   for (const [dx, dy, box] of [
     [-3.6, -2.6, GROUND_TILES.treeRoundA],
     [3.4, -2.6, GROUND_TILES.pineA],
@@ -341,21 +355,17 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     [-1.6, -3.1, GROUND_TILES.bushA],
     [1.4, 2.9, GROUND_TILES.bushA],
   ] as const)
-    stamp(box, cx + dx, cy + dy, box === GROUND_TILES.bushA ? 34 : 40);
+    stamp(box, cx + dx, cy + dy, box === GROUND_TILES.bushA ? 48 : 78).setTint(0x7d8f64);
 
   for (const f of plan.features)
     if (f.kind !== "plaza" && f.kind !== "river" && f.kind !== "bike" && f.kind !== "office") {
       const a = project(f.x + f.w / 2, f.kind === "tram" ? f.y + 1.2 : f.y + f.h / 2);
-      objects.push(
-        scene.add
-          .text(
-            a.sx,
-            a.sy + (f.kind === "park" ? 90 : 0),
-            f.kind === "park" ? "CENTRAL PARK" : f.kind === "freeway" ? "NORTH FREEWAY" : "TRAM LINE",
-            { fontFamily: "monospace", fontSize: "11px", color: f.kind === "freeway" ? "#e2dac5" : "#45614e", letterSpacing: 2 },
-          )
-          .setOrigin(0.5)
-          .setDepth(-90_000),
+      placeName(
+        a.sx,
+        a.sy + (f.kind === "park" ? 90 : 0),
+        f.kind === "park" ? "CENTRAL PARK" : f.kind === "freeway" ? "NORTH FREEWAY" : "TRAM LINE",
+        f.kind === "freeway" ? 0xe2dac5 : 0x45614e,
+        13,
       );
     }
 
@@ -436,7 +446,10 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];
     if (!box) continue;
-    const width = civicWidth[marker.kind] ?? 100;
+    const width =
+      marker.kind === "plant" && marker.id.startsWith("park-plant-")
+        ? 88
+        : civicWidth[marker.kind] ?? 100;
     const a = project(marker.x, marker.y);
     const depth =
       marker.kind === "bike" ? a.sy - 8 : marker.kind === "road" ? a.sy - 12 : a.sy + (marker.kind === "office" ? 8 : 0);
@@ -448,17 +461,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
         .setDepth(depth),
     );
     if (marker.kind === "office") {
-      objects.push(
-        scene.add
-          .text(a.sx, a.sy + 18, "CITY OFFICE", {
-            fontFamily: "monospace",
-            fontSize: "12px",
-            color: "#45614e",
-            letterSpacing: 2,
-          })
-          .setOrigin(0.5)
-          .setDepth(-90_000),
-      );
+      placeName(a.sx, a.sy + 18, "CITY OFFICE", 0x45614e, 13);
     }
   }
   return objects;
