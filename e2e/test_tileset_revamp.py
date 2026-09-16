@@ -300,6 +300,11 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert hud(page, "close-card")
         card = page.evaluate("window.__AXP.diagnostics().cardFrame")
         assert card and card["y"] >= 400, f"inspect card still covers the upper-right ({card})"
+        painted = page.evaluate("window.__AXP.inspectPainted()")
+        zone = next((t for t in painted if t.startswith("Loading zone")), "")
+        fresh = next((t for t in painted if "fixture" in t.lower() or t.startswith("GitHub")), "")
+        assert "ready for its next delivery" in zone.replace("\n", " "), painted
+        assert "Recorded fixture" in fresh.replace("\n", " "), painted
 
         second = browser.new_page(viewport=dict(width=1600, height=1000))
         ready(second, server.url)

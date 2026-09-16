@@ -280,6 +280,11 @@ export class CityScene extends Phaser.Scene {
         return view ? planLot(view.place, true, this.now()).construction ?? null : null;
       },
       drawnRenderKey: (repo: string) => this.lots.get(repo)?.renderKey ?? null,
+      lotIncomplete: (repo: string) => this.lots.get(repo)?.incomplete ?? true,
+      drawnTags: (repo: string) => {
+        const view = this.lots.get(repo);
+        return view ? view.images.map((image) => image.getData("tag")).filter((tag): tag is string => Boolean(tag)) : [];
+      },
       lotTags: (repo: string) => {
         const place = this.city.plan.placements.find((p) => p.lot.fullName === repo);
         return place ? planLot(place, true, this.now()).images.map((i) => i.tag ?? i.sheet) : [];
@@ -314,6 +319,7 @@ export class CityScene extends Phaser.Scene {
         return this.hud.labelText(name);
       },
       censusPaintedCrew: () => (this.hudReady ? this.hud.censusPaintedCrew() : []),
+      inspectPainted: () => (this.hudReady ? this.hud.inspectPainted() : []),
       bikeMarkScreens: () => {
         const view = this.view();
         const zoom = this.cameras.main.zoom;
@@ -551,6 +557,7 @@ export class CityScene extends Phaser.Scene {
       if (op.tint && op.tint !== 0xffffff) image.setTint(op.tint);
       else image.clearTint();
       image.setData("repo", place.lot.fullName);
+      if (op.tag) image.setData("tag", op.tag);
       images.push(image);
     }
     if (

@@ -628,26 +628,28 @@ export class HudScene extends Phaser.Scene {
     const lot = place.lot;
     const site = constructionState(place, this.now());
     this.constructionStamp = `${site.stage}:${Math.round(site.progress * 50)}`;
-    const lines: Array<[string, string, string?]> = [
+    const lines: Array<[string, string, string?, boolean?]> = [
       [`${place.district.toUpperCase()} · ${lot.buildingBand} BUILDING · SLOT ${place.col},${place.row}`, GOLD, "10px"],
       [lot.name, INK, "16px"],
       [`${lot.owner} / ${lot.name}`, MUTED, "11px"],
       [`STARS ${lot.stars.toLocaleString()}    ISSUES ${lot.openIssues}    OPEN PRS ${lot.openPrs}`, INK, "12px"],
       [site.stage !== "complete" ? `UNDER CONSTRUCTION · ${constructionLabel(site).toUpperCase()} · ${Math.round(site.progress * 100)}%` : yardLabel(lot.yard).toUpperCase(), GOLD, "11px"],
       [`${crewLabel(lot)} — ${lot.crewBasis}`, INK, "11px"],
-      [`Loading zone: ${yardPropList(lot).concat(lot.extraProps ?? []).join(", ") || "ready for its next delivery"}${lot.layout ? ` · ${lot.layout.bays} bay${lot.layout.bays > 1 ? "s" : ""}` : ""}`, MUTED, "11px"],
+      [`Loading zone: ${yardPropList(lot).concat(lot.extraProps ?? []).join(", ") || "ready for its next delivery"}${lot.layout ? ` · ${lot.layout.bays} bay${lot.layout.bays > 1 ? "s" : ""}` : ""}`, MUTED, "11px", true],
       [
         `${lot.dataSource === "fixture" ? "Recorded fixture" : "GitHub data"}${lot.fetchedAt ? ` · ${new Date(lot.fetchedAt).toLocaleString()}` : ""}${lot.partial?.carriedFields.length ? ` · PARTIAL: ${lot.partial.carriedFields.join(", ")} carried from ${lot.partial.carriedFrom ? new Date(lot.partial.carriedFrom).toLocaleDateString() : "an earlier refresh"}` : ""}`,
         lot.partial?.carriedFields.length ? "#f2b36b" : MUTED,
         "10px",
+        true,
       ],
-      [`${lot.rulesSource === "repository" ? "Repository rules" : "City default rules"}${lot.artwork ? " · approved artwork" : ""}${lot.rulesWarning ? ` · ${lot.rulesWarning}` : ""}`, lot.rulesWarning ? "#f2b36b" : MUTED, "10px"],
+      [`${lot.rulesSource === "repository" ? "Repository rules" : "City default rules"}${lot.artwork ? " · approved artwork" : ""}${lot.rulesWarning ? ` · ${lot.rulesWarning}` : ""}`, lot.rulesWarning ? "#f2b36b" : MUTED, "10px", true],
     ];
     const width = this.cardWidth();
     let y = 36;
-    for (const [text, color, size] of lines) {
+    for (const [text, color, size, wrap] of lines) {
       const fontSize = Number.parseInt(size ?? "12", 10);
-      const t = ink(this, 16, y, this.clipCell(text, width - 32, fontSize), { fontSize: size ?? "12px", color });
+      const body = wrap ? this.wrapCardLine(text, width - 32, fontSize) : this.clipCell(text, width - 32, fontSize);
+      const t = ink(this, 16, y, body, { fontSize: size ?? "12px", color });
       this.card.add(t);
       this.cardTexts.push(t);
       y += t.height + 3;
@@ -791,6 +793,22 @@ export class HudScene extends Phaser.Scene {
     const advance = 19 * (fontSize / 32);
     const chars = Math.max(3, Math.floor(width / advance) - 1);
     return value.length > chars ? `${value.slice(0, chars - 1)}…` : value;
+  }
+
+  /** Two-line card wrap so loading-zone / freshness stay readable without a taller curtain. */
+  private wrapCardLine(value: string, width: number, fontSize: number): string {
+    const advance = 19 * (fontSize / 32);
+    const cols = Math.max(8, Math.floor(width / advance) - 1);
+    if (value.length <= cols) return value;
+    const breakAt = value.lastIndexOf(" ", cols);
+    const split = breakAt >= Math.floor(cols * 0.4) ? breakAt : cols;
+    const first = value.slice(0, split).trimEnd();
+    const rest = value.slice(split).trimStart();
+    return `${first}\n${this.clipCell(rest, width, fontSize)}`;
+  }
+
+  inspectPainted(): string[] {
+    return this.cardTexts.map((label) => label.text);
   }
 
   private renderCensus(): void {

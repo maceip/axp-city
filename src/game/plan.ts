@@ -731,13 +731,21 @@ function roofOps(place: LotPlacement, images: ImageStamp[]): void {
   const roofY = foot.sy - size.height * 0.86;
   const depth = depthAt(place.x, place.y, 8);
   if (bays > 1) {
+    // Cream-gold slab in the crown sample: yard apron never enters lotPixels.
+    images.push(
+      imageStamp(GROUND_SHEET, GROUND_TILES.asphaltSlab, roofX, roofY + 58, 124, false, depth - 0.3, "world", {
+        repo: lot.fullName,
+        tag: "roof-apron",
+        tint: 0xd4b45a,
+      }),
+    );
     images.push(
       imageStamp(
         CIVIC_SHEET,
         CIVIC_SPRITES["bank-office"],
         roofX,
         roofY + 28,
-        58,
+        72,
         false,
         depth,
         "world",
@@ -750,9 +758,9 @@ function roofOps(place: LotPlacement, images: ImageStamp[]): void {
         imageStamp(
           PROP_SHEETS.materials,
           pallet,
-          roofX - 36 + bay * 36,
-          roofY + 52,
-          68,
+          roofX - 44 + bay * 44,
+          roofY + 54,
+          86,
           false,
           depth,
           "world",
@@ -763,7 +771,7 @@ function roofOps(place: LotPlacement, images: ImageStamp[]): void {
   }
   if (extras.includes("lamp")) {
     images.push(
-      imageStamp(GROUND_SHEET, GROUND_TILES.lampPost, roofX + 24, roofY + 48, 20, false, depth, "decor", {
+      imageStamp(GROUND_SHEET, GROUND_TILES.lampPost, roofX + 28, roofY + 46, 36, false, depth, "decor", {
         repo: lot.fullName,
         tag: "roof-lamp",
       }),
@@ -771,7 +779,7 @@ function roofOps(place: LotPlacement, images: ImageStamp[]): void {
   }
   if (extras.includes("bench")) {
     images.push(
-      imageStamp(GROUND_SHEET, GROUND_TILES.benchProp, roofX - 22, roofY + 52, 42, false, depth, "decor", {
+      imageStamp(GROUND_SHEET, GROUND_TILES.benchProp, roofX - 26, roofY + 52, 52, false, depth, "decor", {
         repo: lot.fullName,
         tag: "roof-bench",
       }),

@@ -145,9 +145,15 @@ describe("Phaser scene planning", () => {
     expect(custom.images.some((i) => i.tag === "loading-apron")).toBe(true);
     expect(custom.images.some((i) => i.tag === "loading-pad")).toBe(true);
     expect(custom.images.some((i) => i.tag === "roof-sign")).toBe(true);
+    expect(custom.images.some((i) => i.tag === "roof-apron")).toBe(true);
     expect(custom.images.some((i) => i.tag === "roof-lamp")).toBe(true);
     expect(custom.images.some((i) => i.tag === "roof-bench")).toBe(true);
     expect(custom.images.filter((i) => i.tag?.startsWith("roof-bay:")).length).toBe(2);
+    const crown = lotSampleBounds(place);
+    for (const stamp of custom.images.filter((i) => i.tag?.startsWith("roof-"))) {
+      expect(stamp.sy).toBeGreaterThan(crown.y);
+      expect(stamp.sy).toBeLessThan(crown.y + crown.height + 24);
+    }
     expect(base.images.some((i) => i.tag === "loading-pad")).toBe(false);
     expect(custom.diamonds.length).toBeGreaterThan(base.diamonds.length);
     expect(custom.images.filter((i) => i.tag?.startsWith("decor:")).map((i) => i.tag)).toEqual([
