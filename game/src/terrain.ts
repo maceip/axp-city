@@ -368,6 +368,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     road: ROAD_STAMP_WIDTH,
     bike: BIKE_STAMP_WIDTH,
   };
+  ensureBikeMarkTextures(scene);
   const paintBikeBand = (x: number, streetY: number, w: number, band: number, glance: boolean) => {
     if (glance) {
       const mid = project(x + w / 2, streetY + band * 0.5);
@@ -398,7 +399,22 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const labelStep = glance ? 3 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      objects.push(paintIsoChevron(scene, laneX + (glance ? 1.1 : 2.0), streetY + band * 0.5, glance));
+      if (glance) {
+        const at = project(laneX + 2.4, streetY + band * 0.5);
+        const chevron = scene.add
+          .image(at.sx, at.sy, "bike-chevron-k1")
+          .setOrigin(0.5)
+          .setDisplaySize(128, 48)
+          .setDepth(at.sy + 28);
+        chevron.setData("bikeLaneMark", true);
+        chevron.setData("bikeLaneGlance", true);
+        chevron.setData("bikeLaneChevron", true);
+        chevron.setData("markScreenW", 132);
+        chevron.setData("markScreenH", 50);
+        objects.push(chevron);
+      } else {
+        objects.push(paintIsoChevron(scene, laneX + 2.0, streetY + band * 0.5, false));
+      }
     }
     for (let sx = plan.slotBounds.minSx + 2; sx <= plan.slotBounds.maxSx; sx += labelStep) {
       const at = project(
@@ -446,6 +462,33 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     }
   }
   return objects;
+}
+
+function ensureBikeMarkTextures(scene: Phaser.Scene): void {
+  if (scene.textures.exists("bike-chevron-k1")) return;
+  const g = scene.make.graphics({ x: 0, y: 0 });
+  const poly = (pts: Array<[number, number]>) =>
+    g.fillPoints(
+      pts.map(([x, y]) => new Phaser.Math.Vector2(x, y)),
+      true,
+    );
+  const chevron = (ox: number, oy: number, s: number): Array<[number, number]> => [
+    [ox + 70 * s, oy + 28 * s],
+    [ox + 4 * s, oy + 3 * s],
+    [ox + 24 * s, oy + 28 * s],
+    [ox + 4 * s, oy + 53 * s],
+  ];
+  g.fillStyle(0x1a1814, 1);
+  poly(chevron(6, 6, 1.15));
+  poly(chevron(78, 6, 1.15));
+  g.fillStyle(0xece3b8, 1);
+  poly(chevron(14, 11, 0.96));
+  poly(chevron(86, 11, 0.96));
+  g.fillStyle(0xfff8e0, 1);
+  poly(chevron(24, 16, 0.72));
+  poly(chevron(96, 16, 0.72));
+  g.generateTexture("bike-chevron-k1", 176, 72);
+  g.destroy();
 }
 
 function isoChevronWorld(wx: number, wy: number, ox: number, len: number, half: number, notch: number) {
