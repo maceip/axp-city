@@ -213,7 +213,7 @@ def test_actors_persist_across_viewport_travel_and_ambient_life_moves(page):
     assert all(a["anim"].startswith("human") or a["anim"] == "cargoDrone" for a in actors), actors
     walker = next(a for a in actors if a["behaviour"] == "walk")["id"]
     page.wait_for_function("id => window.__AXP.actor(id).sx !== undefined", arg=walker)
-    t0 = page.evaluate("id => window.__AXP.actorTimeline(id)", walker)
+    t0, clock0 = page.evaluate("id => [window.__AXP.actorTimeline(id), window.__AXP.actorClock()]", walker)
     ambient0 = page.evaluate("window.__AXP.ambient()")
     kinds = {a["id"].split(":")[1].split("-")[0] for a in ambient0}
     assert kinds >= {"car", "tram", "walker", "stander"}
@@ -242,8 +242,11 @@ def test_actors_persist_across_viewport_travel_and_ambient_life_moves(page):
     click_hud(page, "home")
     page.wait_for_function("window.__AXP.diagnostics().visibleLots > 0")
     page.wait_for_timeout(300)
-    t1 = page.evaluate("id => window.__AXP.actorTimeline(id)", walker)
-    assert t1 > t0 + 900, (t0, t1)
+    t1, clock1 = page.evaluate("id => [window.__AXP.actorTimeline(id), window.__AXP.actorClock()]", walker)
+    # The off-screen actor's timeline advanced by exactly as much as the simulation clock
+    # (it was never reset or paused), and the round trip itself took real time.
+    assert clock1 - clock0 > 900, (clock0, clock1)
+    assert abs((t1 - t0) - (clock1 - clock0)) < 1, (t0, t1, clock0, clock1)
     # Same lot, same actor ids after returning: nothing was rebuilt.
     again = page.evaluate("window.__AXP.lotActors('acme/forge')")
     assert [a["id"] for a in again] == [a["id"] for a in actors]

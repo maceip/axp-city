@@ -232,6 +232,7 @@ export class CityScene extends Phaser.Scene {
       }),
       snapshot: () => this.city,
       actorTimeline: (id: string) => this.actors.timeline(id),
+      actorClock: () => this.actors.now,
       actor: (id: string) => ({ ...this.actors.describe(id), ...this.actors.position(id) }),
       lotActors: (repo: string) => {
         const view = this.lots.get(repo);
@@ -713,7 +714,13 @@ export class CityScene extends Phaser.Scene {
     const kb = this.input.keyboard;
     if (kb) {
       this.keys = kb.addKeys("W,A,S,D,UP,LEFT,DOWN,RIGHT") as typeof this.keys;
+      // Phaser dispatches queued DOM key events as they arrive but only clears the
+      // queue on the next game step, so on a slow frame a keyup re-dispatches the
+      // keydown before it. Each DOM event acts exactly once here.
+      const handled = new WeakSet<KeyboardEvent>();
       kb.on("keydown", (event: KeyboardEvent) => {
+        if (handled.has(event)) return;
+        handled.add(event);
         if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLButtonElement) return;
         const key = event.key;
         if (/^[0-9]$/.test(key)) {

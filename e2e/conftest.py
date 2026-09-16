@@ -53,13 +53,16 @@ class CityServer:
         env = dict(os.environ, CITY_OFFLINE="1", CITY_DATA_DIR=str(self.root / "data"), CITY_FIXTURE_PATH=str(self.file), CITY_RULES_DIR=str(self.rules), GITHUB_WEBHOOK_SECRET=SECRET, CITY_ADMIN_TOKEN=ADMIN, HOST="127.0.0.1")
         self.log = (self.root / "server.log").open("a")
         self.proc = subprocess.Popen(["node", "dist/server/cli/server.js", "--port", str(self.port)], cwd=REPO, env=env, stdout=self.log, stderr=subprocess.STDOUT)
-        for _ in range(100):
+        # A loaded CI runner (browser + server on two cores) can take well over five
+        # seconds to open SQLite and start listening; a crash is still reported at once.
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
             try:
                 if self.get("/healthz")["renderer"] == "phaser-4": return
             except (OSError, urllib.error.URLError): pass
             if self.proc.poll() is not None: raise RuntimeError((self.root / "server.log").read_text())
             time.sleep(.05)
-        raise RuntimeError("City server did not start")
+        raise RuntimeError("City server did not start within 60 s:\n" + (self.root / "server.log").read_text()[-4000:])
 
     def stop(self):
         if self.proc and self.proc.poll() is None:

@@ -75,6 +75,10 @@ export class ActorSystem {
     this.pool = spritePool(scene, 800);
   }
 
+  /** Simulation time advanced so far (ms); every actor timeline is measured against it. */
+  get now(): number {
+    return this.clock;
+  }
   get count(): number {
     return this.actors.size;
   }
