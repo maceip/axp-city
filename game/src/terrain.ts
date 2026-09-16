@@ -394,7 +394,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       }
     }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
-    const chevronStep = glance ? 1 : Math.max(2, Math.ceil(span / 6));
+    const chevronStep = glance ? 2 : Math.max(2, Math.ceil(span / 6));
     const labelStep = glance ? 2 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
@@ -454,24 +454,24 @@ function isoChevronWorld(wx: number, wy: number, ox: number, len: number, half: 
 }
 
 function paintIsoChevron(scene: Phaser.Scene, wx: number, wy: number, glance: boolean): Phaser.GameObjects.Graphics {
-  const len = glance ? 1.95 : 0.88;
-  const half = glance ? 0.74 : 0.34;
-  const notch = glance ? 0.52 : 0.24;
-  const gap = glance ? 1.4 : 0.64;
+  const len = glance ? 2.45 : 0.95;
+  const half = glance ? 0.86 : 0.38;
+  const notch = glance ? 0.62 : 0.26;
+  const gap = glance ? 1.65 : 0.7;
   const mid = project(wx + gap * 0.5 + len * 0.4, wy);
   const g = scene.add.graphics();
   const local = (p: { sx: number; sy: number }) => new Phaser.Math.Vector2(p.sx - mid.sx, p.sy - mid.sy);
   const draw = (ox: number, extraLen: number, extraHalf: number) =>
     g.fillPoints(isoChevronWorld(wx, wy, ox, len + extraLen, half + extraHalf, notch).map(local), true);
   g.fillStyle(0x2a2820, 1);
-  draw(-0.12, 0.24, 0.16);
-  draw(gap - 0.12, 0.24, 0.16);
+  draw(-0.16, 0.32, 0.2);
+  draw(gap - 0.16, 0.32, 0.2);
   g.fillStyle(0xece3b8, 1);
   draw(0, 0, 0);
   draw(gap, 0, 0);
-  g.fillStyle(0xf7f0d4, 1);
-  draw(0.3, -0.58, -0.3);
-  draw(gap + 0.3, -0.58, -0.3);
+  g.fillStyle(0xfff6dc, 1);
+  draw(0.32, -0.62, -0.28);
+  draw(gap + 0.32, -0.62, -0.28);
   const pts = [
     ...isoChevronWorld(wx, wy, -0.12, len + 0.24, half + 0.16, notch),
     ...isoChevronWorld(wx, wy, gap - 0.12, len + 0.24, half + 0.16, notch),

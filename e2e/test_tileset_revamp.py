@@ -159,11 +159,12 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert len(chevrons) >= 3, f"overview painted chevrons missing: {len(chevrons)} of {len(on_screen)}"
         plaques = [m for m in on_screen if m.get("kind") == "plaque" and 40 < m["width"] < 280]
         assert len(plaques) >= 2, f"BIKE LANE plaques disappeared: {len(plaques)}"
+        freeway_chevrons = [m for m in chevrons if 90 < m["y"] + m["height"] / 2 < 380]
         mark = min(
-            chevrons,
-            key=lambda m: (m["x"] + m["width"] / 2 - 900) ** 2 + (m["y"] + m["height"] / 2 - 240) ** 2,
+            freeway_chevrons or chevrons,
+            key=lambda m: abs(m["x"] + m["width"] / 2 - 1040) + abs(m["y"] + m["height"] / 2 - 230),
         )
-        pad = 80
+        pad = 52
         mark_clip = {
             "x": max(0, mark["x"] - pad),
             "y": max(0, mark["y"] - pad),
