@@ -314,9 +314,9 @@ export class CityScene extends Phaser.Scene {
         return this.civics
           .filter((object) => object.getData("bikeLaneMark"))
           .map((object) => {
-            const mark = object as Phaser.GameObjects.Container | Phaser.GameObjects.Image;
-            const width = ("displayWidth" in mark ? mark.displayWidth : mark.width || 96) * zoom;
-            const height = ("displayHeight" in mark ? mark.displayHeight : mark.height || 28) * zoom;
+            const mark = object as unknown as { x: number; y: number; width: number; height: number; displayWidth?: number; displayHeight?: number; type: string };
+            const width = (mark.displayWidth ?? mark.width ?? 96) * zoom;
+            const height = (mark.displayHeight ?? mark.height ?? 28) * zoom;
             return {
               x: (mark.x - view.x) * zoom - width / 2,
               y: (mark.y - view.y) * zoom - height / 2,
