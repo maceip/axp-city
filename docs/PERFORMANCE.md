@@ -59,3 +59,9 @@ Rows are added only from a real run whose `performance.json` is attached to the 
 - Assets: five core sheets load before the first frame; yard props, crew atlases and approved artwork load on first use (`game/src/assets.ts`).
 
 The 1,000-lot fixture measures rendering. It does not establish 1,000 live GitHub integrations or many simultaneous visitors; server load is a separate concern covered by `/api/city/status` and the delivery queue metrics.
+
+## Server: delivery burst (`test/load.test.ts`)
+
+`npm test` includes a sustained-load case against the real HTTP server, SQLite queue and worker: 200 lots, 600 concurrent signed deliveries (two ids per repository plus one exact duplicate), a resolver that takes 5–15 ms, two SSE subscribers attached throughout, `coalesceMs: 0` so every delivery is a refresh. Required: every delivery acknowledged after persistence (202 new, 200 duplicate, never 5xx or 429 at the configured ceiling), duplicates stored once, the backlog drained with no failures, every lot refreshed and persisted, `PRAGMA integrity_check` ok, both subscribers still connected and having received every lot mutation, heap growth under 64 MB.
+
+Latest run on the Cloud Agent VM (Node 24, two cores): 600 deliveries accepted in ≈2.5 s, drained in ≈9 s, 400 resolver calls, heap +49 MB before GC. The worker processes deliveries **one at a time**: throughput is bounded by GitHub latency (at ~500 ms per real refresh a 400-refresh backlog takes ~3–4 minutes), which the 10 s per-repository coalescing window and GitHub's own 5,000 requests/hour ceiling make acceptable for a city of hundreds of lots but which is the limit to raise first if enrollment grows past that. A stop request lets the delivery in hand finish before the store closes; anything still queued is re-queued on the next start.

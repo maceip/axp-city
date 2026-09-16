@@ -296,7 +296,7 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     if (stopping) return;
     stopping = true;
     reconciler.stop();
-    runtime.stopWorker();
+    const drained = runtime.stopWorker();
     clearInterval(housekeeping);
     runtime.server.closeAllConnections();
     runtime.server.close(() => {
@@ -304,8 +304,9 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
         runtime.city.close();
         process.exit(0);
       };
-      if (vite) void vite.close().finally(finish);
-      else finish();
+      // Let the delivery in hand finish before the store closes; anything still queued
+      // is re-queued on the next start.
+      void drained.then(() => (vite ? vite.close().finally(finish) : finish()));
     });
   };
   process.on("SIGTERM", stop);

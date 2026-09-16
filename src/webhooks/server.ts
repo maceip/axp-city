@@ -112,7 +112,8 @@ export interface WebhookServer {
   /** Process queued deliveries until none are due. Resolves with the count processed. */
   drainDeliveries(now?: string): Promise<number>;
   startWorker(intervalMs?: number): void;
-  stopWorker(): void;
+  /** Resolves when the in-flight delivery, if any, has finished. */
+  stopWorker(): Promise<void>;
   /** Broadcast a freshness/status update to stream subscribers. */
   publishStatus(): void;
   readonly effectiveConfig: EffectiveConfig;
@@ -543,11 +544,16 @@ export function createWebhookServer(
   }
 
   let draining: Promise<number> | undefined;
+  let stopped = false;
   function drainDeliveries(now?: string): Promise<number> {
     if (draining) return draining;
+    if (stopped) return Promise.resolve(0);
     draining = (async () => {
       let processed = 0;
       for (;;) {
+        // A stop request lets the delivery in hand finish and leaves the rest queued;
+        // they are picked up on the next start (processing rows are re-queued on load).
+        if (stopped) break;
         const delivery = city.nextDelivery(now);
         if (!delivery) break;
         processed++;
@@ -584,6 +590,7 @@ export function createWebhookServer(
     wake.unref?.();
   }
   function startWorker(intervalMs = 15_000): void {
+    stopped = false;
     if (worker) return;
     worker = setInterval(() => {
       void drainDeliveries().catch((error) =>
@@ -593,13 +600,20 @@ export function createWebhookServer(
     worker.unref?.();
     void drainDeliveries().catch(() => {});
   }
-  function stopWorker(): void {
+  /** Stops scheduling and resolves once the delivery being processed (if any) has finished,
+   *  so the store can be closed without cutting a refresh off half-way. */
+  function stopWorker(): Promise<void> {
+    stopped = true;
     if (worker) clearInterval(worker);
     if (wake) clearTimeout(wake);
     if (statusTimer) clearTimeout(statusTimer);
     worker = undefined;
     wake = undefined;
     statusTimer = undefined;
+    return (draining ?? Promise.resolve(0)).then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   function serveFile(

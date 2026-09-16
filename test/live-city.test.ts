@@ -57,7 +57,7 @@ async function start(runtime: WebhookServer) {
 }
 
 async function stop(runtime: WebhookServer) {
-  runtime.stopWorker();
+  await runtime.stopWorker();
   runtime.server.closeAllConnections();
   await new Promise<void>((done) => runtime.server.close(() => done()));
   runtime.city.close();
