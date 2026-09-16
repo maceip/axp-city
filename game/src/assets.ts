@@ -8,7 +8,9 @@ import {
   WILD_SHEETS,
 } from "../../src/render/sprites.js";
 
-export const SPRITE_BASE = "/assets/sprites";
+/** Offline packages declare a relative asset base; the live site serves from the root. */
+export const SPRITE_BASE =
+  document.querySelector<HTMLMetaElement>('meta[name="city-asset-base"]')?.content || "/assets/sprites";
 
 /** Sheets fetched before the first frame: ground, buildings and wild trees. */
 export const CORE_SHEETS = [
