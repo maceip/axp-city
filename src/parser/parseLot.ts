@@ -1,3 +1,4 @@
+import { DEFAULT_RULES } from "../rules/cityFiles.js";
 import type {
   BuildingBand,
   CityLot,
@@ -95,8 +96,17 @@ export function parseLot(
 ): CityLot {
   const recentActivity = hasRecentActivity(metrics, options);
   const botDetected = detectBot(metrics);
-  const band = buildingBandFromStars(metrics.stars);
-  const buildingId = pickBuildingId(metrics.fullName, band);
+  const rules = options.rules ?? DEFAULT_RULES;
+  const band: BuildingBand =
+    metrics.stars < rules.building.bands.S.maxStarsExclusive!
+      ? "S"
+      : metrics.stars < rules.building.bands.M.maxStarsExclusive!
+        ? "M"
+        : "L";
+  const [lo, hi] = rules.building.bands[band].ids;
+  const buildingId =
+    rules.building.buildingId ??
+    lo + (stableHash(metrics.fullName.toLowerCase()) % (hi - lo + 1));
 
   const hasPrs = metrics.openPrs > 0;
   const hasIssues = metrics.openIssues > 0;
@@ -123,8 +133,27 @@ export function parseLot(
     yard = "fully_dormant";
   }
 
-  const showDrone = hasPrs && (metrics.openPrs >= HIGH_PR_COUNT || botDetected);
-  const occupantClass = occupantFor(recentActivity, botDetected, showCrew, showDrone);
+  const props = new Set<string>();
+  if (hasPrs) for (const prop of rules.loadingZone.props.prs) props.add(prop);
+  else if (hasIssues)
+    for (const prop of rules.loadingZone.props.issues) props.add(prop);
+  if (hasPrs && hasIssues && rules.loadingZone.combinedBlueprint)
+    props.add("blueprint");
+  if (recentActivity && (hasPrs || hasIssues))
+    for (const prop of rules.loadingZone.props.recent) props.add(prop);
+  if (hasPrs && (metrics.openPrs >= HIGH_PR_COUNT || botDetected))
+    for (const prop of rules.loadingZone.props.highPrsOrBot) props.add(prop);
+  showBlueprint = props.has("blueprint");
+  showDraftingTable = props.has("drafting-table");
+  showMaterials = props.has("materials");
+  showCrew = props.has("crew");
+  const showDrone = props.has("drone");
+  const occupantClass = occupantFor(
+    recentActivity,
+    botDetected,
+    showCrew,
+    showDrone,
+  );
 
   return {
     fullName: metrics.fullName,
@@ -148,6 +177,9 @@ export function parseLot(
     openPrs: metrics.openPrs,
     sizeKb: metrics.sizeKb,
     primaryLanguage: metrics.primaryLanguage,
+    quietAlpha: rules.building.quietAlpha,
+    dataSource: metrics.source,
+    fetchedAt: metrics.fetchedAt,
   };
 }
 
@@ -186,5 +218,5 @@ export function parseCity(
   metrics: RepoMetrics[],
   options: ParseOptions = {},
 ): CityLot[] {
-  return uniquifyBuildingIds(metrics.map((row) => parseLot(row, options)));
+  return metrics.map((row) => parseLot(row, options));
 }

@@ -7,7 +7,7 @@ export async function runDemo(argv = process.argv.slice(2)): Promise<void> {
   console.log(`[demo] repos=${args.reposFile} offline=${args.offline}`);
   await runIngest(argv);
   await runRender(argv);
-  console.log("[demo] done — open out/city.html");
+  console.log("[demo] data ready — run npm run dev for the Phaser city");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -73,7 +73,12 @@ export function slotOrigin(sx: number, sy: number): { x: number; y: number } {
 }
 
 export function districtName(sx: number, sy: number): string {
-  if (sx >= PARK_SX0 - 1 && sx <= PARK_SX1 + 1 && sy >= PARK_SY0 - 1 && sy <= PARK_SY1 + 1) {
+  if (
+    sx >= PARK_SX0 - 1 &&
+    sx <= PARK_SX1 + 1 &&
+    sy >= PARK_SY0 - 1 &&
+    sy <= PARK_SY1 + 1
+  ) {
     return "Central Park";
   }
   if (sy === FREEWAY_SY || sy === FREEWAY_SY - 1 || sy === FREEWAY_SY + 1) {
@@ -151,7 +156,13 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       const origin = slotOrigin(sx, sy);
       const roll = hash01(sx, sy, 19);
       const variant: VacantPlot["variant"] =
-        roll < 0.12 ? "plaza" : roll < 0.28 ? "trees" : roll < 0.4 ? "dirt" : "grass";
+        roll < 0.12
+          ? "plaza"
+          : roll < 0.28
+            ? "trees"
+            : roll < 0.4
+              ? "dirt"
+              : "grass";
       vacancies.push({ sx, sy, x: origin.x, y: origin.y, variant });
     }
   }
@@ -206,7 +217,9 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     },
   ];
 
-  const streetRows = [...new Set(placements.map((p) => p.row))].sort((a, b) => a - b);
+  const streetRows = [...new Set(placements.map((p) => p.row))].sort(
+    (a, b) => a - b,
+  );
 
   const radius = Math.max(
     Math.abs(minSx),
@@ -231,6 +244,9 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
   };
 }
 
-export function featureByKind(plan: CityPlan, kind: FeatureKind): CityFeature | undefined {
+export function featureByKind(
+  plan: CityPlan,
+  kind: FeatureKind,
+): CityFeature | undefined {
   return plan.features.find((f) => f.kind === kind);
 }

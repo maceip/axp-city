@@ -65,12 +65,18 @@ export interface CityLot {
   openPrs: number;
   sizeKb: number;
   primaryLanguage: string | null;
+  quietAlpha?: number;
+  rulesSource?: "default" | "repository";
+  rulesWarning?: string;
+  dataSource?: RepoMetrics["source"];
+  fetchedAt?: string;
 }
 
 export interface ParseOptions {
   /** Clock used for the activity window. Defaults to now. */
   now?: Date | string | number;
   recentDays?: number;
+  rules?: import("./rules/cityFiles.js").CityRules;
 }
 
 export interface IngestSnapshot {

@@ -1,0 +1,563 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #91b477;
+  color: #243e34;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #dda957;
+  outline-offset: 3px;
+}
+button:active {
+  transform: translateY(1px);
+}
+[hidden] {
+  display: none !important;
+}
+#game {
+  position: absolute;
+  inset: 0;
+}
+#game canvas {
+  display: block;
+  touch-action: none;
+}
+.panel {
+  background: #faf5e8ed;
+  border: 1px solid #506b536b;
+  box-shadow:
+    0 4px 0 #23473322,
+    0 8px 24px #25433320;
+  border-radius: 9px;
+  backdrop-filter: blur(10px);
+}
+.mast {
+  position: fixed;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 90px;
+  padding: 22px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  background: linear-gradient(#f7f1dfc9, transparent);
+}
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 44px;
+  color: #f5e6b5;
+  background: #2f5544;
+  border: 2px solid #c8aa68;
+  border-radius: 5px;
+  font-family: serif;
+  font-size: 30px;
+  box-shadow: 0 3px 0 #1f3c30;
+}
+.brand h1 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 4px;
+  font-weight: 850;
+}
+.brand p {
+  margin: 3px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+.connection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border-radius: 22px;
+  background: #f8f4e8d9;
+  border: 1px solid #577d5540;
+  font-size: 11px;
+  max-width: 45%;
+}
+#connection-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c29551;
+}
+#connection-dot.live {
+  background: #458c60;
+  box-shadow: 0 0 0 3px #458c601e;
+}
+#city-count {
+  border-left: 1px solid #6e805d55;
+  padding-left: 9px;
+}
+.district {
+  position: fixed;
+  left: 28px;
+  top: 105px;
+  padding: 13px 17px;
+  display: grid;
+  gap: 5px;
+  min-width: 184px;
+  pointer-events: none;
+}
+.eyebrow {
+  font-size: 9px;
+  letter-spacing: 1.8px;
+  font-weight: 800;
+  color: #647655;
+}
+.district strong {
+  font-family: Georgia, serif;
+  font-size: 22px;
+}
+.district #coordinates {
+  font:
+    10px ui-monospace,
+    monospace;
+  color: #73805f;
+}
+.search {
+  position: fixed;
+  right: 28px;
+  top: 105px;
+  width: 230px;
+  padding: 10px 14px;
+}
+.search label {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.search input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #c4c6ad;
+  color: #2f493d;
+  background: transparent;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.compass {
+  position: fixed;
+  left: 42px;
+  top: 215px;
+  display: grid;
+  justify-items: center;
+  font:
+    9px ui-monospace,
+    monospace;
+  color: #41614e;
+  pointer-events: none;
+  opacity: 0.8;
+}
+.compass b {
+  font-size: 28px;
+  line-height: 25px;
+}
+.compass small {
+  font-size: 8px;
+}
+.dpad {
+  position: fixed;
+  bottom: 65px;
+  left: 28px;
+  padding: 8px;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+.dpad div {
+  display: flex;
+  gap: 3px;
+}
+.dpad button {
+  width: 32px;
+  height: 28px;
+  border: 1px solid #b8bea5;
+  border-radius: 4px;
+  background: #f4eddc;
+  color: #41604b;
+  font-size: 17px;
+}
+.map-tools {
+  position: fixed;
+  right: 28px;
+  bottom: 64px;
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+}
+.zoom {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.zoom button {
+  width: 36px;
+  height: 32px;
+  background: none;
+  border: 0;
+  font-size: 21px;
+  color: #305542;
+}
+.zoom output {
+  min-width: 52px;
+  text-align: center;
+  font:
+    11px ui-monospace,
+    monospace;
+}
+.minimap {
+  padding: 8px 8px 5px;
+}
+.minimap canvas {
+  display: block;
+  cursor: crosshair;
+  border-radius: 4px;
+  background: #b1c69a;
+}
+.minimap span {
+  display: block;
+  text-align: center;
+  font-size: 8px;
+  letter-spacing: 1.6px;
+  margin: 6px 0 2px;
+  color: #6f785a;
+}
+footer {
+  position: fixed;
+  left: 28px;
+  bottom: 20px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+footer button {
+  pointer-events: auto;
+  border-color: #77927177;
+  padding: 8px 13px;
+  font-size: 11px;
+  color: #36543e;
+}
+.hints {
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: #f9f6e6;
+  text-shadow:
+    0 1px 4px #284c30,
+    0 0 12px #284c30;
+}
+.hints i {
+  font-style: normal;
+  margin: 0 7px;
+  opacity: 0.6;
+}
+#lot-card {
+  position: fixed;
+  right: 28px;
+  top: 196px;
+  width: 290px;
+  max-height: calc(100% - 435px);
+  overflow: auto;
+  padding: 21px;
+  z-index: 7;
+  border-top: 4px solid #bba368;
+}
+#lot-card .close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: 0;
+  background: none;
+  color: #71816a;
+  font-size: 23px;
+}
+#lot-card h2 {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  margin: 9px 0 3px;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+#lot-card .owner {
+  font-size: 11px;
+  color: #7c876c;
+  margin: 0 0 18px;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin: 14px 0;
+}
+.stats div {
+  display: grid;
+  gap: 4px;
+}
+.stats span {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #778366;
+}
+.stats b {
+  font-size: 18px;
+  font-weight: 650;
+}
+.state {
+  font:
+    10px ui-monospace,
+    monospace;
+  line-height: 1.7;
+  padding: 10px 0;
+  border-top: 1px solid #d4d4ba;
+  border-bottom: 1px solid #d4d4ba;
+}
+.props {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #526547;
+}
+.source {
+  font-size: 9px;
+  color: #7b856b;
+  line-height: 1.7;
+}
+.repo-link {
+  display: block;
+  margin-top: 16px;
+  text-align: center;
+  text-decoration: none;
+  color: #f8f3df;
+  border: 1px solid #234731;
+  background: #41634d;
+  padding: 9px;
+  font-size: 11px;
+  border-radius: 5px;
+}
+#hover-tag {
+  position: fixed;
+  z-index: 6;
+  pointer-events: none;
+  padding: 7px 11px;
+  border-radius: 4px;
+  background: #254434f2;
+  color: #faf2d7;
+  box-shadow: 0 3px 12px #253c3440;
+  font-size: 11px;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 76px;
+  transform: translateX(-50%);
+  background: #294b3ef0;
+  color: #fff4d7;
+  padding: 11px 17px;
+  font-size: 12px;
+  border: 1px solid #d1b57477;
+  border-radius: 7px;
+  z-index: 10;
+}
+#boot-card {
+  position: fixed;
+  z-index: 20;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(400px, 90vw);
+  padding: 32px;
+  text-align: center;
+}
+#boot-card h2 {
+  font:
+    29px Georgia,
+    serif;
+  margin: 15px 0;
+}
+#boot-card p {
+  font-size: 12px;
+  color: #6c795e;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+#boot-bar {
+  margin: 24px 0 8px;
+  background: #e0dfc9;
+  height: 5px;
+  border-radius: 5px;
+  overflow: hidden;
+}
+#boot-bar span {
+  display: block;
+  height: 100%;
+  background: #78925c;
+  width: 0;
+  transition: width 0.2s;
+}
+#retry {
+  margin-top: 15px;
+  border: 1px solid #738765;
+  background: #f7f1dd;
+  padding: 9px 15px;
+  border-radius: 4px;
+}
+@media (max-width: 700px) {
+  .mast {
+    height: 80px;
+    padding: 17px;
+  }
+  .brand {
+    gap: 8px;
+  }
+  .brand-mark {
+    width: 31px;
+    height: 35px;
+    font-size: 24px;
+  }
+  .brand h1 {
+    font-size: 16px;
+    letter-spacing: 3px;
+  }
+  .brand p {
+    font-size: 8px;
+  }
+  .connection {
+    font-size: 9px;
+    padding: 7px 9px;
+    gap: 5px;
+    max-width: 45%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #city-count {
+    display: none;
+  }
+  .district {
+    left: 16px;
+    top: 84px;
+    padding: 10px 12px;
+    min-width: 155px;
+  }
+  .district strong {
+    font-size: 19px;
+  }
+  .search {
+    right: 16px;
+    top: 84px;
+    width: 145px;
+    padding: 9px 10px;
+  }
+  .search label {
+    font-size: 8px;
+  }
+  .search input {
+    font-size: 10px;
+  }
+  .compass {
+    left: 27px;
+    top: 178px;
+  }
+  .dpad {
+    left: 16px;
+    bottom: 57px;
+  }
+  .dpad button {
+    width: 36px;
+    height: 32px;
+  }
+  .map-tools {
+    right: 16px;
+    bottom: 57px;
+    gap: 8px;
+  }
+  .minimap {
+    padding: 5px;
+  }
+  .minimap canvas {
+    width: 125px;
+    height: 82px;
+  }
+  .minimap span {
+    font-size: 7px;
+  }
+  .hints {
+    display: none;
+  }
+  footer {
+    left: 16px;
+    right: 16px;
+    bottom: 15px;
+    justify-content: flex-end;
+  }
+  #lot-card {
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 216px;
+    width: auto;
+    padding: 16px;
+    max-height: calc(100dvh - 385px);
+  }
+  #lot-card h2 {
+    font-size: 21px;
+  }
+  .stats {
+    margin: 10px 0;
+  }
+  .props {
+    margin: 8px 0;
+  }
+  .source {
+    margin: 7px 0;
+  }
+  .repo-link {
+    margin-top: 9px;
+    padding: 7px;
+  }
+  #toast {
+    bottom: 205px;
+    max-width: 85vw;
+    width: max-content;
+  }
+  .zoom button {
+    width: 35px;
+  }
+}

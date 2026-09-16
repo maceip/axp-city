@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "plot": "pad",
+  "sizeFrom": "stars",
+  "bands": {
+    "S": { "maxStarsExclusive": 5000, "ids": [1, 17] },
+    "M": { "maxStarsExclusive": 20000, "ids": [18, 34] },
+    "L": { "ids": [35, 50] }
+  },
+  "quietWhen": "no-recent-activity",
+  "quietAlpha": 0.62
+}

@@ -1,69 +1,67 @@
 # AXP City
 
-A real **GitHub → isometric city** pipeline. Each repository becomes two adjacent plots: a **building pad** sized from stars, and a **receiving yard** whose props come from open issues, open PRs, and recent activity.
+A shared isometric city rendered by **Phaser 4.2.1**. Every GitHub repository has a building and a loading zone. Repository metrics and versioned JSON rules determine the building, materials, human crews, robots, and drones.
 
-Lots sit around **Central Park** with a reserved **freeway**, **tram**, and **river** that grow as repos are added (sticky addresses — the map never reshuffles). Ground tiles continue infinitely in every direction. The live page is an RPG-style HUD with touch controls; a new repo appears for every open browser as an under-construction plot.
+**One repository, one application:** the Node server serves the Phaser client, the city API, and signed GitHub webhooks. There is no SVG city client or static HTML map to deploy.
 
-This is not a collage and not a hardcoded demo. The twelve Android repos in `repos.txt` are just the first city the CLI paints.
+## Run locally
 
-## Pipeline
+Node 22 or newer is recommended (minimum 20).
 
-```
-repos.txt  →  ingest/  →  out/metrics.json
-                 ↓
-              parser/  →  CityLot[]     ← city logic lives here
-                 ↓
-              render/  →  out/city.html
+```sh
+npm ci
+npm run dev
 ```
 
-| Module | Role |
-| --- | --- |
-| `src/ingest/` | GitHub GraphQL (token) or REST. Writes `fixtures/github/` so later runs and tests can stay offline. |
-| `src/parser/` | Pure `RepoMetrics → CityLot`. Thresholds and precedence are documented in code and in [`docs/PARSER.md`](docs/PARSER.md). |
-| `src/world/` | Sticky lot addresses, Central Park / freeway / tram / river, infinite tiles. |
-| `src/render/` | Isometric SVG city (environment tiles + building silhouettes 01–50). Labels `owner/name`. RPG HUD, touch, air traffic. Next engine: Phaser 4 — see [`docs/ENGINE.md`](docs/ENGINE.md). |
-| `src/live/` | Shared city map (`data/city-map.json`) so every visitor sees the same plots. |
-| `src/cli/` | `ingest`, `render`, `demo`, `preview`. |
+Open **http://127.0.0.1:5173/city**. This starts the server and Vite together, with clearly labeled offline fixtures. `npm run game` is an alias for this same command.
 
-## Thresholds (parser)
+Drag / WASD to explore, wheel / pinch to zoom, tap a building to inspect it. Search or keys 1–0 jump to repositories. F follows activity on the selected lot. The D-pad, overview, zoom buttons, and sky control also work on touch screens.
 
-Documented in `src/parser/thresholds.ts` and [`docs/PARSER.md`](docs/PARSER.md).
+## Build and run the application
 
-- **Building band** from stars: S `< 5k` (IDs 01–17), M `5k–20k` (18–34), L `≥ 20k` (35–50).
-- **Recent** = `pushed_at` within **14 days** **or** default-branch commits in that window.
-- **Yard precedence**: open PRs beat open issues. If both exist, the yard keeps PR materials *and* a small blueprint.
-- **Drones** when `openPrs ≥ 15` or a bot/agent author is present.
-- **Occupants:** humans on recent human yards; robots/drones on AI (bot) yards. See [`docs/CITY.md`](docs/CITY.md).
-
-## Commands
-
-```bash
-npm install
-
-# Live fetch (uses GITHUB_TOKEN when set; degrades to unauthenticated REST)
-npm run ingest -- --repos repos.txt
-
-# Parse + write out/city.html from the last ingest
-npm run render
-
-# Both, for the 12 demo repos
-npm run demo
-
-# Offline, from recorded fixtures
-npm run demo -- --offline
-
-# Serve the exported city
-npm run preview
+```sh
+npm run build
+npm start
 ```
 
-`npm test` runs the parser unit tests (dormant / issues quiet / issues active / PRs quiet / PRs active, plus precedence, bands, and drones).
+The production server listens on **http://127.0.0.1:43174/city**. `/`, `/city`, and `/city.html` all serve the same Phaser app. Its API and live stream use the same origin.
 
-Without a token, GitHub’s unauthenticated limit is 60 req/hour. The client falls back to `fixtures/github/batch.json` if a live fetch fails.
+- `GITHUB_TOKEN`: server-only GitHub token for authenticated metrics/rule reads and reconciliation on startup and every 15 minutes. Without it, signed deliveries still refresh public repos through rate-limited REST; periodic reconciliation is disabled.
+- `GITHUB_WEBHOOK_SECRET`: HMAC secret for `POST /webhooks/github`. Missing configuration denies deliveries; it does not stop the public reader.
+- `CITY_ADMIN_TOKEN`: bearer token for `POST /api/city/lots`. Missing configuration denies mutations. Never put this in client code.
+- `CITY_DATA_DIR`: persistent state directory, default `data`. Preserve it across deployments.
+- `CITY_RULES_DIR`: city default-rule directory, default `.city`.
+- `PORT`, `HOST`: listener settings. Defaults are loopback and port 43174 in production.
+- `CITY_OFFLINE=1`, `CITY_FIXTURE_PATH`: explicit local/testing mode and fixture source. The UI labels recorded data. Live API failures never switch the client to fixtures.
 
-## Demo repos
+For a built offline preview: `npm run preview`. To import GitHub metrics explicitly: `npm run ingest`; to import the recorded snapshot: `npm run demo -- --offline`. `npm run render` exports **JSON data**, not a second renderer.
 
-See `repos.txt`. After `npm run demo`, open `out/city.html` (and `out/city.png` if a screenshot was exported). Every lot is labeled with `owner/name`. Lot state is whatever the parser emits for the recorded (or freshly fetched) metrics — never a per-name switch.
+## Rules and shared world
 
-## Style references
+City defaults live in [`.city/building.json`](.city/building.json) and [`.city/loading-zone.json`](.city/loading-zone.json). A represented repository can override either file in **its own default branch**. The server fetches and validates those files during repository refreshes, then applies them to the parser. See [the rule contract](docs/RULES.md).
 
-`assets/city-sprites/` holds the consolidated city sprite sheets (buildings 01–50, environment tiles, yards, crew, drones) plus the earlier 01–05 pixel pass. The full screen/state language is frozen in [`docs/AXP-UX-SCREENS.md`](docs/AXP-UX-SCREENS.md); the Hunt board mock is [`docs/hunter-board-mock.html`](docs/hunter-board-mock.html). The renderer stamps real building, yard, decor, and animated-crew sprites (`src/render/sprites.ts` manifests, `src/render/anim.ts` SMIL) over vector ground; serve the whole `assets/city-sprites/` dir at `/assets/sprites/` for the images to resolve (live: `/assets/sprites/` on demo.glint.sh).
+Lots retain their persisted order and addresses around Central Park. Freeway, tram, river, and plaza corridors are reserved before lots are assigned. New lots animate construction for 45 seconds from a server timestamp. Viewport chunks provide infinite surrounding terrain; distant lots do not retain active sprites or animations.
+
+| Code                                    | Responsibility                                                    |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| `src/ingest`, `src/rules`, `src/parser` | GitHub metrics and repository rules → `CityLot`                   |
+| `src/world`                             | Stable placement and reserved civic geography                     |
+| `src/live`, `src/webhooks`              | Atomic persistence, authenticated updates, JSON snapshots and SSE |
+| `src/game`, `game/src`                  | Visible-lot plans, Phaser rendering, camera, touch, HUD           |
+| `src/render`                            | Shared projection and measured sprite atlas metadata only         |
+| `assets/city-sprites`                   | Existing building, ground, prop, and animation artwork            |
+
+## Verify
+
+```sh
+npm test
+npm run typecheck
+npm run build
+python3 -m pip install -r e2e/requirements.txt
+python3 -m playwright install chromium
+python3 -m pytest e2e -v
+```
+
+The browser suite uses the **production build and actual HTTP/SSE server**. It covers interaction, mobile touch/pinch, two browsers, rules and metrics updates, reconnects, restarts, construction completion, infinite terrain, and 1,000-lot rendering. Screenshots and measurements are written to `e2e/screenshots/` (ignored by Git).
+
+[Deployment](docs/DEPLOY.md) · [City protocol](docs/CITY.md) · [Authentication](docs/AUTH.md) · [Recovery record](docs/RECOVERY.md)

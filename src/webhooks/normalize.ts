@@ -22,8 +22,9 @@ export function normalizeDelivery(
   const repo = (payload.repository as RepoRef | undefined)?.full_name;
   if (!repo) return null;
 
-  const actor =
-    ((payload.sender as ActorRef | undefined)?.login ?? null) as string | null;
+  const actor = ((payload.sender as ActorRef | undefined)?.login ?? null) as
+    | string
+    | null;
 
   const base = { id: deliveryId, receivedAt, repo, actor };
 
@@ -41,8 +42,15 @@ export function normalizeDelivery(
       return normalizePullRequest(base, payload);
     case "issues":
       return normalizeIssue(base, payload);
+    case "star":
+      if (payload.action === "created" || payload.action === "deleted")
+        return { ...base, signal: "repo_updated" };
+      return null;
+    case "fork":
+      return { ...base, signal: "repo_updated" };
     case "repository":
-      if (payload.action === "created") return { ...base, signal: "repo_created" };
+      if (payload.action === "created")
+        return { ...base, signal: "repo_created" };
       return null;
     default:
       return null;
@@ -55,12 +63,18 @@ function normalizePullRequest(
 ): CityEvent | null {
   const action = payload.action;
   const pr = payload.pull_request as
-    | { number?: number; title?: string | null; html_url?: string | null; merged?: boolean }
+    | {
+        number?: number;
+        title?: string | null;
+        html_url?: string | null;
+        merged?: boolean;
+      }
     | undefined;
   if (!pr) return null;
   let signal: CitySignal | null = null;
   if (action === "opened" || action === "reopened") signal = "pr_opened";
-  else if (action === "closed") signal = pr.merged === true ? "pr_merged" : "pr_closed";
+  else if (action === "closed")
+    signal = pr.merged === true ? "pr_merged" : "pr_closed";
   if (!signal) return null;
   return {
     ...base,

@@ -19,22 +19,19 @@ export async function runIngest(argv = process.argv.slice(2)): Promise<string> {
     console.log(`[ingest] offline — loading ${args.snapshotPath}`);
     metrics = await loadFixtureSnapshot(args.snapshotPath);
   } else {
-    try {
-      metrics = await fetchRepoMetrics(repos);
-      const snapshot = buildSnapshot(metrics, names);
-      await writeSnapshot(snapshot, args.snapshotPath);
-      await writePerRepoFixtures(metrics, `${args.fixturesDir}/repos`);
-      console.log(`[ingest] fetched ${metrics.length} repos via ${snapshot.source}`);
-    } catch (error) {
-      console.warn(
-        `[ingest] live fetch failed (${error instanceof Error ? error.message : error}); using fixtures`,
-      );
-      metrics = await loadFixtureSnapshot(args.snapshotPath);
-    }
+    metrics = await fetchRepoMetrics(repos);
+    const snapshot = buildSnapshot(metrics, names);
+    await writeSnapshot(snapshot, args.snapshotPath);
+    await writePerRepoFixtures(metrics, `${args.fixturesDir}/repos`);
+    console.log(
+      `[ingest] fetched ${metrics.length} repos via ${snapshot.source}`,
+    );
   }
 
   const ordered = names
-    .map((full) => metrics.find((m) => m.fullName.toLowerCase() === full.toLowerCase()))
+    .map((full) =>
+      metrics.find((m) => m.fullName.toLowerCase() === full.toLowerCase()),
+    )
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
   if (ordered.length !== names.length) {
     const have = new Set(metrics.map((m) => m.fullName.toLowerCase()));

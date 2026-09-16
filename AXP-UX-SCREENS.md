@@ -1,5 +1,7 @@
 # AXP UX Screens & SimCity City Map — Design Record
 
+> Historical September 10–11 design record. For the current Phaser implementation, use [the README](README.md), [engine contract](docs/ENGINE.md), and [updated city design document](docs/AXP-UX-SCREENS.md). Implementation references below describe the original prototype.
+
 **Date:** 2026-09-10 → 2026-09-11  
 **Purpose:** Single record of every product screen discussed and the detailed SimCity-style language for representing repositories and repo state.  
 **Related code:** Origin `rootworks/tmp-9c9361bfac6116d7` (`src/parser/`, `docs/PARSER.md`, `src/render/`, `out/city.*`)  

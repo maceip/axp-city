@@ -40,6 +40,7 @@ export function createEventStore(logPath: string, capacity = 500): EventStore {
   const seen = new Set<string>();
   const buffer: CityEvent[] = [];
   let ensured = false;
+  let writing: Promise<unknown> = Promise.resolve();
 
   async function ensureDir(): Promise<void> {
     if (ensured) return;
@@ -87,12 +88,16 @@ export function createEventStore(logPath: string, capacity = 500): EventStore {
       return { loaded, skipped };
     },
 
-    async append(event: CityEvent): Promise<boolean> {
-      if (seen.has(event.id)) return false;
-      await ensureDir();
-      await appendFile(logPath, `${JSON.stringify(event)}\n`, "utf8");
-      remember(event);
-      return true;
+    append(event: CityEvent): Promise<boolean> {
+      const next = writing.then(async () => {
+        if (seen.has(event.id)) return false;
+        await ensureDir();
+        await appendFile(logPath, `${JSON.stringify(event)}\n`, "utf8");
+        remember(event);
+        return true;
+      });
+      writing = next.catch(() => {});
+      return next;
     },
 
     recent(limit: number): CityEvent[] {
