@@ -56,7 +56,10 @@ def pixel_distance(a, b):
 
 
 def rendered_change(page, repo, before, label, settle_ms=400):
-    """Assert the lot's rendered pixels changed far more than the animation noise floor."""
+    """Assert the lot's rendered pixels changed far more than the animation noise floor.
+    Callers hold motion (reduced motion) so the floor is near zero; the HUD toast that
+    announces an update is waited out so it cannot overlap the sampled rectangle."""
+    page.wait_for_function("!window.__AXP.diagnostics().toastVisible", timeout=10000)
     page.wait_for_timeout(settle_ms)
     after = lot_pixels(page, repo)
     page.wait_for_timeout(settle_ms)
@@ -297,6 +300,11 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
     ready(other, server.url)
     second = other.context
     first_pos = server.get("/api/city")["plan"]["placements"][0]
+    # Hold crews and traffic in both browsers so pixel differences below come from the
+    # data and rule changes, not from whatever was driving past when a sample was taken.
+    for tab in [page, other]:
+        tab.keyboard.press("m")
+        tab.wait_for_function("window.__AXP.diagnostics().reducedMotion && !window.__AXP.diagnostics().toastVisible", timeout=10000)
     page.wait_for_timeout(600)
     original = lot_pixels(page, "acme/forge")
     default_building = page.evaluate("window.__AXP.snapshot().plan.placements[0].lot.buildingId")

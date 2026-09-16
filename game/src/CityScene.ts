@@ -238,6 +238,7 @@ export class CityScene extends Phaser.Scene {
         reducedMotion: this.reducedMotion,
         censusOpen: this.hudReady && this.hud.censusIsOpen,
         cardVisible: this.hudReady && this.hud.cardVisible,
+        toastVisible: this.hudReady && this.hud.toastVisible,
         frameMs: this.frameStats(),
       }),
       snapshot: () => this.city,

@@ -595,6 +595,9 @@ export class HudScene extends Phaser.Scene {
   get cardVisible(): boolean {
     return this.card.visible;
   }
+  get toastVisible(): boolean {
+    return this.toastText.visible;
+  }
   get cardBottom(): number {
     return this.card.visible ? this.card.y : this.scale.height;
   }
