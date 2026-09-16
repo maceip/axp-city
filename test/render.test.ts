@@ -253,8 +253,9 @@ describe("renderCityHtml", () => {
     expect(html).toContain("pinch");
     expect(html).toContain("/api/city/stream");
     expect(html).toContain("id=\"axp-city-plan\"");
-    expect(html).toContain("g.lot");
+    expect(html).toContain("pickLotAt");
     expect(html).toContain("inspectFromEvent");
+    expect(html).toContain("fromChrome");
   });
 
   it("renders air traffic and weather over the city", () => {

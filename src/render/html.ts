@@ -67,8 +67,9 @@ const hudCss = `
       touch-action: none;
     }
     .stage svg { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+    .infinite-fill, .infinite-ground, .air-layer, .air-layer * { pointer-events: none; }
     .lot { cursor: pointer; }
-    .lot-hit { cursor: pointer; }
+    .lot-hit, .lot-hit * { cursor: pointer; pointer-events: all; }
     .lot-hit:hover path { stroke: var(--gold); stroke-width: 2; }
     .lot-hit.selected path { stroke: var(--gold); stroke-width: 2.5; }
     .hovertag {
