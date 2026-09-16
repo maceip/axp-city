@@ -335,11 +335,16 @@ export class ActorSystem {
     );
   }
 
-  position(id: string): { sx: number; sy: number } | undefined {
+  position(id: string): { sx: number; sy: number; depth: number; spriteDepth?: number } | undefined {
     const actor = this.actors.get(id);
     if (!actor) return undefined;
     const pose = this.pose(actor);
-    return { sx: pose.sx, sy: pose.sy };
+    return {
+      sx: pose.sx,
+      sy: pose.sy,
+      depth: pose.depth,
+      ...(actor.sprite ? { spriteDepth: actor.sprite.depth } : {}),
+    };
   }
 
   describe(id: string): { anim: string; behaviour: ActorBehaviour; repo?: string } | undefined {

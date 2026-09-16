@@ -153,12 +153,24 @@ def connect_browser(p):
         return BrowserBackend("azure-playwright-workspaces", browser, dict(service=url.split("/playwrightworkspaces/")[0], runId=run_id, os=target_os, softwareGl=False))
     if not local:
         raise RuntimeError("Browser tests run through the hosted Playwright service. Set PLAYWRIGHT_SERVICE_URL (and PLAYWRIGHT_SERVICE_ACCESS_TOKEN), or set CITY_LOCAL_BROWSER=1 to deliberately use a local Chromium.")
+    engine = os.environ.get("CITY_BROWSER", "chromium")
+    headless = os.environ.get("HEADED") != "1"
+    if engine == "firefox":
+        browser = p.firefox.launch(headless=headless, firefox_user_prefs={"webgl.force-enabled": True, "webgl.disabled": False})
+        return BrowserBackend("local-firefox", browser, dict(engine="firefox", softwareGl=None, webglDisabled=False))
+    if engine == "webkit":
+        browser = p.webkit.launch(headless=headless)
+        return BrowserBackend("local-webkit", browser, dict(engine="webkit", softwareGl=None, webglDisabled=False, note="Playwright WebKit on Linux, not Safari on macOS/iOS"))
     software = os.environ.get("CITY_SOFTWARE_GL") == "1"
     args = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] if software else []
     if os.environ.get("CITY_DISABLE_WEBGL") == "1":
         args += ["--disable-webgl", "--disable-webgl2"]
-    browser = p.chromium.launch(headless=os.environ.get("HEADED") != "1", args=args)
-    return BrowserBackend("local-chromium", browser, dict(softwareGl=software, webglDisabled=os.environ.get("CITY_DISABLE_WEBGL") == "1"))
+    browser = p.chromium.launch(headless=headless, args=args)
+    return BrowserBackend("local-chromium", browser, dict(engine="chromium", softwareGl=software, webglDisabled=os.environ.get("CITY_DISABLE_WEBGL") == "1"))
+
+
+def engine_name(browser):
+    return browser.browser_type.name
 
 
 @pytest.fixture(scope="session")

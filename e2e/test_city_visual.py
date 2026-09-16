@@ -65,6 +65,55 @@ def rendered_change(page, repo, before, label, settle_ms=400):
     return after
 
 
+PINCH_JS = """
+([kind, points]) => {
+  const canvas = document.querySelector('#game canvas');
+  const rect = canvas.getBoundingClientRect();
+  // WebKit exposes touches only through the legacy factory; Firefox has the Touch constructor.
+  const touches = points.map(p => document.createTouch
+    ? document.createTouch(window, canvas, p.id, p.x + window.scrollX, p.y + window.scrollY, p.x, p.y)
+    : new Touch({
+        identifier: p.id, target: canvas,
+        clientX: p.x, clientY: p.y, pageX: p.x + window.scrollX, pageY: p.y + window.scrollY,
+        screenX: p.x, screenY: p.y, radiusX: 2, radiusY: 2, force: 1,
+      }));
+  const list = items => document.createTouchList ? document.createTouchList(...items) : items;
+  const active = kind === 'touchend' ? [] : touches;
+  const event = new TouchEvent(kind, {
+    touches: list(active), targetTouches: list(active), changedTouches: list(touches),
+    bubbles: true, cancelable: true, composed: true,
+  });
+  canvas.dispatchEvent(event);
+  return rect.width > 0;
+}
+"""
+
+
+def pinch_out(page, context, centre, distances):
+    """Two-finger spread on the canvas.
+
+    Chromium receives the gesture through CDP so the browser itself produces the pointer
+    stream; Firefox and WebKit have no CDP, so the same gesture is delivered as real DOM
+    TouchEvents on the canvas, which is the input Phaser's touch manager listens to.
+    """
+    cx, cy = centre
+    points = lambda distance: [dict(x=cx - distance, y=cy, id=1), dict(x=cx + distance, y=cy, id=2)]
+    first, *rest = distances
+    if page.context.browser.browser_type.name == "chromium":
+        cdp = context.new_cdp_session(page)
+        cdp.send("Input.dispatchTouchEvent", dict(type="touchStart", touchPoints=points(first)))
+        for distance in rest:
+            cdp.send("Input.dispatchTouchEvent", dict(type="touchMove", touchPoints=points(distance)))
+            page.wait_for_timeout(30)
+        cdp.send("Input.dispatchTouchEvent", dict(type="touchEnd", touchPoints=[]))
+        return
+    page.evaluate(PINCH_JS, ["touchstart", points(first)])
+    for distance in rest:
+        page.evaluate(PINCH_JS, ["touchmove", points(distance)])
+        page.wait_for_timeout(30)
+    page.evaluate(PINCH_JS, ["touchend", points(rest[-1])])
+
+
 def test_production_routes_use_phaser_and_resolve_all_assets(browser, server, backend):
     page = browser.new_page(viewport=dict(width=1600, height=1000))
     errors = []
@@ -172,6 +221,16 @@ def test_actors_persist_across_viewport_travel_and_ambient_life_moves(page):
     ambient1 = {a["id"]: a for a in page.evaluate("window.__AXP.ambient()")}
     moved = [a["id"] for a in ambient0 if a["id"].startswith("ambient:car") and abs(ambient1[a["id"]]["sx"] - a["sx"]) > 5]
     assert moved, "freeway cars did not move"
+    # Layering follows movement: a drawn actor's depth is its current foot position, so it
+    # passes behind and in front of neighbouring buildings and props as it moves.
+    poses = []
+    for _ in range(4):
+        poses.append(page.evaluate("id => window.__AXP.actor(id)", walker))
+        page.wait_for_timeout(250)
+    drawn = [p for p in poses if p.get("spriteDepth") is not None]
+    assert drawn, "walker was never drawn"
+    assert all(abs(p["spriteDepth"] - p["sy"]) < 12 for p in drawn), drawn
+    assert len({round(p["sy"]) for p in drawn}) > 1 or len({round(p["sx"]) for p in drawn}) > 1, "walker did not move"
     # Travel until the lot leaves the screen: its sprite is detached but its timeline continues.
     page.keyboard.down("D")
     try:
@@ -368,13 +427,7 @@ def test_mobile_tap_dpad_pinch_and_layout(browser, server):
     east = hud(page, "move-east")
     page.touchscreen.tap(east["x"], east["y"])
     page.wait_for_function("x => window.__AXP.diagnostics().scrollX > x + 10", arg=before["scrollX"])
-    cdp = context.new_cdp_session(page)
-    points = lambda distance: [dict(x=195 - distance, y=400, id=1), dict(x=195 + distance, y=400, id=2)]
-    cdp.send("Input.dispatchTouchEvent", dict(type="touchStart", touchPoints=points(35)))
-    for distance in [40, 48, 60, 75, 90]:
-        cdp.send("Input.dispatchTouchEvent", dict(type="touchMove", touchPoints=points(distance)))
-        page.wait_for_timeout(30)
-    cdp.send("Input.dispatchTouchEvent", dict(type="touchEnd", touchPoints=[]))
+    pinch_out(page, context, centre=(195, 400), distances=[35, 40, 48, 60, 75, 90])
     page.wait_for_function("z => window.__AXP.diagnostics().zoom > z + 0.2", arg=before["zoom"])
     assert page.evaluate("document.documentElement.scrollWidth") == 390
     # The native search field opens a real keyboard path on phones.
