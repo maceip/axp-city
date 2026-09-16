@@ -3,7 +3,7 @@ import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs, parseRepoLine } from "./args.js";
 import { parseLot } from "../parser/parseLot.js";
-import { loadLocalRules, repoName } from "../rules/load.js";
+import { loadFixtureRepositoryRules, loadLocalRules, repoName } from "../rules/load.js";
 import { loadArtworkApprovals } from "../rules/artwork.js";
 import {
   resolveRepository,
@@ -129,13 +129,21 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
         artworkCacheDir: artworkDir,
         defaults,
       });
-    // Explicit fixture mode re-reads its file so local demos can exercise updates.
+    // Explicit fixture mode re-reads its file and rule directory on every
+    // refresh so local demos and browser tests can exercise updates, including
+    // per-repository rules under <rulesDir>/repos/<owner>/<name>/.
     const rows = await readFixture(fixturePath);
     const row = rows.find((item) => item.fullName.toLowerCase() === name.toLowerCase());
     if (!row) throw new Error(`Offline fixture has no repository ${name}`);
     const metrics: RepoMetrics = { ...row, source: "fixture", isPrivate: row.isPrivate ?? false };
+    const local = await loadLocalRules(config.rulesDir);
+    const rules = await loadFixtureRepositoryRules(name, config.rulesDir, local);
     return {
-      lot: { ...parseLot(metrics, { rules: defaults }), rulesSource: "default" },
+      lot: {
+        ...parseLot(metrics, { rules: rules.rules }),
+        rulesSource: rules.source,
+        ...(rules.warning ? { rulesWarning: rules.warning } : {}),
+      },
       metrics,
     };
   };

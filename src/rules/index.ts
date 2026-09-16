@@ -39,8 +39,10 @@ export {
 } from "./artwork.js";
 export {
   RULE_FILE_MAX_BYTES,
+  loadFixtureRepositoryRules,
   loadLocalRules,
   loadRepositoryRules,
   repoName,
   type RepositoryRules,
+  type RuleFileReader,
 } from "./load.js";
