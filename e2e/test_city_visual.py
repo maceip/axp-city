@@ -4,6 +4,7 @@ Every assertion here reads the scene through `window.__AXP`, clicks HUD elements
 by their canvas positions (`hudPoint`), and saves screenshots for inspection.
 """
 import json
+import re
 import time
 
 import pytest
@@ -254,6 +255,60 @@ def test_hud_pick_pan_zoom_keyboard_inspect_mass_and_census(page):
     page.wait_for_function("s => Math.abs(window.__AXP.diagnostics().scrollX - s.scrollX) > 50 || Math.abs(window.__AXP.diagnostics().scrollY - s.scrollY) > 50", arg=before)
     click_hud(page, "compass")
     page.wait_for_function("Math.abs(window.__AXP.diagnostics().scrollX - (-746)) < 5 || window.__AXP.diagnostics().zoom === 1")
+
+
+def test_accessibility_tree_exposes_status_selection_census_and_keyboard_activation(page):
+    """What assistive technology is handed, read from the browser's accessibility tree
+    rather than DOM text: polite live regions for connection and announcements, a
+    labelled search box, one real button per repository, a captioned census table
+    with column headers, and keyboard activation of those controls driving the one
+    selection the canvas shows. No screen reader is driven; this is its input."""
+    region = page.locator("#a11y")
+    tree = region.aria_snapshot()
+    # Live regions and headings are exposed with their roles, not just as text.
+    assert tree.count("- status") >= 1, tree
+    assert '- heading "Selected repository" [level=2]' in tree and '- heading "Lot census" [level=2]' in tree, tree
+    # The search field is a real, labelled control.
+    search = page.get_by_role("searchbox", name=re.compile("Find a repository"))
+    assert search.count() == 1
+    # One real button per repository, named with district, size and stars.
+    buttons = region.get_by_role("button")
+    assert buttons.count() == 8
+    assert re.search(r'- button "acme/forge — Central Park, L building, 25,000 stars"', tree), tree
+    # Keyboard activation of a repository button selects that lot on the canvas and in the mirror.
+    target = region.get_by_role("button", name=re.compile(r"^acme\/robots "))
+    target.focus()
+    page.wait_for_function("document.activeElement && document.activeElement.dataset.repo === 'acme/robots'")
+    page.keyboard.press("Enter")
+    page.wait_for_function("window.__AXP.diagnostics().selected === 'acme/robots'")
+    page.wait_for_function("document.querySelector('#a11y-selection').textContent.startsWith('Selected acme/robots')")
+    assert re.search(r"^Selected acme/robots\. .*ROBOT CREW", page.locator("#a11y-selection").text_content()), page.locator("#a11y-selection").text_content()
+    # Shortcuts stay off while a control has focus (typing must not drive the city);
+    # leaving the control hands them back.
+    page.keyboard.press("c")
+    page.wait_for_timeout(300)
+    assert not diag(page)["censusOpen"]
+    page.evaluate("document.activeElement.blur()")
+    # The census is a real table with a caption, column headers and one row per repository.
+    page.keyboard.press("c")
+    page.wait_for_function("window.__AXP.diagnostics().censusOpen")
+    table = page.get_by_role("table", name=re.compile(r"Lot census, 8 rows"))
+    assert table.count() == 1
+    assert table.get_by_role("columnheader").count() == 10
+    assert table.get_by_role("row").count() == 9  # header + 8 repositories
+    assert table.get_by_role("cell", name="acme/forge").count() == 1
+    # The Follow shortcut's announcement lands in a polite live region.
+    page.keyboard.press("Escape")
+    page.wait_for_function("!window.__AXP.diagnostics().censusOpen")
+    page.keyboard.press("f")
+    page.wait_for_function("Boolean(window.__AXP.diagnostics().following)", timeout=10000)
+    live = page.locator("#a11y-live")
+    expect_text = re.compile(r"Following .* acme/robots")
+    page.wait_for_function("document.querySelector('#a11y-live').textContent.includes('Following')")
+    assert re.search(expect_text, live.text_content()), live.text_content()
+    assert live.get_attribute("aria-live") == "polite" and live.get_attribute("role") == "status"
+    snap = region.aria_snapshot()
+    assert re.search(r"- status: Following .*acme/robots", snap), snap
 
 
 def test_actors_persist_across_viewport_travel_and_ambient_life_moves(page):
