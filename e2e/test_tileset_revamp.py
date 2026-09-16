@@ -151,9 +151,15 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
             and 80 < m["y"] + m["height"] / 2 < 900
         ]
         assert len(on_screen) >= 3, f"overview bike chevrons/labels missing: {len(marks)} marks"
-        plaques = [m for m in on_screen if m.get("type") == "Container" and 40 < m["width"] < 280]
-        mark = plaques[len(plaques) // 2] if plaques else max(on_screen, key=lambda m: m["width"] * m["height"])
-        pad = 72
+        chevrons = [m for m in on_screen if m.get("kind") == "chevron" and m["width"] > 36 and m["height"] > 20]
+        assert len(chevrons) >= 2, f"overview painted chevrons missing: {len(chevrons)} of {len(on_screen)}"
+        plaques = [m for m in on_screen if m.get("kind") == "plaque" and 40 < m["width"] < 280]
+        assert len(plaques) >= 2, f"BIKE LANE plaques disappeared: {len(plaques)}"
+        mark = min(
+            chevrons,
+            key=lambda m: (m["x"] + m["width"] / 2 - 820) ** 2 + (m["y"] + m["height"] / 2 - 260) ** 2,
+        )
+        pad = 96
         mark_clip = {
             "x": max(0, mark["x"] - pad),
             "y": max(0, mark["y"] - pad),
@@ -164,8 +170,20 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         fw_k, fw_c, fw_lime = street_lane_share(
             SHOTS / "tileset-freeway-bike.png", (0, 0, int(mark_clip["width"]), int(mark_clip["height"]))
         )
-        assert cream_ink_width(SHOTS / "tileset-freeway-bike.png") >= 36, "freeway mark clip missing BIKE LANE ink"
+        assert mark.get("kind") == "chevron", f"freeway clip still targeted a plaque: {mark}"
+        assert fw_c >= 0.04, f"freeway clip has no cream arrow body ({fw_c:.3f})"
+        assert cream_ink_width(SHOTS / "tileset-freeway-bike.png") >= 48, "freeway chevron clip missing cream arrow ink"
         assert fw_lime < 0.12, f"freeway mark clip drifted to neon lime ({fw_k:.3f}/{fw_c:.3f}/{fw_lime:.3f})"
+        plaque = plaques[len(plaques) // 2]
+        plaque_pad = 64
+        plaque_clip = {
+            "x": max(0, plaque["x"] - plaque_pad),
+            "y": max(0, plaque["y"] - plaque_pad),
+            "width": min(1600, plaque["x"] + plaque["width"] + plaque_pad) - max(0, plaque["x"] - plaque_pad),
+            "height": min(1000, plaque["y"] + plaque["height"] + plaque_pad) - max(0, plaque["y"] - plaque_pad),
+        }
+        page.screenshot(path=str(SHOTS / "tileset-freeway-bike-plaque.png"), clip=plaque_clip)
+        assert cream_ink_width(SHOTS / "tileset-freeway-bike-plaque.png") >= 36, "freeway plaque clip missing BIKE LANE ink"
         corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
         assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
 

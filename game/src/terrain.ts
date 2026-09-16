@@ -229,23 +229,25 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
-        g.fillStyle(0xe4d8a8, 0.98);
+        const cx = p.sx + width / 2;
+        const cy = p.sy + 18;
+        g.fillStyle(0x2a2820, 1);
         g.fillPoints(
           [
-            { x: p.sx + width / 2 - 18, y: p.sy + 26 },
-            { x: p.sx + width / 2 + 18, y: p.sy + 26 },
-            { x: p.sx + width / 2, y: p.sy + 33 },
+            { x: cx + 24, y: cy + 4 },
+            { x: cx - 20, y: cy - 13 },
+            { x: cx - 5, y: cy + 2 },
+            { x: cx - 18, y: cy + 17 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
-        g.fillStyle(0xece3b8, 0.96);
+        g.fillStyle(0xf4ecd0, 1);
         g.fillPoints(
           [
-            { x: p.sx + width / 2 - 18, y: p.sy + 11 },
-            { x: p.sx + width / 2 + 2, y: p.sy + 7 },
-            { x: p.sx + width / 2 + 20, y: p.sy + 16 },
-            { x: p.sx + width / 2 + 2, y: p.sy + 26 },
-            { x: p.sx + width / 2 - 8, y: p.sy + 18 },
+            { x: cx + 16, y: cy + 4 },
+            { x: cx - 12, y: cy - 8 },
+            { x: cx - 2, y: cy + 2 },
+            { x: cx - 11, y: cy + 13 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
@@ -394,23 +396,28 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
     const chevronStep = glance ? 2 : Math.max(2, Math.ceil(span / 6));
+    const labelStep = glance ? 2 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      const at = project(laneX + 2.2, streetY + band * 0.5);
+      const at = project(laneX + (glance ? 3.2 : 2.2), streetY + band * 0.48);
       const chevron = scene.add
         .image(at.sx, at.sy, "bike-chevron-k1")
         .setOrigin(0.5)
-        .setRotation(Math.atan2(1, 2))
-        .setDisplaySize(glance ? 100 : 44, glance ? 60 : 26)
-        .setDepth(at.sy + 6);
+        .setDisplaySize(glance ? 170 : 64, glance ? 104 : 38)
+        .setDepth(at.sy + 24);
       chevron.setData("bikeLaneMark", true);
       chevron.setData("bikeLaneGlance", glance);
+      chevron.setData("bikeLaneChevron", true);
+      chevron.setData("markBaseW", glance ? 170 : 64);
+      chevron.setData("markBaseH", glance ? 104 : 38);
       objects.push(chevron);
     }
-    const labelStep = glance ? 2 : Math.max(3, Math.ceil(span / 4));
-    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += labelStep) {
-      const at = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.6, streetY + band * 0.5);
-      objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 18 : 8), glance));
+    for (let sx = plan.slotBounds.minSx + 1; sx <= plan.slotBounds.maxSx; sx += labelStep) {
+      const at = project(
+        x + (sx - plan.slotBounds.minSx) * STRIDE_X + (glance ? 1.05 : 1.6),
+        streetY + band * (glance ? 0.84 : 0.55),
+      );
+      objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 8 : 6), glance));
     }
   };
   for (const row of plan.streetRows) {
@@ -456,34 +463,27 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
 function ensureBikeMarkTextures(scene: Phaser.Scene): void {
   if (scene.textures.exists("bike-chevron-k1")) return;
   const g = scene.make.graphics({ x: 0, y: 0 });
-  g.fillStyle(0x3f3c34, 1);
-  g.fillPoints(
-    [
-      new Phaser.Math.Vector2(6, 6),
-      new Phaser.Math.Vector2(6, 50),
-      new Phaser.Math.Vector2(86, 28),
-    ],
-    true,
-  );
+  const poly = (pts: Array<[number, number]>) =>
+    g.fillPoints(
+      pts.map(([x, y]) => new Phaser.Math.Vector2(x, y)),
+      true,
+    );
+  const chevron = (ox: number, oy: number, s: number): Array<[number, number]> => [
+    [ox + 78 * s, oy + 32 * s],
+    [ox + 6 * s, oy + 4 * s],
+    [ox + 28 * s, oy + 32 * s],
+    [ox + 6 * s, oy + 60 * s],
+  ];
+  g.fillStyle(0x2a2820, 1);
+  poly(chevron(4, 8, 1.42));
+  poly(chevron(72, 24, 1.42));
   g.fillStyle(0xece3b8, 1);
-  g.fillPoints(
-    [
-      new Phaser.Math.Vector2(12, 12),
-      new Phaser.Math.Vector2(12, 44),
-      new Phaser.Math.Vector2(74, 28),
-    ],
-    true,
-  );
-  g.fillStyle(0xf4ecd0, 1);
-  g.fillPoints(
-    [
-      new Phaser.Math.Vector2(20, 18),
-      new Phaser.Math.Vector2(20, 38),
-      new Phaser.Math.Vector2(58, 28),
-    ],
-    true,
-  );
-  g.generateTexture("bike-chevron-k1", 92, 56);
+  poly(chevron(14, 16, 1.18));
+  poly(chevron(82, 32, 1.18));
+  g.fillStyle(0xf7f0d4, 1);
+  poly(chevron(26, 24, 0.92));
+  poly(chevron(94, 40, 0.92));
+  g.generateTexture("bike-chevron-k1", 200, 124);
   g.destroy();
 }
 
@@ -504,5 +504,6 @@ function bikeLanePlaque(scene: Phaser.Scene, sx: number, sy: number, glance: boo
   box.setDepth(sy + 12);
   box.setData("bikeLaneMark", true);
   box.setData("bikeLaneGlance", glance);
+  box.setData("bikeLanePlaque", true);
   return box;
 }

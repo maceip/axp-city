@@ -317,12 +317,18 @@ export class CityScene extends Phaser.Scene {
             const mark = object as unknown as { x: number; y: number; width: number; height: number; displayWidth?: number; displayHeight?: number; type: string };
             const width = (mark.displayWidth ?? mark.width ?? 96) * zoom;
             const height = (mark.displayHeight ?? mark.height ?? 28) * zoom;
+            const kind = object.getData("bikeLaneChevron")
+              ? "chevron"
+              : object.getData("bikeLanePlaque")
+                ? "plaque"
+                : "mark";
             return {
               x: (mark.x - view.x) * zoom - width / 2,
               y: (mark.y - view.y) * zoom - height / 2,
               width,
               height,
               type: mark.type,
+              kind,
             };
           });
       },
@@ -593,9 +599,19 @@ export class CityScene extends Phaser.Scene {
     const developed = center.x >= b.minX && center.x <= b.maxX && center.y >= b.minY && center.y <= b.maxY;
     if (this.hudReady)
       this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
-    const markScale = Math.min(2.4, Math.max(1, 0.95 / this.cameras.main.zoom));
+    const zoom = this.cameras.main.zoom;
+    const plaqueScale = Math.min(2.4, Math.max(1, 0.95 / zoom));
+    const chevronScale = Math.min(2.7, Math.max(1.2, 1.25 / zoom));
     for (const object of this.civics) {
-      if (object.getData("bikeLaneGlance")) (object as Phaser.GameObjects.Container).setScale(markScale);
+      if (!object.getData("bikeLaneGlance")) continue;
+      const scale = object.getData("bikeLaneChevron") ? chevronScale : plaqueScale;
+      const baseW = object.getData("markBaseW") as number | undefined;
+      const baseH = object.getData("markBaseH") as number | undefined;
+      if (baseW && baseH) {
+        (object as Phaser.GameObjects.Image).setDisplaySize(baseW * scale, baseH * scale);
+      } else {
+        (object as Phaser.GameObjects.Container).setScale(scale);
+      }
     }
   }
 
