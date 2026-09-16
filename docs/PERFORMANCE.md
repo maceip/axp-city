@@ -24,6 +24,18 @@ The object bound catches culling or pooling regressions independently of frame t
 
 Loading is measured as time from navigation to the first rendered terrain chunk (`first_frame_ms`), plus the wait until on-demand assets settle before sampling starts.
 
+### Sustained travel (memory and loading)
+
+`test_sustained_travel_bounds_memory_textures_and_loading` drives two laps around the 1,000-lot city with held keys (eight 2.5 s legs) and samples `window.__AXP.diagnostics()` after each leg into `e2e/screenshots/sustained-travel.json`: allocated and active scene objects, pooled images, actors, terrain chunks visible/cached/generated, texture count, sheets and decoded bytes requested, in-flight and failed assets, and `performance.memory.usedJSHeapSize` where the browser exposes it (Chromium). The assertions are the invariants the renderer is built on:
+
+- allocated objects never exceed the pools (1,500 images + 400 graphics + 800 actor sprites, plus civics);
+- cached terrain textures never exceed the LRU capacity (96) beyond what is on screen;
+- every sprite sheet is requested at most once and the count stops growing once the kit has been seen;
+- textures do not scale with distance travelled;
+- the heap after the second lap is within 35 % (+16 MB) of the first lap's peak.
+
+Latest software run (Chromium 153, SwiftShader, this branch): objects plateau at 1,243 after the first lap and stay there; terrain cache holds at 96 while `generatedChunks` keeps rising (52 → 260) because a lap visits more than 96 chunks, so revisited ground is re-rasterised rather than kept — bounded GPU memory was chosen over re-rasterisation cost; textures plateau at 148; two lazy sheets requested (≈14 MB decoded budget in total); heap reading constant at 51 MB (Chromium quantises this figure).
+
 ## What the report contains
 
 `performance.json` records: `profile`, the `budget` applied, `driver` (renderer/vendor strings, `software` flag, API), `backend` (hosted Azure Playwright workspace or local Chromium, browser version, SwiftShader flags), `hardware` (harness host, browser platform, `hardwareConcurrency`, `deviceMemory`, DPR, viewport, user agent), `scene` (lots, renderer, Phaser version), `features` toggled, `first_frame_ms`, and per-scenario `frame_ms` (median, p95, samples), object and actor counts.

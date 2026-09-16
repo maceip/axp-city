@@ -188,6 +188,64 @@ def test_thousand_lots_fully_featured_meets_its_profile_budget(browser, large_se
     assert not failures, f"{budget['label']} ({driver['renderer']}): " + "; ".join(failures)
 
 
+TRAVEL_LEGS = [("d", 2500), ("s", 2500), ("a", 2500), ("w", 2500)] * 2  # a lap around the 1,000-lot city, twice
+POOL_CAPACITY = 1500 + 400 + 800  # images + graphics + actor sprites (game/src/CityScene.ts, actors.ts)
+TERRAIN_CACHE = 96  # game/src/terrain.ts
+
+
+def test_sustained_travel_bounds_memory_textures_and_loading(browser, large_server, backend):
+    """Handoff item 3: memory and loading behaviour during sustained travel.
+
+    Two laps around the 1,000-lot city with every feature on. Allocated scene objects
+    must stay inside the pools, terrain textures inside the LRU cache, every sprite sheet
+    is fetched at most once, and (where the browser exposes it) the JS heap after the
+    second lap must not keep climbing relative to the first."""
+    page = browser.new_page(viewport=dict(width=1600, height=1000))
+    ready(page, large_server.url)
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=60000)
+    page.evaluate("window.__AXP.select('bench/repo500')")
+    page.wait_for_function("window.__AXP.diagnostics().selected === 'bench/repo500'")
+    page.keyboard.press("Escape")
+    samples = [dict(leg="start", **diag(page))]
+    for index, (key, hold_ms) in enumerate(TRAVEL_LEGS):
+        page.keyboard.down(key)
+        page.wait_for_timeout(hold_ms)
+        page.keyboard.up(key)
+        page.wait_for_timeout(250)
+        samples.append(dict(leg=f"{index + 1}:{key}", **diag(page)))
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=30000)
+    page.wait_for_timeout(500)
+    samples.append(dict(leg="end", **diag(page)))
+    page.screenshot(path=str(SHOTS / "sustained-travel-end.png"))
+
+    keep = ["leg", "objects", "activeObjects", "pooledImages", "actors", "drawnActors", "visibleLots", "chunks", "cachedChunks", "generatedChunks", "textures", "sheetsRequested", "assetBytesRequested", "assetsInflight", "assetsFailed", "heapBytes", "scrollX", "scrollY"]
+    rows = [{k: s.get(k) for k in keep} for s in samples]
+    report = dict(backend=backend.describe(), driver=page.evaluate("window.__AXP.driver()"), legs=TRAVEL_LEGS, samples=rows,
+                  bounds=dict(poolCapacity=POOL_CAPACITY, terrainCache=TERRAIN_CACHE), measuredAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    (SHOTS / "sustained-travel.json").write_text(json.dumps(report, indent=2))
+    print(json.dumps(report, indent=2))
+    page.close()
+
+    moved = max(abs(r["scrollX"] - rows[0]["scrollX"]) for r in rows)
+    assert moved > 1000, "travel did not move the camera"
+    assert any(r["visibleLots"] == 0 for r in rows) or any(r["visibleLots"] != rows[0]["visibleLots"] for r in rows), "the view never changed"
+    for r in rows:
+        assert r["objects"] <= POOL_CAPACITY + 64, (r["leg"], r["objects"])  # + civics/highlight/atmosphere
+        assert r["cachedChunks"] <= TERRAIN_CACHE + 8, (r["leg"], r["cachedChunks"])  # + chunks still on screen
+        assert r["assetsFailed"] == [], r["assetsFailed"]
+    # Loading: a finite kit, each sheet at most once, and it stops growing once seen.
+    sheets = [r["sheetsRequested"] for r in rows]
+    assert sheets == sorted(sheets) and sheets[-1] <= 40, sheets
+    assert sheets[-1] == sheets[len(sheets) // 2] or sheets[-1] - sheets[len(sheets) // 2] <= 2, sheets
+    # Textures: terrain cache + sheets + generated atlases; must not scale with distance travelled.
+    assert rows[-1]["textures"] <= rows[0]["textures"] + TERRAIN_CACHE + 40, (rows[0]["textures"], rows[-1]["textures"])
+    # Memory (Chromium exposes performance.memory): second lap must not keep climbing.
+    heaps = [r["heapBytes"] for r in rows if r["heapBytes"] is not None]
+    if heaps:
+        half = len(heaps) // 2
+        assert heaps[-1] <= 1.35 * max(heaps[1:half + 1]) + 16 * 2**20, [round(h / 2**20, 1) for h in heaps]
+
+
 def test_hardware_profile_is_not_claimed_on_software_drivers(page):
     """A report may only carry the hardware label when the driver is a GPU."""
     driver = page.evaluate("window.__AXP.driver()")

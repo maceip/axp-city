@@ -39,7 +39,10 @@ export class AssetLoader {
   private pending = new Set<string>();
   private failed = new Set<string>();
   private listeners = new Set<(key: string) => void>();
+  /** Decoded pixel budget requested so far (width × height of every sheet asked for). */
   bytesRequested = 0;
+  /** Distinct sheets requested so far; a sheet is never fetched twice in one run. */
+  sheetsRequested = 0;
   constructor(private readonly scene: Phaser.Scene) {
     scene.load.on(Phaser.Loader.Events.FILE_COMPLETE, (key: string) => {
       if (!this.pending.delete(key)) return;
@@ -77,9 +80,12 @@ export class AssetLoader {
     if (this.scene.textures.exists(key)) return true;
     if (this.failed.has(key) || this.pending.has(key)) return false;
     this.pending.add(key);
+    this.sheetsRequested++;
     const anim = ANIM_SHEETS[key];
+    const sheet = [...Object.values(BUILDING_SHEETS), ...Object.values(PROP_SHEETS), ...Object.values(WILD_SHEETS), GROUND_SHEET].find((s) => s.file === key);
+    if (sheet) this.bytesRequested += sheet.width * sheet.height * 4;
     if (anim) {
-      this.bytesRequested += anim.width * anim.height;
+      this.bytesRequested += anim.width * anim.height * 4;
       this.scene.load.spritesheet(key, `${SPRITE_BASE}/${anim.file}`, {
         frameWidth: anim.width / anim.cols,
         frameHeight: anim.height / anim.rows,
