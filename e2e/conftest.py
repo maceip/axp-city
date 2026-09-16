@@ -96,13 +96,66 @@ def large_server(tmp_path):
     runtime.stop()
 
 
-@pytest.fixture
-def browser():
+class BrowserBackend:
+    """Where the browser under test actually runs. Recorded in every report."""
+
+    def __init__(self, kind, browser, detail):
+        self.kind = kind
+        self.browser = browser
+        self.detail = detail
+
+    def describe(self):
+        return dict(backend=self.kind, browser=self.browser.version, **self.detail)
+
+
+def service_endpoint(url):
+    """Azure Playwright Workspaces expects os/runId/api-version query parameters on the workspace URL."""
+    run_id = os.environ.get("PLAYWRIGHT_SERVICE_RUN_ID") or f"axp-city-{int(time.time())}"
+    target_os = os.environ.get("PLAYWRIGHT_SERVICE_OS", "linux")
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}os={target_os}&runId={run_id}&api-version=2025-09-01", run_id, target_os
+
+
+def connect_browser(p):
+    """Hosted Azure Playwright service first; a local Chromium only when explicitly requested.
+
+    The remote browser reaches the test server on this machine through Playwright's
+    client-side network exposure (`<loopback>`), so every test still starts the real
+    compiled Node server locally and the browser under test runs in the service.
+    """
+    url = os.environ.get("PLAYWRIGHT_SERVICE_URL")
+    local = os.environ.get("CITY_LOCAL_BROWSER") == "1"
+    if url and not local:
+        endpoint, run_id, target_os = service_endpoint(url)
+        token = os.environ.get("PLAYWRIGHT_SERVICE_ACCESS_TOKEN")
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        try:
+            browser = p.chromium.connect(endpoint, timeout=120_000, expose_network="<loopback>", headers=headers)
+        except Exception as error:  # noqa: BLE001 - surface the exact service failure
+            hint = "" if token else " No PLAYWRIGHT_SERVICE_ACCESS_TOKEN is set; the workspace rejected the anonymous connection."
+            raise RuntimeError(f"Could not connect to the hosted Playwright service at {url.split('?')[0]}: {error}.{hint} Set CITY_LOCAL_BROWSER=1 only to run against a local browser instead.") from error
+        return BrowserBackend("azure-playwright-workspaces", browser, dict(service=url.split("/playwrightworkspaces/")[0], runId=run_id, os=target_os, softwareGl=False))
+    if not local:
+        raise RuntimeError("Browser tests run through the hosted Playwright service. Set PLAYWRIGHT_SERVICE_URL (and PLAYWRIGHT_SERVICE_ACCESS_TOKEN), or set CITY_LOCAL_BROWSER=1 to deliberately use a local Chromium.")
+    software = os.environ.get("CITY_SOFTWARE_GL") == "1"
+    args = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] if software else []
+    if os.environ.get("CITY_DISABLE_WEBGL") == "1":
+        args += ["--disable-webgl", "--disable-webgl2"]
+    browser = p.chromium.launch(headless=os.environ.get("HEADED") != "1", args=args)
+    return BrowserBackend("local-chromium", browser, dict(softwareGl=software, webglDisabled=os.environ.get("CITY_DISABLE_WEBGL") == "1"))
+
+
+@pytest.fixture(scope="session")
+def backend():
     with sync_playwright() as p:
-        software = os.environ.get("CITY_SOFTWARE_GL") == "1"
-        browser = p.chromium.launch(headless=os.environ.get("HEADED") != "1", args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] if software else [])
-        yield browser
-        browser.close()
+        runtime = connect_browser(p)
+        yield runtime
+        runtime.browser.close()
+
+
+@pytest.fixture
+def browser(backend):
+    return backend.browser
 
 
 def ready(page, url):
