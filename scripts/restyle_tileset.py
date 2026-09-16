@@ -1514,7 +1514,7 @@ def main() -> None:
                 "Attached construction / parking / gates / bank, restyled",
                 "Construction-city HUD: beveled wood/slate plaques + brass rivets (not Jane chrome)",
                 "Jane's houses only after saturation crush",
-                "Inland odds are civic-distinct attached footprints (fence, parking, stacked gates, depot, dark-roof cottage) — not ChatGPT lot houses",
+                "Inland odds are civic-distinct attached footprints (fence, parking, stacked gates, depot, civic kiosk) — not ChatGPT lot houses",
                 "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
