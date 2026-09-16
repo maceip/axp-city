@@ -368,7 +368,6 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     road: ROAD_STAMP_WIDTH,
     bike: BIKE_STAMP_WIDTH,
   };
-  ensureBikeMarkTextures(scene);
   const paintBikeBand = (x: number, streetY: number, w: number, band: number, glance: boolean) => {
     if (glance) {
       const mid = project(x + w / 2, streetY + band * 0.5);
@@ -395,27 +394,16 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       }
     }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
-    const chevronStep = glance ? 2 : Math.max(2, Math.ceil(span / 6));
+    const chevronStep = glance ? 1 : Math.max(2, Math.ceil(span / 6));
     const labelStep = glance ? 2 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      const at = project(laneX + (glance ? 3.2 : 2.2), streetY + band * 0.48);
-      const chevron = scene.add
-        .image(at.sx, at.sy, "bike-chevron-k1")
-        .setOrigin(0.5)
-        .setDisplaySize(glance ? 170 : 64, glance ? 104 : 38)
-        .setDepth(at.sy + 24);
-      chevron.setData("bikeLaneMark", true);
-      chevron.setData("bikeLaneGlance", glance);
-      chevron.setData("bikeLaneChevron", true);
-      chevron.setData("markBaseW", glance ? 170 : 64);
-      chevron.setData("markBaseH", glance ? 104 : 38);
-      objects.push(chevron);
+      objects.push(paintIsoChevron(scene, laneX + (glance ? 1.6 : 2.0), streetY + band * 0.5, glance));
     }
     for (let sx = plan.slotBounds.minSx + 1; sx <= plan.slotBounds.maxSx; sx += labelStep) {
       const at = project(
         x + (sx - plan.slotBounds.minSx) * STRIDE_X + (glance ? 1.05 : 1.6),
-        streetY + band * (glance ? 0.84 : 0.55),
+        streetY + band * (glance ? 0.88 : 0.55),
       );
       objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 8 : 6), glance));
     }
@@ -460,31 +448,44 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   return objects;
 }
 
-function ensureBikeMarkTextures(scene: Phaser.Scene): void {
-  if (scene.textures.exists("bike-chevron-k1")) return;
-  const g = scene.make.graphics({ x: 0, y: 0 });
-  const poly = (pts: Array<[number, number]>) =>
-    g.fillPoints(
-      pts.map(([x, y]) => new Phaser.Math.Vector2(x, y)),
-      true,
-    );
-  const chevron = (ox: number, oy: number, s: number): Array<[number, number]> => [
-    [ox + 78 * s, oy + 32 * s],
-    [ox + 6 * s, oy + 4 * s],
-    [ox + 28 * s, oy + 32 * s],
-    [ox + 6 * s, oy + 60 * s],
-  ];
+function isoChevronWorld(wx: number, wy: number, ox: number, len: number, half: number, notch: number) {
+  const cx = wx + ox;
+  return [project(cx + len, wy), project(cx, wy - half), project(cx + notch, wy), project(cx, wy + half)];
+}
+
+function paintIsoChevron(scene: Phaser.Scene, wx: number, wy: number, glance: boolean): Phaser.GameObjects.Graphics {
+  const len = glance ? 1.95 : 0.88;
+  const half = glance ? 0.74 : 0.34;
+  const notch = glance ? 0.52 : 0.24;
+  const gap = glance ? 1.4 : 0.64;
+  const mid = project(wx + gap * 0.5 + len * 0.4, wy);
+  const g = scene.add.graphics();
+  const local = (p: { sx: number; sy: number }) => new Phaser.Math.Vector2(p.sx - mid.sx, p.sy - mid.sy);
+  const draw = (ox: number, extraLen: number, extraHalf: number) =>
+    g.fillPoints(isoChevronWorld(wx, wy, ox, len + extraLen, half + extraHalf, notch).map(local), true);
   g.fillStyle(0x2a2820, 1);
-  poly(chevron(4, 8, 1.42));
-  poly(chevron(72, 24, 1.42));
+  draw(-0.12, 0.24, 0.16);
+  draw(gap - 0.12, 0.24, 0.16);
   g.fillStyle(0xece3b8, 1);
-  poly(chevron(14, 16, 1.18));
-  poly(chevron(82, 32, 1.18));
+  draw(0, 0, 0);
+  draw(gap, 0, 0);
   g.fillStyle(0xf7f0d4, 1);
-  poly(chevron(26, 24, 0.92));
-  poly(chevron(94, 40, 0.92));
-  g.generateTexture("bike-chevron-k1", 200, 124);
-  g.destroy();
+  draw(0.3, -0.58, -0.3);
+  draw(gap + 0.3, -0.58, -0.3);
+  const pts = [
+    ...isoChevronWorld(wx, wy, -0.12, len + 0.24, half + 0.16, notch),
+    ...isoChevronWorld(wx, wy, gap - 0.12, len + 0.24, half + 0.16, notch),
+  ].map(local);
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  g.setPosition(mid.sx, mid.sy);
+  g.setDepth(mid.sy + 26);
+  g.setData("bikeLaneMark", true);
+  g.setData("bikeLaneGlance", glance);
+  g.setData("bikeLaneChevron", true);
+  g.setData("markW", Math.max(...xs) - Math.min(...xs));
+  g.setData("markH", Math.max(...ys) - Math.min(...ys));
+  return g;
 }
 
 function bikeLanePlaque(scene: Phaser.Scene, sx: number, sy: number, glance: boolean): Phaser.GameObjects.Container {

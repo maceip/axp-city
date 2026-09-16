@@ -315,8 +315,10 @@ export class CityScene extends Phaser.Scene {
           .filter((object) => object.getData("bikeLaneMark"))
           .map((object) => {
             const mark = object as unknown as { x: number; y: number; width: number; height: number; displayWidth?: number; displayHeight?: number; type: string };
-            const width = (mark.displayWidth ?? mark.width ?? 96) * zoom;
-            const height = (mark.displayHeight ?? mark.height ?? 28) * zoom;
+            const storedW = object.getData("markW") as number | undefined;
+            const storedH = object.getData("markH") as number | undefined;
+            const width = (storedW ?? mark.displayWidth ?? mark.width ?? 96) * zoom;
+            const height = (storedH ?? mark.displayHeight ?? mark.height ?? 28) * zoom;
             const kind = object.getData("bikeLaneChevron")
               ? "chevron"
               : object.getData("bikeLanePlaque")
@@ -329,6 +331,7 @@ export class CityScene extends Phaser.Scene {
               height,
               type: mark.type,
               kind,
+              glance: Boolean(object.getData("bikeLaneGlance")),
             };
           });
       },
@@ -599,19 +602,10 @@ export class CityScene extends Phaser.Scene {
     const developed = center.x >= b.minX && center.x <= b.maxX && center.y >= b.minY && center.y <= b.maxY;
     if (this.hudReady)
       this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
-    const zoom = this.cameras.main.zoom;
-    const plaqueScale = Math.min(2.4, Math.max(1, 0.95 / zoom));
-    const chevronScale = Math.min(2.7, Math.max(1.2, 1.25 / zoom));
+    const plaqueScale = Math.min(2.4, Math.max(1, 0.95 / this.cameras.main.zoom));
     for (const object of this.civics) {
-      if (!object.getData("bikeLaneGlance")) continue;
-      const scale = object.getData("bikeLaneChevron") ? chevronScale : plaqueScale;
-      const baseW = object.getData("markBaseW") as number | undefined;
-      const baseH = object.getData("markBaseH") as number | undefined;
-      if (baseW && baseH) {
-        (object as Phaser.GameObjects.Image).setDisplaySize(baseW * scale, baseH * scale);
-      } else {
-        (object as Phaser.GameObjects.Container).setScale(scale);
-      }
+      if (!object.getData("bikeLaneGlance") || object.getData("bikeLaneChevron")) continue;
+      (object as Phaser.GameObjects.Container).setScale(plaqueScale);
     }
   }
 
