@@ -1,5 +1,6 @@
 import type { CityLot } from "../types.js";
 import {
+  BIKE_BAND,
   CONSTRUCTION_MS,
   FREEWAY_SY,
   LOT_D,
@@ -10,6 +11,7 @@ import {
   PARK_SY1,
   RIVER_SX,
   ROAD_D,
+  SHOULDER,
   STRIDE_X,
   STRIDE_Y,
   TRAM_SX,
@@ -40,7 +42,14 @@ export interface LotPlacement {
   addedAt?: string;
 }
 
-export type FeatureKind = "park" | "freeway" | "tram" | "plaza" | "river";
+export type FeatureKind =
+  | "park"
+  | "freeway"
+  | "tram"
+  | "plaza"
+  | "river"
+  | "office"
+  | "bike";
 
 export interface CityFeature {
   kind: FeatureKind;
@@ -59,10 +68,23 @@ export interface VacantPlot {
   variant: "grass" | "dirt" | "trees" | "plaza";
 }
 
+/** Non-repo objects the Phaser scene stamps from the shared plan. */
+export type CivicKind = "office" | "odd" | "plant" | "parking" | "gate" | "road" | "bike";
+
+export interface CivicMarker {
+  kind: CivicKind;
+  id: string;
+  x: number;
+  y: number;
+  sprite: string;
+}
+
 export interface CityPlan {
   placements: LotPlacement[];
   features: CityFeature[];
   vacancies: VacantPlot[];
+  /** Center office, odd unused buildings, plants, parking — never repo lots. */
+  civics: CivicMarker[];
   /** Inclusive slot bbox of the developed city (lots + reserved corridors). */
   slotBounds: { minSx: number; maxSx: number; minSy: number; maxSy: number };
   /** World-unit bbox of paved/developed land (not wilderness). */
@@ -216,6 +238,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
 
   const occupied = new Set(placements.map((p) => slotKey(p.col, p.row)));
   const vacancies: VacantPlot[] = [];
+  const civics: CivicMarker[] = [];
   for (let sy = minSy; sy <= maxSy; sy++) {
     for (let sx = minSx; sx <= maxSx; sx++) {
       if (isReservedSlot(sx, sy)) continue;
@@ -231,6 +254,33 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
               ? "dirt"
               : "grass";
       vacancies.push({ sx, sy, x: origin.x, y: origin.y, variant });
+      // Occasional odd unused buildings — never assigned to a repository.
+      if (variant === "plaza" && hash01(sx, sy, 41) < 0.55) {
+        const odd = ["odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"];
+        civics.push({
+          kind: "odd",
+          id: `odd-${sx}-${sy}`,
+          x: origin.x + 1.1,
+          y: origin.y + 1.0,
+          sprite: odd[Math.floor(hash01(sx, sy, 7) * odd.length)],
+        });
+      } else if (variant === "trees" || hash01(sx, sy, 23) < 0.22) {
+        civics.push({
+          kind: "plant",
+          id: `plant-${sx}-${sy}`,
+          x: origin.x + 0.8 + hash01(sx, sy, 11) * 1.4,
+          y: origin.y + 0.6 + hash01(sx, sy, 13) * 1.0,
+          sprite: `plant-${Math.floor(hash01(sx, sy, 17) * 4)}`,
+        });
+      } else if (variant === "dirt" && hash01(sx, sy, 29) < 0.3) {
+        civics.push({
+          kind: "parking",
+          id: `parking-${sx}-${sy}`,
+          x: origin.x + 1.0,
+          y: origin.y + 1.1,
+          sprite: "parking",
+        });
+      }
     }
   }
 
@@ -282,11 +332,103 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       w: STRIDE_X - 0.4,
       h: STRIDE_Y * 2 - 0.4,
     },
+    {
+      kind: "office",
+      id: "city-office",
+      x: parkOrigin.x + parkW * 0.28,
+      y: parkOrigin.y + parkH * 0.22,
+      w: parkW * 0.44,
+      h: parkH * 0.5,
+    },
+    {
+      kind: "bike",
+      id: "street-bike-lanes",
+      x: minSx * STRIDE_X,
+      y: minSy * STRIDE_Y + LOT_D + SHOULDER,
+      w: (maxSx - minSx + 1) * STRIDE_X,
+      h: BIKE_BAND,
+    },
   ];
+
+  const parkCx = parkOrigin.x + parkW / 2;
+  const parkCy = parkOrigin.y + parkH / 2;
+  civics.push({
+    kind: "office",
+    id: "city-office",
+    x: parkCx,
+    y: parkCy + 0.15,
+    sprite: "office",
+  });
+  // Dense lot sets can miss the plaza-roll; keep unused odd buildings on vacant plots.
+  if (!civics.some((c) => c.kind === "odd")) {
+    const oddSprites = ["odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"];
+    for (const v of vacancies.slice(0, 3)) {
+      civics.push({
+        kind: "odd",
+        id: `odd-spare-${v.sx}-${v.sy}`,
+        x: v.x + 1.1,
+        y: v.y + 1.0,
+        sprite: oddSprites[Math.floor(hash01(v.sx, v.sy, 7) * oddSprites.length)],
+      });
+    }
+  }
+  for (const [dx, dy, sprite] of [
+    [-3.4, -2.4, "plant-0"],
+    [3.2, -2.3, "plant-1"],
+    [-3.3, 2.2, "plant-2"],
+    [3.1, 2.3, "plant-3"],
+    [-1.8, -3.0, "plant-5"],
+    [1.6, 2.8, "plant-0"],
+  ] as const) {
+    civics.push({
+      kind: "plant",
+      id: `park-plant-${dx}-${dy}`,
+      x: parkCx + dx,
+      y: parkCy + dy,
+      sprite,
+    });
+  }
+  civics.push({
+    kind: "gate",
+    id: "park-gate-south",
+    x: parkCx,
+    y: parkOrigin.y + parkH - 0.2,
+    sprite: "gate-0",
+  });
 
   const streetRows = [...new Set(placements.map((p) => p.row))].sort(
     (a, b) => a - b,
   );
+  // Continuous corridors are painted in terrain. Stamp a few restyled
+  // diamonds per row (not every slot) so a 1,000-lot city does not keep
+  // thousands of unculled civic images alive.
+  for (const row of streetRows) {
+    const slots: number[] = [];
+    for (let sx = minSx; sx <= maxSx; sx++) {
+      if (!isReservedSlot(sx, row)) slots.push(sx);
+    }
+    const picks = new Set<number>();
+    if (slots[0] !== undefined) picks.add(slots[0]);
+    if (slots.length > 1) picks.add(slots[slots.length - 1]!);
+    if (slots.length > 4) picks.add(slots[Math.floor(slots.length / 2)]!);
+    for (const sx of picks) {
+      const origin = slotOrigin(sx, row);
+      civics.push({
+        kind: "road",
+        id: `road-${sx}-${row}`,
+        x: origin.x + LOT_W * 0.55,
+        y: origin.y + LOT_D + SHOULDER + BIKE_BAND + 0.18,
+        sprite: ((sx + row) & 1) === 0 ? "road-0" : "road-1",
+      });
+      civics.push({
+        kind: "bike",
+        id: `bike-${sx}-${row}`,
+        x: origin.x + LOT_W * 0.55,
+        y: origin.y + LOT_D + SHOULDER + 0.22,
+        sprite: ((sx + row) & 1) === 0 ? "bike-0" : "bike-1",
+      });
+    }
+  }
 
   const radius = Math.max(
     Math.abs(minSx),
@@ -299,6 +441,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     placements,
     features,
     vacancies,
+    civics,
     slotBounds: { minSx, maxSx, minSy, maxSy },
     bounds: {
       minX: minSx * STRIDE_X - 1,

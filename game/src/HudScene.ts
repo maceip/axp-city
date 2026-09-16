@@ -12,10 +12,12 @@ import { constructionLabel, constructionState } from "../../src/game/constructio
 import type { Rect } from "../../src/game/visibility.js";
 import type { CityFreshness, CitySnapshot } from "../../src/live/protocol.js";
 import { project } from "../../src/render/iso.js";
+import { HUD_FRAMES, HUD_SHEET } from "../../src/render/sprites.js";
 import { yardLabel, yardPropList } from "../../src/rules/cityFiles.js";
 import type { LotPlacement } from "../../src/world/layout.js";
 import { SceneKeys } from "./Boot.js";
 import type { ConnectionState } from "./connection.js";
+import { ensureFrame } from "./stamps.js";
 
 export interface HudActions {
   zoom(factor: number): void;
@@ -32,8 +34,6 @@ const FONT = "ui-monospace, Menlo, Consolas, monospace";
 const GOLD = "#f6dd91";
 const INK = "#f2efe2";
 const MUTED = "#b9c4b3";
-const PLATE = 0x152520;
-const PLATE_ALPHA = 0.9;
 
 interface Button {
   container: Phaser.GameObjects.Container;
@@ -92,11 +92,12 @@ export class HudScene extends Phaser.Scene {
   private minimapView!: Phaser.GameObjects.Graphics;
   private minimapBounds = { x: 0, y: 0, width: 1, height: 1 };
   private minimapSize = { w: 180, h: 118 };
+  private minimapBg!: Phaser.GameObjects.Image;
   private card!: Phaser.GameObjects.Container;
-  private cardBg!: Phaser.GameObjects.Graphics;
+  private cardBg!: Phaser.GameObjects.Image;
   private cardTexts: Phaser.GameObjects.Text[] = [];
   private census!: Phaser.GameObjects.Container;
-  private censusBg!: Phaser.GameObjects.Graphics;
+  private censusBg!: Phaser.GameObjects.Image;
   private censusRowsTexts: Phaser.GameObjects.Text[] = [];
   private censusHeader: Phaser.GameObjects.Text[] = [];
   private censusOpen = false;
@@ -105,6 +106,7 @@ export class HudScene extends Phaser.Scene {
   private censusFilter = "";
   private censusVisible: CensusRow[] = [];
   private toastText!: Phaser.GameObjects.Text;
+  private toastBg!: Phaser.GameObjects.Image;
   private toastTimer?: Phaser.Time.TimerEvent;
   /** Re-renders the inspect card while its lot is under construction. */
   private cardTimer?: Phaser.Time.TimerEvent;
@@ -113,7 +115,10 @@ export class HudScene extends Phaser.Scene {
   private hint!: Phaser.GameObjects.Text;
   private dpad!: Phaser.GameObjects.Container;
   private tools!: Phaser.GameObjects.Container;
+  private kitRail!: Phaser.GameObjects.Image;
+  private mast!: Phaser.GameObjects.Image;
   private listeners = new Set<(event: string, detail?: unknown) => void>();
+  private constructionStamp?: string;
   private lastView?: Rect;
   motion = true;
 
@@ -135,6 +140,15 @@ export class HudScene extends Phaser.Scene {
     for (const listener of this.listeners) listener(event, detail);
   }
 
+  /** Construction-city survey plaques from the civic HUD kit. */
+  private hudPanel(frame: keyof typeof HUD_FRAMES, width: number, height: number): Phaser.GameObjects.Image {
+    const box = HUD_FRAMES[frame];
+    const img = this.add.image(0, 0, HUD_SHEET.file, ensureFrame(this, HUD_SHEET.file, box));
+    img.setOrigin(0, 0).setDisplaySize(width, height);
+    img.disableInteractive();
+    return img;
+  }
+
   create(): void {
     // Same instance after a restart (context loss): drop references to objects
     // the previous display list destroyed.
@@ -150,13 +164,15 @@ export class HudScene extends Phaser.Scene {
     this.cardTimer = undefined;
     this.announcedStage = undefined;
     this.lastView = undefined;
+    this.constructionStamp = undefined;
     this.cameras.main.setRoundPixels(true);
+    if (this.input.keyboard) this.input.keyboard.enabled = false;
+    this.mast = this.hudPanel("rail", 900, 86);
+    this.mast.setName("mast");
     this.plate = this.add.container(16, 16);
-    const plateBg = this.add.graphics();
-    plateBg.fillStyle(PLATE, PLATE_ALPHA).fillRoundedRect(0, 0, 250, 78, 8);
-    plateBg.lineStyle(2, 0xf6dd91, 0.55).strokeRoundedRect(0, 0, 250, 78, 8);
-    const title = this.add.text(14, 10, "AXP CITY", { fontFamily: FONT, fontSize: "12px", color: GOLD, letterSpacing: 2 });
-    this.district = this.add.text(14, 28, "Central Park", { fontFamily: FONT, fontSize: "19px", color: INK, fontStyle: "bold" });
+    const plateBg = this.hudPanel("plate", 250, 78);
+    const title = this.add.text(14, 12, "SURVEY DESK", { fontFamily: FONT, fontSize: "11px", color: GOLD, letterSpacing: 3 });
+    this.district = this.add.text(14, 30, "Central Park", { fontFamily: FONT, fontSize: "18px", color: INK, fontStyle: "bold" });
     this.coords = this.add.text(14, 55, "0 · 0", { fontFamily: FONT, fontSize: "11px", color: MUTED });
     this.plate.add([plateBg, title, this.district, this.coords]);
     this.plate.setSize(250, 78).setName("plate");
@@ -164,8 +180,7 @@ export class HudScene extends Phaser.Scene {
     // Connection and freshness are separate readings.
     const status = this.add.container(0, 16);
     status.setSize(320, 62);
-    const statusBg = this.add.graphics();
-    statusBg.fillStyle(PLATE, PLATE_ALPHA).fillRoundedRect(0, 0, 320, 62, 8);
+    const statusBg = this.hudPanel("status", 320, 62);
     this.statusDot = this.add.graphics();
     this.statusText = this.add.text(30, 10, "Connecting", { fontFamily: FONT, fontSize: "13px", color: INK });
     this.freshText = this.add.text(14, 30, "GitHub data: —", { fontFamily: FONT, fontSize: "11px", color: MUTED });
@@ -175,12 +190,7 @@ export class HudScene extends Phaser.Scene {
     this.tools = status;
 
     this.compass = this.add.container(0, 92);
-    const ring = this.add.graphics();
-    ring.fillStyle(PLATE, PLATE_ALPHA).fillCircle(26, 26, 26);
-    ring.lineStyle(2, 0xf6dd91, 0.6).strokeCircle(26, 26, 26);
-    // Isometric north points up-right on screen: the needle shows that.
-    ring.fillStyle(0xf6dd91, 1).fillTriangle(26, 26, 38, 10, 30, 22);
-    ring.fillStyle(0xd9e4ee, 0.55).fillTriangle(26, 26, 14, 42, 22, 30);
+    const ring = this.hudPanel("compass", 52, 52);
     const n = this.add.text(38, 2, "N", { fontFamily: FONT, fontSize: "10px", color: GOLD, fontStyle: "bold" });
     const w = this.add.text(6, 24, "W", { fontFamily: FONT, fontSize: "9px", color: MUTED });
     const e = this.add.text(40, 24, "E", { fontFamily: FONT, fontSize: "9px", color: MUTED });
@@ -192,8 +202,7 @@ export class HudScene extends Phaser.Scene {
     this.compass.setName("compass");
 
     this.massContainer = this.add.container(0, 92);
-    const massBg = this.add.graphics();
-    massBg.fillStyle(PLATE, PLATE_ALPHA).fillRoundedRect(0, 0, 186, 44, 8);
+    const massBg = this.hudPanel("mass", 186, 44);
     this.massLabel = this.add.text(12, 8, "MASS —", { fontFamily: FONT, fontSize: "10px", color: GOLD, letterSpacing: 1 });
     this.massBar = this.add.graphics();
     this.massContainer.add([massBg, this.massLabel, this.massBar]);
@@ -205,12 +214,12 @@ export class HudScene extends Phaser.Scene {
     this.button("zoom-in", "+", 40, 40, () => this.actions.zoom(1.2));
 
     this.minimap = this.add.container(0, 0);
-    const mapBg = this.add.graphics();
-    mapBg.fillStyle(PLATE, PLATE_ALPHA).fillRoundedRect(-6, -6, this.minimapSize.w + 12, this.minimapSize.h + 30, 8);
+    this.minimapBg = this.hudPanel("minimap", this.minimapSize.w + 12, this.minimapSize.h + 30);
+    this.minimapBg.setPosition(-6, -6);
     this.minimapPlan = this.add.graphics();
     this.minimapView = this.add.graphics();
     const mapLabel = this.add.text(this.minimapSize.w / 2, this.minimapSize.h + 8, "CITY OVERVIEW · drag to travel", { fontFamily: FONT, fontSize: "9px", color: MUTED, letterSpacing: 1 }).setOrigin(0.5, 0);
-    this.minimap.add([mapBg, this.minimapPlan, this.minimapView, mapLabel]);
+    this.minimap.add([this.minimapBg, this.minimapPlan, this.minimapView, mapLabel]);
     this.minimap.setSize(this.minimapSize.w, this.minimapSize.h);
     this.minimap.setInteractive({
       hitArea: plateHit(this.minimapSize.w, this.minimapSize.h),
@@ -232,8 +241,7 @@ export class HudScene extends Phaser.Scene {
     this.minimap.setName("minimap");
 
     this.dpad = this.add.container(0, 0).setSize(150, 150).setName("dpad");
-    const pad = this.add.graphics();
-    pad.fillStyle(PLATE, PLATE_ALPHA).fillRoundedRect(0, 0, 150, 150, 12);
+    const pad = this.hudPanel("dpad", 150, 150);
     this.dpad.add(pad);
     const dirs: Array<[string, string, number, number, number, number]> = [
       ["move-north", "↑", 52, 4, 0, -1],
@@ -255,26 +263,28 @@ export class HudScene extends Phaser.Scene {
     this.dpad.add(home.container);
 
     this.hint = this.add
-      .text(0, 0, "Drag to explore · scroll or pinch to zoom · WASD/arrows · / search · C census · F follow · Esc clear", {
+      .text(0, 0, "FIELD NOTES · drag · scroll/pinch · WASD · / search · C census · F follow · Esc", {
         fontFamily: FONT,
         fontSize: "11px",
-        color: MUTED,
-        backgroundColor: "rgba(21,37,32,0.85)",
-        padding: { x: 10, y: 6 },
+        color: "#efe6c8",
+        backgroundColor: "rgba(72,54,32,0.92)",
+        padding: { x: 12, y: 7 },
       })
       .setOrigin(0.5, 1);
-    this.button("census", "Census", 92, 36, () => this.toggleCensus());
-    this.button("capture", "Capture PNG", 120, 36, () => this.actions.capture());
-    this.button("svg", "SVG", 56, 36, () => window.open(document.querySelector<HTMLMetaElement>('meta[name="city-svg"]')?.content || "/api/city/export.svg", "_blank", "noopener"));
-    this.button("motion", "Motion: on", 116, 36, () => {
+    this.kitRail = this.hudPanel("rail", 136, 220);
+    this.kitRail.setName("kit-rail");
+    this.button("census", "CENSUS", 118, 34, () => this.toggleCensus());
+    this.button("capture", "CAPTURE", 118, 34, () => this.actions.capture());
+    this.button("svg", "SVG MAP", 118, 34, () => window.open(document.querySelector<HTMLMetaElement>('meta[name="city-svg"]')?.content || "/api/city/export.svg", "_blank", "noopener"));
+    this.button("motion", "MOTION ON", 118, 34, () => {
       this.motion = this.actions.toggleMotion();
-      this.buttons.get("motion")!.label.setText(this.motion ? "Motion: on" : "Motion: off");
+      this.buttons.get("motion")!.label.setText(this.motion ? "MOTION ON" : "MOTION OFF");
       this.emit("motion", this.motion);
     });
-    this.button("follow", "Follow", 78, 36, () => this.actions.follow());
+    this.button("follow", "FOLLOW", 118, 34, () => this.actions.follow());
 
     this.card = this.add.container(0, 0).setVisible(false).setName("card");
-    this.cardBg = this.add.graphics();
+    this.cardBg = this.hudPanel("card", 330, 260);
     this.card.add(this.cardBg);
     const close = this.button("close-card", "×", 32, 32, () => this.actions.select(undefined));
     this.card.add(close.container);
@@ -284,13 +294,14 @@ export class HudScene extends Phaser.Scene {
     this.card.add(open.container);
 
     this.census = this.add.container(0, 0).setVisible(false).setName("census-panel");
-    this.censusBg = this.add.graphics();
+    this.censusBg = this.hudPanel("census", 900, 120);
     this.census.add(this.censusBg);
     const closeCensus = this.button("close-census", "×", 32, 32, () => this.toggleCensus(false));
     this.census.add(closeCensus.container);
 
+    this.toastBg = this.hudPanel("toast", 360, 48).setOrigin(0.5, 1).setVisible(false).setDepth(49);
     this.toastText = this.add
-      .text(0, 0, "", { fontFamily: FONT, fontSize: "13px", color: INK, backgroundColor: "rgba(21,37,32,0.94)", padding: { x: 14, y: 8 } })
+      .text(0, 0, "", { fontFamily: FONT, fontSize: "13px", color: INK })
       .setOrigin(0.5, 1)
       .setVisible(false)
       .setDepth(50);
@@ -314,17 +325,28 @@ export class HudScene extends Phaser.Scene {
     });
   }
 
+  update(): void {
+    if (!this.selected) {
+      this.constructionStamp = undefined;
+      return;
+    }
+    const site = constructionState(this.selected, this.now());
+    const stamp = `${site.stage}:${Math.round(site.progress * 50)}`;
+    if (stamp !== this.constructionStamp) this.setSelection(this.selected);
+  }
+
   private button(name: string, text: string, width: number, height: number, onClick: () => void): Button {
     const container = this.add.container(0, 0);
+    const frame = height >= 40 && width <= 50 ? "btn-sq" : width >= 110 ? "btn-wide" : "btn";
+    const img = this.hudPanel(frame, width, height);
     const bg = this.add.graphics();
     const label = this.add.text(width / 2, height / 2, text, { fontFamily: FONT, fontSize: height >= 40 ? "20px" : "12px", color: INK }).setOrigin(0.5);
     const paint = (hover: boolean) => {
+      img.setTint(hover ? 0xf0e0a0 : 0xffffff);
       bg.clear();
-      bg.fillStyle(hover ? 0x2b4a40 : PLATE, PLATE_ALPHA).fillRoundedRect(0, 0, width, height, 8);
-      bg.lineStyle(1.5, 0xf6dd91, hover ? 0.9 : 0.5).strokeRoundedRect(0, 0, width, height, 8);
     };
     paint(false);
-    container.add([bg, label]);
+    container.add([img, bg, label]);
     container.setSize(width, height);
     container.setInteractive({ hitArea: plateHit(width, height), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
     container.on("pointerover", () => paint(true));
@@ -341,15 +363,16 @@ export class HudScene extends Phaser.Scene {
     const W = this.scale.width,
       H = this.scale.height;
     const small = W < 700;
+    this.mast.setVisible(!small);
+    this.mast.setPosition(10, 10);
+    this.mast.setDisplaySize(W - 20, 86);
     this.tools.setPosition(W - 336, 16);
-    this.compass.setPosition(W - 68, 92);
-    this.massContainer.setPosition(W - 336, 92);
     this.massContainer.setVisible(!small || !this.card.visible);
     const mapW = small ? 120 : 180,
       mapH = small ? 78 : 118;
     if (mapW !== this.minimapSize.w) {
       this.minimapSize = { w: mapW, h: mapH };
-      (this.minimap.list[0] as Phaser.GameObjects.Graphics).clear().fillStyle(PLATE, PLATE_ALPHA).fillRoundedRect(-6, -6, mapW + 12, mapH + 30, 8);
+      this.minimapBg.setDisplaySize(mapW + 12, mapH + 30);
       (this.minimap.list[3] as Phaser.GameObjects.Text).setPosition(mapW / 2, mapH + 8);
       this.minimap.setSize(mapW, mapH);
       (this.minimap.input!.hitArea as Phaser.Geom.Rectangle).setTo(mapW / 2, mapH / 2, mapW, mapH);
@@ -365,14 +388,46 @@ export class HudScene extends Phaser.Scene {
     // A phone's bottom-sheet card covers the d-pad; it returns when the card closes.
     this.dpad.setVisible(!(small && this.card.visible));
     const toolbar = ["census", "capture", "svg", "motion", "follow"];
-    let x = small ? 16 : 190;
-    const y = small ? H - 216 : H - 52;
     this.hint.setOrigin(0, 1).setPosition(190, H - 60).setVisible(!small && !this.censusOpen && W >= 1100);
-    for (const name of toolbar) {
-      const b = this.buttons.get(name)!;
-      b.container.setPosition(x, y);
-      x += b.width + 8;
+    if (small) {
+      this.kitRail.setVisible(false);
+      this.compass.setPosition(W - 60, 92);
+      this.massContainer.setPosition(W - 210, 92);
+      const y0 = H - 248;
+      let x = 16;
+      for (const name of ["census", "capture", "svg"]) {
+        const b = this.buttons.get(name)!;
+        b.container.setScale(0.82);
+        b.container.setPosition(x, y0);
+        x += b.width * 0.82 + 6;
+      }
+      x = 16;
+      for (const name of ["motion", "follow"]) {
+        const b = this.buttons.get(name)!;
+        b.container.setScale(0.82);
+        b.container.setPosition(x, y0 + 36);
+        x += b.width * 0.82 + 6;
+      }
+    } else {
+      const kitW = 118;
+      const kitX = W - mapW - 22 - kitW - 14;
+      const kitH = toolbar.length * 42;
+      // Bottom-align with the minimap so Follow stays on-screen.
+      const kitY = H - 46 - kitH;
+      for (const name of toolbar) this.buttons.get(name)!.container.setScale(1);
+      this.kitRail.setVisible(true);
+      this.kitRail.setPosition(kitX - 8, kitY - 58);
+      this.kitRail.setDisplaySize(kitW + 16, kitH + 66);
+      this.massContainer.setPosition(kitX - 4, kitY - 50);
+      this.compass.setPosition(W - 64, kitY - 54);
+      let y = kitY;
+      for (const name of toolbar) {
+        const b = this.buttons.get(name)!;
+        b.container.setPosition(kitX, y);
+        y += b.height + 8;
+      }
     }
+    this.toastBg.setPosition(W / 2, H - (small ? 230 : 70));
     this.toastText.setPosition(W / 2, H - (small ? 230 : 70));
     this.layoutCard();
     this.layoutCensus();
@@ -477,7 +532,19 @@ export class HudScene extends Phaser.Scene {
     g.clear();
     g.fillStyle(0xa8bc8d, 1).fillRect(0, 0, w, h);
     for (const f of plan.features) {
-      g.fillStyle(f.kind === "river" ? 0x6bacae : f.kind === "park" ? 0x759959 : f.kind === "plaza" ? 0xc4b69a : 0x768270, 1);
+      const fill =
+        f.kind === "river"
+          ? 0x6bacae
+          : f.kind === "park"
+            ? 0x759959
+            : f.kind === "plaza"
+              ? 0xc4b69a
+              : f.kind === "office"
+                ? 0xc9b56a
+                : f.kind === "bike"
+                  ? 0x5f9a32
+                  : 0x768270;
+      g.fillStyle(fill, 1);
       const pts = [project(f.x, f.y), project(f.x + f.w, f.y), project(f.x + f.w, f.y + f.h), project(f.x, f.y + f.h)].map(
         (p) => new Phaser.Math.Vector2(px(p.sx), py(p.sy)),
       );
@@ -528,6 +595,7 @@ export class HudScene extends Phaser.Scene {
     }
     const lot = place.lot;
     const site = constructionState(place, this.now());
+    this.constructionStamp = `${site.stage}:${Math.round(site.progress * 50)}`;
     const lines: Array<[string, string, string?]> = [
       [`${place.district.toUpperCase()} · ${lot.buildingBand} BUILDING · SLOT ${place.col},${place.row}`, GOLD, "10px"],
       [lot.name, INK, "20px"],
@@ -580,9 +648,7 @@ export class HudScene extends Phaser.Scene {
     const x = small ? 12 : W - width - 16;
     const y = small ? Math.max(90, H - height - 12) : 150;
     this.card.setPosition(x, y).setSize(width, height);
-    this.cardBg.clear();
-    this.cardBg.fillStyle(PLATE, 0.95).fillRoundedRect(0, 0, width, height, 10);
-    this.cardBg.lineStyle(2, 0xf6dd91, 0.7).strokeRoundedRect(0, 0, width, height, 10);
+    this.cardBg.setDisplaySize(width, height);
     this.buttons.get("close-card")!.container.setPosition(width - 40, 8);
     this.buttons.get("open-repo")!.container.setPosition(16, height - 44);
     if (small) {
@@ -631,12 +697,19 @@ export class HudScene extends Phaser.Scene {
     if (!this.censusOpen) return;
     const W = this.scale.width,
       H = this.scale.height;
-    const height = Math.min(H * 0.5, 420);
-    this.census.setPosition(0, H - height).setSize(W, height);
-    this.censusBg.clear();
-    this.censusBg.fillStyle(PLATE, 0.96).fillRect(0, 0, W, height);
-    this.censusBg.lineStyle(3, 0xf6dd91, 0.8).lineBetween(0, 0, W, 0);
-    this.buttons.get("close-census")!.container.setPosition(W - 44, 8);
+    const small = W < 700;
+    if (small) {
+      const height = Math.min(H * 0.5, 420);
+      this.census.setPosition(0, H - height).setSize(W, height);
+      this.censusBg.setDisplaySize(W, height);
+      this.buttons.get("close-census")!.container.setPosition(W - 44, 8);
+    } else {
+      const width = Math.min(540, Math.max(380, W * 0.34));
+      const height = H - 122;
+      this.census.setPosition(16, 106).setSize(width, height);
+      this.censusBg.setDisplaySize(width, height);
+      this.buttons.get("close-census")!.container.setPosition(width - 44, 8);
+    }
     this.census.setDepth(45);
     this.renderCensus();
   }
@@ -652,15 +725,12 @@ export class HudScene extends Phaser.Scene {
           { key: "crew", label: "Crew", width: 90 },
         ]
       : [
-          { key: "repo", label: "Repo", width: 250 },
-          { key: "district", label: "District", width: 110 },
-          { key: "stars", label: "Stars", width: 70 },
-          { key: "issues", label: "Issues", width: 60 },
-          { key: "prs", label: "PRs", width: 50 },
-          { key: "band", label: "Bld", width: 40 },
-          { key: "crew", label: "Crew", width: 120 },
-          { key: "yard", label: "Yard", width: 130 },
-          { key: "props", label: "Loading zone", width: 260 },
+          { key: "repo", label: "Repo", width: 168 },
+          { key: "district", label: "District", width: 88 },
+          { key: "stars", label: "Stars", width: 52 },
+          { key: "prs", label: "PRs", width: 40 },
+          { key: "band", label: "Bld", width: 36 },
+          { key: "crew", label: "Crew", width: 88 },
         ];
   }
 
@@ -670,7 +740,7 @@ export class HudScene extends Phaser.Scene {
     this.censusHeader = [];
     const rows = sortCensus(filterCensus(censusRows(this.snapshot.plan, this.now()), this.censusFilter), this.censusSort.key, this.censusSort.descending);
     this.censusVisible = rows;
-    const H = Math.min(this.scale.height * 0.5, 420);
+    const H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420));
     const rowH = 22;
     const visibleRows = Math.max(1, Math.floor((H - 70) / rowH));
     this.censusScroll = Math.min(this.censusScroll, Math.max(0, rows.length - visibleRows));
@@ -717,7 +787,7 @@ export class HudScene extends Phaser.Scene {
       void cx;
     });
     if (rows.length > visibleRows) {
-      const more = this.add.text(this.scale.width - 60, H - 18, `${this.censusScroll + slice.length}/${rows.length}`, { fontFamily: FONT, fontSize: "10px", color: MUTED }).setOrigin(1, 1);
+      const more = this.add.text((this.census.width || this.scale.width) - 16, H - 18, `${this.censusScroll + slice.length}/${rows.length}`, { fontFamily: FONT, fontSize: "10px", color: MUTED }).setOrigin(1, 1);
       this.census.add(more);
       this.censusHeader.push(more);
     }
@@ -731,7 +801,7 @@ export class HudScene extends Phaser.Scene {
     const row = this.censusVisible[index];
     if (!row) return undefined;
     const rowH = 22,
-      H = Math.min(this.scale.height * 0.5, 420),
+      H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420)),
       visibleRows = Math.max(1, Math.floor((H - 70) / rowH));
     if (index < this.censusScroll) this.censusScroll = index;
     if (index >= this.censusScroll + visibleRows) this.censusScroll = index - visibleRows + 1;
@@ -741,8 +811,12 @@ export class HudScene extends Phaser.Scene {
 
   toast(message: string): void {
     this.toastText.setText(message).setVisible(true);
+    this.toastBg.setVisible(true).setDisplaySize(Math.max(360, this.toastText.width + 36), 48);
     this.toastTimer?.remove();
-    this.toastTimer = this.time.delayedCall(3200, () => this.toastText.setVisible(false));
+    this.toastTimer = this.time.delayedCall(3200, () => {
+      this.toastText.setVisible(false);
+      this.toastBg.setVisible(false);
+    });
     this.emit("toast", message);
   }
 

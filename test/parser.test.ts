@@ -9,6 +9,8 @@ import {
   parseCity,
   parseLot,
   pickBuildingId,
+  pickFacade,
+  FACADE_TINTS,
 } from "../src/parser/index.js";
 import { DEFAULT_RULES } from "../src/rules/cityFiles.js";
 import { FIXED_NOW, metrics } from "./helpers.js";
@@ -44,6 +46,28 @@ describe("pickBuildingId", () => {
     const large = pickBuildingId("acme/widget", "L");
     expect(large).toBeGreaterThanOrEqual(35);
     expect(large).toBeLessThanOrEqual(50);
+  });
+});
+
+describe("pickFacade", () => {
+  it("is a second hash channel: stable per repo, independent of buildingId", () => {
+    const a = pickFacade("acme/widget");
+    const b = pickFacade("acme/widget");
+    expect(a).toEqual(b);
+    expect(FACADE_TINTS).toContain(a.facadeTint);
+    expect(["tree", "bush", "planter", "lamp", "none"]).toContain(a.dressingProp);
+    const lot = parseLot(metrics({ fullName: "acme/widget" }), opts);
+    expect(lot.facadeTint).toBe(a.facadeTint);
+    expect(lot.dressingProp).toBe(a.dressingProp);
+    expect(lot.buildingId).toBe(pickBuildingId("acme/widget", lot.buildingBand));
+  });
+
+  it("spreads tints and dressing across many repository names", () => {
+    const facades = Array.from({ length: 40 }, (_, i) => pickFacade(`owner/repo-${i}`));
+    expect(new Set(facades.map((f) => f.facadeTint)).size).toBeGreaterThan(3);
+    expect(new Set(facades.map((f) => f.dressingProp)).size).toBeGreaterThan(2);
+    const looks = facades.map((f, i) => `${pickBuildingId(`owner/repo-${i}`, "S")}:${f.facadeTint}:${f.dressingProp}`);
+    expect(new Set(looks).size).toBeGreaterThan(10);
   });
 });
 

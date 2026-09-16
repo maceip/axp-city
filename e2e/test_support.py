@@ -73,6 +73,7 @@ def test_webgl_context_loss_recovers_camera_and_selection(page):
         pytest.skip("this browser runs the Canvas fallback; there is no WebGL context to lose")
     page.evaluate("window.__AXP.select('acme/robots')")
     page.wait_for_function("window.__AXP.diagnostics().cardVisible")
+    page.wait_for_function("!window.__AXP.diagnostics().panRunning")
     page.keyboard.press("d")
     before = settled(page)
     lost = page.evaluate(

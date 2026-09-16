@@ -169,6 +169,34 @@ export function pickBuildingId(
   );
 }
 
+/** Muted isometric tints — keep gray pads readable, shift roofs/walls. */
+export const FACADE_TINTS = [
+  0xffffff, 0xffe4c8, 0xd5e8ff, 0xe8ffd5, 0xffd5e0, 0xfff3c4, 0xe0d5ff, 0xd5fff3,
+] as const;
+
+const DRESSING: import("../types.js").DressingProp[] = [
+  "tree",
+  "bush",
+  "planter",
+  "lamp",
+  "none",
+];
+
+/**
+ * Cosmetic variety that does not change `buildingId`. Neighbours may share a
+ * silhouette; they still get a stable tint and dressing from the repo name.
+ */
+export function pickFacade(fullName: string): {
+  facadeTint: number;
+  dressingProp: import("../types.js").DressingProp;
+} {
+  const hash = stableHash(`${fullName.toLowerCase()}:facade`);
+  return {
+    facadeTint: FACADE_TINTS[hash % FACADE_TINTS.length],
+    dressingProp: DRESSING[(hash >>> 3) % DRESSING.length],
+  };
+}
+
 /**
  * Map repo metrics → one city lot (building pad + receiving yard).
  *
@@ -188,6 +216,7 @@ export function parseLot(
   const rules = options.rules ?? DEFAULT_RULES;
   const band = buildingBandFromStars(metrics.stars, rules);
   const buildingId = pickBuildingId(metrics.fullName, band, rules);
+  const facade = pickFacade(metrics.fullName);
 
   const hasPrs = metrics.openPrs > 0;
   const hasIssues = metrics.openIssues > 0;
@@ -229,6 +258,8 @@ export function parseLot(
     repoId: metrics.repoId ?? null,
     buildingBand: band,
     buildingId,
+    facadeTint: facade.facadeTint,
+    dressingProp: facade.dressingProp,
     yard,
     recentActivity,
     showBlueprint,

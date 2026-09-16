@@ -104,3 +104,29 @@ reading, drill, forklift, supervisor. Poses cover much of the crew gap
 list, BUT the sheet is front-facing 3/4 view, not isometric, single static
 poses (no walk cycle) — needs an iso redraw pass before it can drop on the
 map. Possible interim use: Hunt board / agent tiles / marketing.
+
+## Tileset revamp (2026-09-16)
+
+Fetched packs from marble.monster (`1.zip`/`2.zip`/`3.zip`) plus the attached
+construction/parking/gates/bank sheet were **filtered and restyled**, not
+dropped in raw. `scripts/restyle_tileset.py` compresses saturation toward the
+existing olive-cream-slate catalog, keys teal/mauve/white backgrounds, and
+rejects FarmVille interiors, Viking/Farm Frenzy chrome, SimCity 2000
+orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
+
+- `buildings-*-k1.png` — ChatGPT 10×3 AXP isometric families + original
+  pagoda (id 17), packed on a 5-column grid. Repo lots pick `buildingId`
+  1–50 as before; `facadeTint` + `dressingProp` are a second hash so two
+  lots that share a silhouette do not look like the same house.
+- `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
+  stamped larger than any repo lot), Jane's city hall / church / villa / store
+  (odd unused buildings), attached construction stages (pad→posts→roof→shell,
+  never the finished bank), parking, gates, bank, isometric plants from the
+  v5 ground kit, and full-size restyled road/bike tiles that read at overview
+  zoom (not the leftover 4px diamonds).
+- `hud-kit-k1.png` — olive-slate + gold panels painted to Jane's chrome sizes
+  so the overlay matches the catalog vibe; leftover orange HUD is not used.
+
+Rejected on sight: waterfall photo from Jane's map pack, FarmVille rooms,
+photoreal apple tree icons, robot/vehicle sheets that clash at lot scale.
+

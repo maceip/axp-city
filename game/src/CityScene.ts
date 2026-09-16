@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { ambientActors } from "../../src/game/ambient.js";
 import { findPlacement } from "../../src/game/census.js";
-import { buildingBounds, buildingSize } from "../../src/game/geometry.js";
+import { buildingBounds, buildingSize, lotSampleBounds } from "../../src/game/geometry.js";
 import { planLot, type LotRenderPlan } from "../../src/game/plan.js";
 import { overlaps, unproject, visibleChunks, type Rect } from "../../src/game/visibility.js";
 import type { CityMutation, CitySnapshot } from "../../src/live/protocol.js";
@@ -16,6 +16,7 @@ import { CityConnection, type ConnectionState } from "./connection.js";
 import { downloadCapture, samplePixels } from "./export.js";
 import { HudScene } from "./HudScene.js";
 import { graphicsPool, imagePool, type ObjectPool } from "./pool.js";
+import { BIKE_STAMP_WIDTH, OFFICE_STAMP_WIDTH, ROAD_STAMP_WIDTH } from "../../src/render/sprites.js";
 import { diamondContains, drawDiamond, ensureFrame, stampEllipse } from "./stamps.js";
 import { TerrainCache, drawCivics } from "./terrain.js";
 
@@ -23,6 +24,7 @@ interface LotView {
   images: Phaser.GameObjects.Image[];
   shapes: Phaser.GameObjects.Graphics[];
   signature: string;
+  renderKey: string;
   bounds: Rect;
   place: LotPlacement;
   /** Some sheet was still loading; rebuild when it arrives. */
@@ -71,6 +73,10 @@ export class CityScene extends Phaser.Scene {
   private clockOffset = 0;
   private connectionState: ConnectionState = "connecting";
   private frameTimes: number[] = [];
+  private restoreSelected?: string;
+  private restoreCamera?: { scrollX: number; scrollY: number; zoom: number };
+  private restoreUntil = 0;
+  private restoreKeysIdle = false;
   reducedMotion = false;
 
   constructor() {
@@ -91,7 +97,11 @@ export class CityScene extends Phaser.Scene {
     this.move = { x: 0, y: 0 };
     this.lastRefresh = -Infinity;
     this.lastCamera = "";
+    this.lastInputTime = performance.now();
     this.frameTimes = [];
+    this.restoreUntil = 0;
+    this.restoreCamera = undefined;
+    this.restoreKeysIdle = false;
     this.connectionState = "connecting";
     // Counts scene runs so observers can tell a restarted scene from the one they were watching.
     this.generation = (this.registry.get("generation") ?? 0) + 1;
@@ -117,6 +127,7 @@ export class CityScene extends Phaser.Scene {
       home: () => this.home(),
       select: (repo: string | undefined, frame?: boolean) => this.select(repo, frame ?? true),
       move: (x: number, y: number) => {
+        this.releaseRestoreCamera();
         this.stopFollowing();
         this.move = { x, y };
         this.cameras.main.scrollX += (x * 32) / this.cameras.main.zoom;
@@ -130,6 +141,16 @@ export class CityScene extends Phaser.Scene {
       capture: () => this.capture(),
       toggleMotion: () => this.setReducedMotion(!this.reducedMotion),
     };
+    const restore = (this.registry.get("restore") as { scrollX: number; scrollY: number; zoom: number; selected?: string } | undefined)
+      ?? (window as unknown as { __AXP_RESTORE?: { scrollX: number; scrollY: number; zoom: number; selected?: string } }).__AXP_RESTORE;
+    if (restore) {
+      this.registry.remove("restore");
+      this.restoreCamera = { scrollX: restore.scrollX, scrollY: restore.scrollY, zoom: restore.zoom };
+      this.applyRestoreCamera();
+      this.restoreSelected = restore.selected;
+    } else {
+      this.home();
+    }
     this.scene.launch(SceneKeys.Hud, { actions, snapshot: this.city });
     this.hud = this.scene.get(SceneKeys.Hud) as HudScene;
     this.hud.events.once(Phaser.Scenes.Events.CREATE, () => {
@@ -138,12 +159,12 @@ export class CityScene extends Phaser.Scene {
       this.hud.setSnapshot(this.city);
       this.hud.setConnection(this.connectionState);
       if (this.reducedMotion) this.hud.toast("Reduced motion is on: crews and traffic hold still.");
-      const restore = this.registry.get("restore") as { scrollX: number; scrollY: number; zoom: number; selected?: string } | undefined;
-      if (restore) {
-        this.registry.remove("restore");
-        this.cameras.main.setZoom(restore.zoom);
-        this.cameras.main.setScroll(restore.scrollX, restore.scrollY);
-        if (restore.selected) this.select(restore.selected, false);
+      if (this.restoreSelected) {
+        this.select(this.restoreSelected, false);
+        this.restoreSelected = undefined;
+      }
+      if (this.restoreCamera) {
+        this.applyRestoreCamera();
         this.hud.toast("Graphics context restored.");
       }
     });
@@ -161,7 +182,6 @@ export class CityScene extends Phaser.Scene {
       },
     });
     this.snapshot(this.city);
-    this.home();
     this.bindInput();
     this.bindSearch();
     this.connection.connect();
@@ -173,7 +193,9 @@ export class CityScene extends Phaser.Scene {
         c.centerOn(c.panEffect.destination.x, c.panEffect.destination.y);
         c.panEffect.reset();
       }
-      this.registry.set("restore", { scrollX: c.scrollX, scrollY: c.scrollY, zoom: c.zoom, selected: this.selected });
+      const payload = { scrollX: c.scrollX, scrollY: c.scrollY, zoom: c.zoom, selected: this.selected };
+      this.registry.set("restore", payload);
+      (window as unknown as { __AXP_RESTORE?: typeof payload }).__AXP_RESTORE = payload;
     };
     const onRestored = () => {
       // Generated textures (terrain, people, vehicles) do not survive a context loss.
@@ -181,9 +203,11 @@ export class CityScene extends Phaser.Scene {
       this.scene.start(SceneKeys.Preloader);
     };
     const renderer = this.game.renderer as unknown as Phaser.Events.EventEmitter;
+    this.game.canvas.addEventListener("webglcontextlost", onLost);
     renderer.on("losewebgl", onLost);
     renderer.on("restorewebgl", onRestored);
     this.events.once("shutdown", () => {
+      this.game.canvas.removeEventListener("webglcontextlost", onLost);
       renderer.off("losewebgl", onLost);
       renderer.off("restorewebgl", onRestored);
       // The restarted scene publishes a fresh handle; a stale one must not answer.
@@ -230,6 +254,7 @@ export class CityScene extends Phaser.Scene {
         zoom: this.cameras.main.zoom,
         scrollX: this.cameras.main.scrollX,
         scrollY: this.cameras.main.scrollY,
+        panRunning: this.cameras.main.panEffect.isRunning,
         selected: this.selected,
         following: this.followActor,
         mode: this.city.mode,
@@ -239,6 +264,19 @@ export class CityScene extends Phaser.Scene {
         censusOpen: this.hudReady && this.hud.censusIsOpen,
         cardVisible: this.hudReady && this.hud.cardVisible,
         toastVisible: this.hudReady && this.hud.toastVisible,
+        office: this.city.plan.civics?.find((c) => c.kind === "office") ?? null,
+        officeStampWidth: OFFICE_STAMP_WIDTH,
+        roadStampWidth: ROAD_STAMP_WIDTH,
+        bikeStampWidth: BIKE_STAMP_WIDTH,
+        civicCount: this.city.plan.civics?.length ?? 0,
+        civicByKind: (this.city.plan.civics ?? []).reduce<Record<string, number>>((acc, civic) => {
+          acc[civic.kind] = (acc[civic.kind] ?? 0) + 1;
+          return acc;
+        }, {}),
+        hasBikeLane: Boolean(this.city.plan.features.some((f) => f.kind === "bike")),
+        uniqueFacades: new Set(
+          this.city.plan.placements.map((p) => `${p.lot.buildingId}:${p.lot.facadeTint}:${p.lot.dressingProp}`),
+        ).size,
         frameMs: this.frameStats(),
       }),
       snapshot: () => this.city,
@@ -259,6 +297,11 @@ export class CityScene extends Phaser.Scene {
       drawn: (repo: string) => {
         const view = this.lots.get(repo);
         return view ? { stage: view.stage, incomplete: view.incomplete, objects: view.images.length + view.shapes.length } : null;
+      },
+      drawnRenderKey: (repo: string) => this.lots.get(repo)?.renderKey ?? null,
+      lotTags: (repo: string) => {
+        const place = this.city.plan.placements.find((p) => p.lot.fullName === repo);
+        return place ? planLot(place, true, this.now()).images.map((i) => i.tag ?? i.sheet) : [];
       },
       select: (repo: string | undefined) => this.select(repo, true),
       setReducedMotion: (on: boolean) => this.setReducedMotion(on),
@@ -288,29 +331,19 @@ export class CityScene extends Phaser.Scene {
     };
   }
 
-  /** Screen-space rectangle (CSS pixels) covering a lot's building and yard. */
+  /** Screen-space rectangle (CSS pixels) covering a lot's pad, yard, and building foot. */
   private screenRect(repo: string): { x: number; y: number; width: number; height: number } | null {
     const p = this.city.plan.placements.find((p) => p.lot.fullName === repo);
     if (!p) return null;
-    // Union of the building sprite box and the projected lot diamond (yard included).
-    const b = lotBounds(p);
-    const corners = [
-      project(p.x, p.y),
-      project(p.x + LOT_W, p.y),
-      project(p.x, p.y + LOT_D),
-      project(p.x + LOT_W, p.y + LOT_D),
-    ];
-    const xs = [b.x, b.x + b.width, ...corners.map((c) => c.sx)];
-    const ys = [b.y, b.y + b.height, ...corners.map((c) => c.sy)];
-    const left = Math.min(...xs);
-    const top = Math.min(...ys);
+    // Lot-crown sample: neighbouring civic stamps can cover the diamond.
+    const b = lotSampleBounds(p);
     const view = this.view();
     const zoom = this.cameras.main.zoom;
     return {
-      x: (left - view.x) * zoom,
-      y: (top - view.y) * zoom,
-      width: (Math.max(...xs) - left) * zoom,
-      height: (Math.max(...ys) - top) * zoom,
+      x: (b.x - view.x) * zoom,
+      y: (b.y - view.y) * zoom,
+      width: b.width * zoom,
+      height: b.height * zoom,
     };
   }
 
@@ -337,7 +370,7 @@ export class CityScene extends Phaser.Scene {
 
   // ---- Data --------------------------------------------------------------
   private geometryKey(city: CitySnapshot): string {
-    return JSON.stringify([city.plan.bounds, city.plan.slotBounds, city.plan.features]);
+    return JSON.stringify([city.plan.bounds, city.plan.slotBounds, city.plan.features, city.plan.civics]);
   }
 
   private snapshot(value: CitySnapshot): void {
@@ -435,6 +468,23 @@ export class CityScene extends Phaser.Scene {
     return JSON.stringify([lot, place.x, place.y, c ? [c.stage, Math.round(c.scaffold * 24), Math.round(c.buildingAlpha * 24)] : null]);
   }
 
+  private renderKey(place: LotPlacement): string {
+    const lot = place.lot;
+    return JSON.stringify([
+      lot.buildingId,
+      lot.facadeTint,
+      lot.dressingProp,
+      lot.extraProps,
+      lot.layout,
+      lot.artwork?.sha256,
+      lot.yard,
+      lot.openPrs,
+      lot.openIssues,
+      lot.showMaterials,
+      lot.showBlueprint,
+    ]);
+  }
+
   private buildLot(place: LotPlacement, previous?: LotView): void {
     const now = this.now();
     const ops = planLot(place, true, now);
@@ -457,15 +507,24 @@ export class CityScene extends Phaser.Scene {
         if (!this.assets.isFailed(op.sheet)) incomplete = true;
         continue;
       }
+      const alpha = op.alpha ?? (op.dimmed ? 0.62 : 1);
+      if (op.tag === "building" && alpha < 0.05) continue;
       const image = this.images.acquire();
       image.setTexture(op.sheet, ensureFrame(this, op.sheet, op.box));
       image.setPosition(op.sx, op.sy).setOrigin(0.5, 1).setScale(op.scaleX, op.scaleY);
       image.setDepth(op.layer === "ground" ? -99_999 : op.depth);
-      image.setAlpha(op.alpha ?? (op.dimmed ? 0.62 : 1));
+      image.setAlpha(alpha);
+      image.setVisible(true);
+      if (op.tint && op.tint !== 0xffffff) image.setTint(op.tint);
+      else image.clearTint();
       image.setData("repo", place.lot.fullName);
       images.push(image);
     }
-    if (ops.construction && ops.construction.scaffold > 0) {
+    if (
+      ops.construction &&
+      ops.construction.scaffold > 0 &&
+      !ops.images.some((image) => image.tag === "scaffold-art")
+    ) {
       const site = ops.construction;
       const scaffold = this.shapes.acquire();
       const size = buildingSize(place.lot);
@@ -485,7 +544,7 @@ export class CityScene extends Phaser.Scene {
     }
     this.actors.setLotActors(place.lot.fullName, ops.anims);
     for (const anim of ops.anims) if (!this.assets.ready(anim.anim) && !this.assets.isFailed(anim.anim)) incomplete = true;
-    this.lots.set(place.lot.fullName, { images, shapes, signature, bounds, place, incomplete, stage: ops.construction?.stage ?? "complete" });
+    this.lots.set(place.lot.fullName, { images, shapes, signature, renderKey: this.renderKey(place), bounds, place, incomplete, stage: ops.construction?.stage ?? "complete" });
     // A rebuild (construction tick, sheet arrival) refreshes the card quietly; data
     // changes and stage changes are announced by the HUD itself.
     if (this.selected === place.lot.fullName && this.hudReady) this.hud.setSelection(place, false);
@@ -507,6 +566,7 @@ export class CityScene extends Phaser.Scene {
       wanted.add(name);
       const previous = this.lots.get(name);
       if (previous && previous.place !== place) previous.signature = "";
+      if (previous && previous.renderKey !== this.renderKey(place)) previous.signature = "";
       if (previous && previous.signature && !previous.place.addedAt && !previous.incomplete) continue;
       this.buildLot(place, previous);
     }
@@ -592,6 +652,7 @@ export class CityScene extends Phaser.Scene {
   }
 
   private home(): void {
+    this.releaseRestoreCamera();
     this.stopFollowing();
     const center = project(3.5, 2);
     this.cameras.main.setZoom(innerWidth < 700 ? 0.9 : 1);
@@ -599,7 +660,21 @@ export class CityScene extends Phaser.Scene {
     this.lastRefresh = -Infinity;
   }
 
+  private applyRestoreCamera(): void {
+    const r = this.restoreCamera;
+    if (!r) return;
+    this.cameras.main.setZoom(r.zoom);
+    this.cameras.main.setScroll(r.scrollX, r.scrollY);
+  }
+
+  private releaseRestoreCamera(): void {
+    this.restoreCamera = undefined;
+    this.restoreUntil = 0;
+    this.restoreKeysIdle = false;
+  }
+
   private frameLot(place: LotPlacement): void {
+    this.releaseRestoreCamera();
     const camera = this.cameras.main,
       bounds = lotBounds(place);
     const small = camera.width < 700;
@@ -622,6 +697,7 @@ export class CityScene extends Phaser.Scene {
   }
 
   private zoomAt(factor: number, x = this.cameras.main.width / 2, y = this.cameras.main.height / 2): void {
+    this.releaseRestoreCamera();
     const c = this.cameras.main,
       zoom = Phaser.Math.Clamp(c.zoom * factor, 0.35, 2.2);
     const wx = c.scrollX + c.width / 2 + (x - c.width / 2) / c.zoom,
@@ -697,6 +773,7 @@ export class CityScene extends Phaser.Scene {
         const d = this.drag;
         if (Math.hypot(p.x - d.startX, p.y - d.startY) > 5) d.moved = true;
         if (d.moved) {
+          this.releaseRestoreCamera();
           this.cameras.main.scrollX -= (p.x - d.x) / this.cameras.main.zoom;
           this.cameras.main.scrollY -= (p.y - d.y) / this.cameras.main.zoom;
         }
@@ -735,45 +812,53 @@ export class CityScene extends Phaser.Scene {
     });
     const kb = this.input.keyboard;
     if (kb) {
+      kb.resetKeys();
       this.keys = kb.addKeys("W,A,S,D,UP,LEFT,DOWN,RIGHT") as typeof this.keys;
-      // Phaser dispatches queued DOM key events as they arrive but only clears the
-      // queue on the next game step, so on a slow frame a keyup re-dispatches the
-      // keydown before it. Each DOM event acts exactly once here.
-      const handled = new WeakSet<KeyboardEvent>();
-      kb.on("keydown", (event: KeyboardEvent) => {
-        if (handled.has(event)) return;
-        handled.add(event);
-        if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLButtonElement) return;
-        const key = event.key;
-        if (/^[0-9]$/.test(key)) {
-          const p = this.city.plan.placements[(Number(key) + 9) % 10];
-          if (p) this.select(p.lot.fullName, true);
-        } else if (key === "/" ) {
-          event.preventDefault();
-          document.querySelector<HTMLInputElement>("#repo-search")?.focus();
-        } else if (key.toLowerCase() === "f") this.toggleFollow();
-        else if (key.toLowerCase() === "c" && this.hudReady) this.hud.toggleCensus();
-        else if (key.toLowerCase() === "h") this.home();
-        else if (key.toLowerCase() === "m") this.setReducedMotion(!this.reducedMotion);
-        else if (key === "+" || key === "=") this.zoomAt(1.2);
-        else if (key === "-" || key === "_") this.zoomAt(1 / 1.2);
-        else if (key === "Escape") {
-          if (this.hudReady && this.hud.censusIsOpen) this.hud.toggleCensus(false);
-          else this.select(undefined, false);
-        } else if (this.hudReady && this.hud.censusIsOpen && (key === "ArrowDown" || key === "ArrowUp" || key === "Enter")) {
-          event.preventDefault();
-          if (key === "Enter") {
-            if (this.selected) this.frameLot(this.city.plan.placements.find((p) => p.lot.fullName === this.selected)!);
-          } else {
-            const row = this.hud.censusStep(key === "ArrowDown" ? 1 : -1);
-            if (row) this.select(row.repo, false);
-          }
-        }
-      });
     }
+    // Window-level shortcuts so the HUD scene (no keyboard plugin) cannot
+    // swallow C/census, number-key jumps, or Escape.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLButtonElement) return;
+      const key = event.key;
+      if (/^[0-9]$/.test(key)) {
+        const p = this.city.plan.placements[(Number(key) + 9) % 10];
+        if (p) this.select(p.lot.fullName, true);
+      } else if (key === "/") {
+        event.preventDefault();
+        document.querySelector<HTMLInputElement>("#repo-search")?.focus();
+      } else if (key.toLowerCase() === "f") this.toggleFollow();
+      else if (key.toLowerCase() === "c" && this.hudReady) this.hud.toggleCensus();
+      else if (key.toLowerCase() === "h") this.home();
+      else if (key.toLowerCase() === "m") this.setReducedMotion(!this.reducedMotion);
+      else if (key === "+" || key === "=") this.zoomAt(1.2);
+      else if (key === "-" || key === "_") this.zoomAt(1 / 1.2);
+      else if (key === "Escape") {
+        if (this.hudReady && this.hud.censusIsOpen) this.hud.toggleCensus(false);
+        else this.select(undefined, false);
+      } else if (this.hudReady && this.hud.censusIsOpen && (key === "ArrowDown" || key === "ArrowUp" || key === "Enter")) {
+        event.preventDefault();
+        if (key === "Enter") {
+          if (this.selected) this.frameLot(this.city.plan.placements.find((p) => p.lot.fullName === this.selected)!);
+        } else {
+          const row = this.hud.censusStep(key === "ArrowDown" ? 1 : -1);
+          if (row) this.select(row.repo, false);
+        }
+      }
+    };
+    const blurUi = () => {
+      const el = document.activeElement;
+      if (el instanceof HTMLInputElement || el instanceof HTMLButtonElement) el.blur();
+    };
+    window.addEventListener("keydown", onKey);
+    this.game.canvas.addEventListener("pointerdown", blurUi);
     const double = () => this.home();
     this.game.canvas.addEventListener("dblclick", double);
-    this.events.once("shutdown", () => this.game.canvas.removeEventListener("dblclick", double));
+    this.events.once("shutdown", () => {
+      window.removeEventListener("keydown", onKey);
+      this.game.canvas.removeEventListener("pointerdown", blurUi);
+      this.game.canvas.removeEventListener("dblclick", double);
+    });
   }
 
   private air(time: number): void {
@@ -810,7 +895,7 @@ export class CityScene extends Phaser.Scene {
     }
   }
 
-  update(time: number, delta: number): void {
+  update(time: number, _delta: number): void {
     const c = this.cameras.main;
     const inputTime = performance.now();
     const elapsed = Math.min(inputTime - this.lastInputTime, 500);
@@ -818,7 +903,9 @@ export class CityScene extends Phaser.Scene {
     this.frameTimes.push(elapsed);
     if (this.frameTimes.length > 240) this.frameTimes.shift();
     const typing = document.activeElement instanceof HTMLInputElement;
-    if (!typing && !(this.hudReady && this.hud.censusIsOpen)) {
+    const restoring = Boolean(this.restoreCamera);
+    if (restoring) this.applyRestoreCamera();
+    if (!restoring && !typing && !(this.hudReady && this.hud.censusIsOpen)) {
       const x = this.move.x + (this.keys.D?.isDown || this.keys.RIGHT?.isDown ? 1 : 0) - (this.keys.A?.isDown || this.keys.LEFT?.isDown ? 1 : 0);
       const y = this.move.y + (this.keys.S?.isDown || this.keys.DOWN?.isDown ? 1 : 0) - (this.keys.W?.isDown || this.keys.UP?.isDown ? 1 : 0);
       if (x || y) {
@@ -826,9 +913,17 @@ export class CityScene extends Phaser.Scene {
         c.scrollX += (((x * 420) / c.zoom) * elapsed) / 1000;
         c.scrollY += (((y * 420) / c.zoom) * elapsed) / 1000;
       }
+    } else if (restoring && !typing) {
+      const x = this.move.x + (this.keys.D?.isDown || this.keys.RIGHT?.isDown ? 1 : 0) - (this.keys.A?.isDown || this.keys.LEFT?.isDown ? 1 : 0);
+      const y = this.move.y + (this.keys.S?.isDown || this.keys.DOWN?.isDown ? 1 : 0) - (this.keys.W?.isDown || this.keys.UP?.isDown ? 1 : 0);
+      if (!x && !y) this.restoreKeysIdle = true;
+      else if (this.restoreKeysIdle) this.releaseRestoreCamera();
     }
-    this.actors.step(Math.min(delta, 100));
-    if (this.followActor) {
+    // Wall-clock elapsed (not Phaser's frame delta, which software-GL
+    // runners cap well below real time) so actor timelines keep pace
+    // when the city is scrolled away and back.
+    this.actors.step(Math.min(elapsed, 500));
+    if (!restoring && this.followActor) {
       const at = this.actors.position(this.followActor);
       if (at) {
         const k = this.reducedMotion ? 1 : Math.min(1, elapsed / 180);

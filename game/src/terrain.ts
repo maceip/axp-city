@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { project } from "../../src/render/iso.js";
-import { hash01, type CityPlan, tileKind } from "../../src/world/index.js";
-import { STRIDE_X, STRIDE_Y } from "../../src/world/constants.js";
+import { hash01, type CityPlan, type CivicKind, tileKind } from "../../src/world/index.js";
+import { BIKE_BAND, LOT_D, SHOULDER, STRIDE_X, STRIDE_Y } from "../../src/world/constants.js";
 import { CHUNK_SIZE } from "../../src/game/visibility.js";
 import {
   WILD_SHEETS,
@@ -10,6 +10,11 @@ import {
   GROUND_TILES,
   DECOR_BENCH,
   DECOR_LAMP,
+  CIVIC_SHEET,
+  CIVIC_SPRITES,
+  BIKE_STAMP_WIDTH,
+  OFFICE_STAMP_WIDTH,
+  ROAD_STAMP_WIDTH,
 } from "../../src/render/sprites.js";
 import { imagePool, type ObjectPool } from "./pool.js";
 import { ensureFrame } from "./stamps.js";
@@ -22,7 +27,8 @@ const COLORS: Record<string, number> = {
   river: 0x69adb0,
   lot: 0x9daf7c,
   vacant: 0x96b776,
-  street: 0x89938b,
+  street: 0x5e6662,
+  bike: 0x3d7a1c,
   grass: 0x91b477,
   dirt: 0xb7ae80,
   water: 0x89b49b,
@@ -210,6 +216,32 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
         for (const offset of [-5, 5])
           g.lineBetween(p.sx + width / 2 + offset, p.sy + 5, p.sx + width / 2 - 25 + offset, p.sy + 18);
       }
+      if (kind === "street") {
+        g.lineStyle(1.4, 0xd8c889, 0.55);
+        g.lineBetween(p.sx + width / 2 - 10, p.sy + 16, p.sx + width / 2 + 10, p.sy + 26);
+      }
+      if (kind === "bike") {
+        g.fillStyle(0x3d7a1c, 1);
+        g.fillPoints(
+          [
+            { x: p.sx + width / 2, y: p.sy + 2 },
+            { x: p.sx + width / 2 + 28, y: p.sy + 16 },
+            { x: p.sx + width / 2, y: p.sy + 30 },
+            { x: p.sx + width / 2 - 28, y: p.sy + 16 },
+          ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
+          true,
+        );
+        g.fillStyle(0xfff4b0, 0.95);
+        g.fillPoints(
+          [
+            { x: p.sx + width / 2 - 6, y: p.sy + 10 },
+            { x: p.sx + width / 2 + 2, y: p.sy + 14 },
+            { x: p.sx + width / 2 - 6, y: p.sy + 18 },
+            { x: p.sx + width / 2 + 10, y: p.sy + 16 },
+          ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
+          true,
+        );
+      }
       if (kind === "river" && hash01(wx, wy, 29) < 0.3) {
         g.lineStyle(1, 0xc1e0d4, 0.4);
         g.lineBetween(p.sx + width / 2 - 12, p.sy + 18, p.sx + width / 2 + 4, p.sy + 23);
@@ -262,24 +294,26 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   const park = plan.features.find((f) => f.kind === "park")!;
   const cx = park.x + park.w / 2,
     cy = park.y + park.h / 2;
-  // Paths: a cross and a ring around the fountain.
+  const hasOffice = plan.civics?.some((c) => c.kind === "office");
+  // Paths: a cross and a ring around the fountain / office.
   diamond(cx - 0.18, park.y, 0.36, park.h, 0xdccfa7);
   diamond(park.x, cy - 0.18, park.w, 0.36, 0xdccfa7);
   diamond(cx - 2.8, cy - 1.8, 5.6, 0.3, 0xdccfa7);
   diamond(cx - 2.8, cy + 1.5, 5.6, 0.3, 0xdccfa7);
   diamond(cx - 2.8, cy - 1.8, 0.3, 3.6, 0xdccfa7);
   diamond(cx + 2.5, cy - 1.8, 0.3, 3.6, 0xdccfa7);
-  // Flower beds in the quadrants.
-  for (const [dx, dy] of [[-1.3, -1.0], [1.0, -1.0], [-1.3, 0.7], [1.0, 0.7]] as const)
-    diamond(cx + dx, cy + dy, 0.5, 0.4, 0xd9a066, 0.9);
-  const center = project(cx, cy);
-  const fountain = scene.add.graphics().setDepth(center.sy);
-  fountain.fillStyle(0xdcd5b7).fillEllipse(center.sx, center.sy, 76, 38);
-  fountain.fillStyle(0x75b8c0).fillEllipse(center.sx, center.sy - 3, 60, 27);
-  fountain.lineStyle(2, 0xd8eeee, 0.9);
-  fountain.lineBetween(center.sx, center.sy - 28, center.sx, center.sy - 6);
-  fountain.strokeEllipse(center.sx, center.sy - 8, 25, 10);
-  objects.push(fountain);
+  if (!hasOffice) {
+    for (const [dx, dy] of [[-1.3, -1.0], [1.0, -1.0], [-1.3, 0.7], [1.0, 0.7]] as const)
+      diamond(cx + dx, cy + dy, 0.5, 0.4, 0xd9a066, 0.9);
+    const center = project(cx, cy);
+    const fountain = scene.add.graphics().setDepth(center.sy);
+    fountain.fillStyle(0xdcd5b7).fillEllipse(center.sx, center.sy, 76, 38);
+    fountain.fillStyle(0x75b8c0).fillEllipse(center.sx, center.sy - 3, 60, 27);
+    fountain.lineStyle(2, 0xd8eeee, 0.9);
+    fountain.lineBetween(center.sx, center.sy - 28, center.sx, center.sy - 6);
+    fountain.strokeEllipse(center.sx, center.sy - 8, 25, 10);
+    objects.push(fountain);
+  }
   // Pond in the south-east quadrant.
   diamond(park.x + park.w * 0.66, park.y + park.h * 0.62, 2.0, 1.4, 0x4ea2d6);
   stamp(GROUND_TILES.waterTile, park.x + park.w * 0.66 + 1.0, park.y + park.h * 0.62 + 1.3, 70);
@@ -300,7 +334,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     stamp(box, cx + dx, cy + dy, box === GROUND_TILES.bushA ? 34 : 40);
 
   for (const f of plan.features)
-    if (f.kind !== "plaza" && f.kind !== "river") {
+    if (f.kind !== "plaza" && f.kind !== "river" && f.kind !== "bike" && f.kind !== "office") {
       const a = project(f.x + f.w / 2, f.kind === "tram" ? f.y + 1.2 : f.y + f.h / 2);
       objects.push(
         scene.add
@@ -314,5 +348,68 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
           .setDepth(-90_000),
       );
     }
+
+  const civicWidth: Record<CivicKind, number> = {
+    office: OFFICE_STAMP_WIDTH,
+    plant: 48,
+    odd: 120,
+    parking: 138,
+    gate: 100,
+    road: ROAD_STAMP_WIDTH,
+    bike: BIKE_STAMP_WIDTH,
+  };
+  for (const row of plan.streetRows) {
+    const x = plan.slotBounds.minSx * STRIDE_X;
+    const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
+    const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
+    diamond(x, streetY + BIKE_BAND, w, 0.58, 0x5e6662, 0.96);
+    diamond(x, streetY, w, BIKE_BAND, 0x3d7a1c, 0.98);
+    diamond(x, streetY + BIKE_BAND - 0.08, w, 0.1, 0xf4efc2, 0.96);
+    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
+      const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
+      diamond(laneX + 0.55, streetY + 0.12, 1.55, 0.42, 0xfff4b0, 0.96);
+      diamond(laneX + 2.35, streetY + 0.28, 1.15, 0.32, 0xfff4b0, 0.88);
+    }
+    const labelAt = project(x + 1.6, streetY + BIKE_BAND * 0.42);
+    objects.push(
+      scene.add
+        .text(labelAt.sx, labelAt.sy, "BIKE LANE", {
+          fontFamily: "monospace",
+          fontSize: "12px",
+          color: "#fff4b0",
+          letterSpacing: 2,
+        })
+        .setOrigin(0.5)
+        .setDepth(-90_000),
+    );
+  }
+  for (const marker of plan.civics ?? []) {
+    const box = CIVIC_SPRITES[marker.sprite];
+    if (!box) continue;
+    const width = civicWidth[marker.kind] ?? 100;
+    const a = project(marker.x, marker.y);
+    const depth =
+      marker.kind === "bike" ? -99_994 : marker.kind === "road" ? -99_996 : a.sy + (marker.kind === "office" ? 8 : 0);
+    objects.push(
+      scene.add
+        .image(a.sx, a.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, box))
+        .setOrigin(0.5, 1)
+        .setDisplaySize(width, width * (box.h / box.w))
+        .setDepth(depth),
+    );
+    if (marker.kind === "office") {
+      objects.push(
+        scene.add
+          .text(a.sx, a.sy + 18, "CITY OFFICE", {
+            fontFamily: "monospace",
+            fontSize: "12px",
+            color: "#45614e",
+            letterSpacing: 2,
+          })
+          .setOrigin(0.5)
+          .setDepth(-90_000),
+      );
+    }
+  }
   return objects;
 }
