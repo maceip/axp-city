@@ -1,6 +1,7 @@
 import { HIGH_PR_COUNT } from "../parser/thresholds.js";
 import type { CityLot } from "../types.js";
 import { animatedFigure } from "./anim.js";
+import { humanFigure, pacingHuman } from "./humans.js";
 import { project } from "./iso.js";
 import {
   animSheet,
@@ -123,8 +124,8 @@ function crew(
   if (lot.recentActivity) {
     const phase = phaseFor(lot);
     const a1 = project(x + 1.5, y + 0.55);
-    if (lot.botDetected) {
-      // Bot patrol: a quad dog paces the yard instead of the human crew.
+    if (lot.occupantClass === "robot" || lot.botDetected) {
+      // AI yard: robots/drones work the pad; humans stay off this lot.
       return animatedFigure({
         id: `${lotTag}-dog`,
         sheet: animSheet("quadDog"),
@@ -135,9 +136,11 @@ function crew(
         pace: { dx: 40, dy: 9, legs: 2 },
       });
     }
-    // Live yard: a unit paces one way, a crate-carrier the other.
+    // Live yard: humans on the sidewalk, plus the walk-cycle crew.
     const a2 = project(x + 0.75, y + 1.35);
+    const human = project(x + 0.35, y + 0.95);
     return (
+      humanFigure(`${lotTag}-human`, human.sx, human.sy, lot.buildingId, "work") +
       animatedFigure({
         id: `${lotTag}-walk`,
         sheet: animSheet("unitWalk"),
@@ -189,16 +192,30 @@ function crew(
 /** A lone walker crosses yards that are active but have no other crew. */
 function idleWalker(x: number, y: number, lot: CityLot, lotTag: string): string {
   const anchor = project(x + 0.7, y + 0.6);
-  const bot = lot.botDetected;
-  return animatedFigure({
-    id: `${lotTag}-${bot ? "dog" : "idle"}`,
-    sheet: animSheet(bot ? "quadDog" : "unitWalk"),
-    anchorX: anchor.sx,
-    anchorY: anchor.sy,
-    targetW: bot ? 50 : 48,
-    phase: phaseFor(lot),
-    pace: { dx: 40, dy: 9, legs: 2 },
-  });
+  const bot = lot.occupantClass === "robot" || lot.botDetected;
+  if (bot) {
+    return animatedFigure({
+      id: `${lotTag}-dog`,
+      sheet: animSheet("quadDog"),
+      anchorX: anchor.sx,
+      anchorY: anchor.sy,
+      targetW: 50,
+      phase: phaseFor(lot),
+      pace: { dx: 40, dy: 9, legs: 2 },
+    });
+  }
+  return (
+    pacingHuman(`${lotTag}-idle-h`, anchor.sx, anchor.sy, lot.buildingId, 36, 8) +
+    animatedFigure({
+      id: `${lotTag}-idle`,
+      sheet: animSheet("unitWalk"),
+      anchorX: anchor.sx + 16,
+      anchorY: anchor.sy,
+      targetW: 48,
+      phase: phaseFor(lot),
+      pace: { dx: 40, dy: 9, legs: 2 },
+    })
+  );
 }
 
 function drone(

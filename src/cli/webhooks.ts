@@ -1,6 +1,9 @@
-import { join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { parseArgs } from "./args.js";
+import { parseCity } from "../parser/index.js";
 import { createWebhookServer } from "../webhooks/index.js";
+import type { RepoMetrics } from "../types.js";
 
 function installFatalGuards(): void {
   // A public catcher must never keep running after an unexpected fault:
@@ -34,11 +37,14 @@ export async function runWebhooks(argv = process.argv.slice(2)): Promise<void> {
   }
   const port = args.port === 43173 ? 43174 : args.port;
   const host = args.host;
-  const { server, store } = createWebhookServer(
+  const { server, store, city } = createWebhookServer(
     {
       secret,
       allowUnsigned,
       logPath: join("data", "city-events.jsonl"),
+      cityMapPath: join("data", "city-map.json"),
+      adminToken: process.env.CITY_ADMIN_TOKEN ?? "",
+      spritesRoot: resolve("assets", "city-sprites"),
       rateLimitMax: args.rateLimitMax,
       rateLimitWindowMs: args.rateLimitWindowMs,
     },
@@ -49,9 +55,20 @@ export async function runWebhooks(argv = process.argv.slice(2)): Promise<void> {
     `[webhooks] replayed ${replayed.loaded} events` +
       (replayed.skipped > 0 ? ` (${replayed.skipped} corrupt lines skipped)` : ""),
   );
+  await city.load();
+  try {
+    const metrics = JSON.parse(
+      await readFile(join(args.outDir, "metrics.json"), "utf8"),
+    ) as RepoMetrics[];
+    await city.hydrate(parseCity(metrics));
+    console.log(`[webhooks] city hydrated ${city.lots().length} lots`);
+  } catch {
+    console.log(`[webhooks] city map ${city.lots().length} lots (no metrics.json)`);
+  }
   await new Promise<void>((resolve) => server.listen(port, host, resolve));
   console.log(`[webhooks] listening on ${host}:${port} → POST /webhooks/github`);
-  console.log("[webhooks] live feed: GET /events/stream · backlog: GET /events?limit=50");
+  console.log("[webhooks] city: GET /city · live plots: GET /api/city/stream");
+  console.log("[webhooks] events: GET /events/stream · backlog: GET /events?limit=50");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

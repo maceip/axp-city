@@ -1,0 +1,330 @@
+{
+  "bounds": {
+    "minX": -16,
+    "minY": -9.2,
+    "maxX": 26,
+    "maxY": 19.799999999999997
+  },
+  "slotBounds": {
+    "minSx": -3,
+    "maxSx": 4,
+    "minSy": -2,
+    "maxSy": 3
+  },
+  "features": [
+    {
+      "kind": "park",
+      "id": "central-park",
+      "x": 0.1,
+      "y": 0.1,
+      "w": 9.8,
+      "h": 7.999999999999999
+    },
+    {
+      "kind": "freeway",
+      "id": "north-freeway",
+      "x": -15,
+      "y": -8.2,
+      "w": 40,
+      "h": 4.1
+    },
+    {
+      "kind": "tram",
+      "id": "tram-line",
+      "x": 10,
+      "y": -8.2,
+      "w": 5,
+      "h": 24.599999999999998
+    },
+    {
+      "kind": "river",
+      "id": "west-river",
+      "x": -14.6,
+      "y": -8.2,
+      "w": 2.2,
+      "h": 24.599999999999998
+    },
+    {
+      "kind": "plaza",
+      "id": "tram-park-plaza",
+      "x": 10.2,
+      "y": 0.2,
+      "w": 4.6,
+      "h": 7.799999999999999
+    }
+  ],
+  "streetRows": [
+    -1,
+    0,
+    1,
+    2
+  ],
+  "radius": 4,
+  "lots": [
+    {
+      "repo": "LegadoTeam/legado",
+      "url": "https://github.com/LegadoTeam/legado",
+      "stars": 1111,
+      "issues": 38,
+      "prs": 5,
+      "band": "S",
+      "id": 4,
+      "yard": "prs active",
+      "occupant": "human",
+      "constructing": false,
+      "district": "Central Park",
+      "x": -5,
+      "y": -4.1,
+      "col": -1,
+      "row": -1,
+      "props": [
+        "blueprint",
+        "materials",
+        "crew"
+      ]
+    },
+    {
+      "repo": "maxrave-dev/SimpMusic",
+      "url": "https://github.com/maxrave-dev/SimpMusic",
+      "stars": 11125,
+      "issues": 384,
+      "prs": 20,
+      "band": "M",
+      "id": 22,
+      "yard": "prs active",
+      "occupant": "human",
+      "constructing": false,
+      "district": "Central Park",
+      "x": 0,
+      "y": -4.1,
+      "col": 0,
+      "row": -1,
+      "props": [
+        "blueprint",
+        "materials",
+        "crew",
+        "drone"
+      ]
+    },
+    {
+      "repo": "gkd-kit/gkd",
+      "url": "https://github.com/gkd-kit/gkd",
+      "stars": 41635,
+      "issues": 11,
+      "prs": 2,
+      "band": "L",
+      "id": 36,
+      "yard": "prs active",
+      "occupant": "human",
+      "constructing": false,
+      "district": "Central Park",
+      "x": 5,
+      "y": -4.1,
+      "col": 1,
+      "row": -1,
+      "props": [
+        "blueprint",
+        "materials",
+        "crew"
+      ]
+    },
+    {
+      "repo": "RikkaApps/Shizuku",
+      "url": "https://github.com/RikkaApps/Shizuku",
+      "stars": 29980,
+      "issues": 504,
+      "prs": 74,
+      "band": "L",
+      "id": 37,
+      "yard": "prs quiet",
+      "occupant": "none",
+      "constructing": false,
+      "district": "Central Park",
+      "x": 5,
+      "y": 8.2,
+      "col": 1,
+      "row": 2,
+      "props": [
+        "blueprint",
+        "materials",
+        "drone"
+      ]
+    },
+    {
+      "repo": "bmax121/APatch",
+      "url": "https://github.com/bmax121/APatch",
+      "stars": 7927,
+      "issues": 42,
+      "prs": 8,
+      "band": "M",
+      "id": 23,
+      "yard": "prs active",
+      "occupant": "robot",
+      "constructing": false,
+      "district": "Central Park",
+      "x": 0,
+      "y": 8.2,
+      "col": 0,
+      "row": 2,
+      "props": [
+        "blueprint",
+        "materials",
+        "crew",
+        "drone"
+      ]
+    },
+    {
+      "repo": "JunkFood02/Seal",
+      "url": "https://github.com/JunkFood02/Seal",
+      "stars": 28877,
+      "issues": 692,
+      "prs": 28,
+      "band": "L",
+      "id": 42,
+      "yard": "prs quiet",
+      "occupant": "none",
+      "constructing": false,
+      "district": "Central Park",
+      "x": -5,
+      "y": 8.2,
+      "col": -1,
+      "row": 2,
+      "props": [
+        "blueprint",
+        "materials",
+        "drone"
+      ]
+    },
+    {
+      "repo": "2dust/v2rayNG",
+      "url": "https://github.com/2dust/v2rayNG",
+      "stars": 62452,
+      "issues": 13,
+      "prs": 27,
+      "band": "L",
+      "id": 44,
+      "yard": "prs active",
+      "occupant": "human",
+      "constructing": false,
+      "district": "Central Park",
+      "x": -5,
+      "y": 4.1,
+      "col": -1,
+      "row": 1,
+      "props": [
+        "blueprint",
+        "materials",
+        "crew",
+        "drone"
+      ]
+    },
+    {
+      "repo": "ReVanced/revanced-manager",
+      "url": "https://github.com/ReVanced/revanced-manager",
+      "stars": 29419,
+      "issues": 173,
+      "prs": 15,
+      "band": "L",
+      "id": 39,
+      "yard": "prs quiet",
+      "occupant": "robot",
+      "constructing": false,
+      "district": "Central Park",
+      "x": -5,
+      "y": 0,
+      "col": -1,
+      "row": 0,
+      "props": [
+        "blueprint",
+        "materials",
+        "drone"
+      ]
+    },
+    {
+      "repo": "ankidroid/Anki-Android",
+      "url": "https://github.com/ankidroid/Anki-Android",
+      "stars": 11765,
+      "issues": 271,
+      "prs": 94,
+      "band": "M",
+      "id": 26,
+      "yard": "prs active",
+      "occupant": "robot",
+      "constructing": false,
+      "district": "Freeway",
+      "x": 15,
+      "y": -4.1,
+      "col": 3,
+      "row": -1,
+      "props": [
+        "blueprint",
+        "materials",
+        "crew",
+        "drone"
+      ]
+    },
+    {
+      "repo": "libre-tube/LibreTube",
+      "url": "https://github.com/libre-tube/LibreTube",
+      "stars": 12672,
+      "issues": 147,
+      "prs": 13,
+      "band": "M",
+      "id": 21,
+      "yard": "prs active",
+      "occupant": "human",
+      "constructing": false,
+      "district": "Tram Line",
+      "x": 15,
+      "y": 0,
+      "col": 3,
+      "row": 0,
+      "props": [
+        "blueprint",
+        "materials",
+        "crew"
+      ]
+    },
+    {
+      "repo": "tharunbirla/LibreCuts",
+      "url": "https://github.com/tharunbirla/LibreCuts",
+      "stars": 751,
+      "issues": 41,
+      "prs": 2,
+      "band": "S",
+      "id": 9,
+      "yard": "prs active",
+      "occupant": "robot",
+      "constructing": false,
+      "district": "Tram Line",
+      "x": 15,
+      "y": 4.1,
+      "col": 3,
+      "row": 1,
+      "props": [
+        "blueprint",
+        "materials",
+        "crew",
+        "drone"
+      ]
+    },
+    {
+      "repo": "caillette/Oak",
+      "url": "https://github.com/caillette/Oak",
+      "stars": 0,
+      "issues": 0,
+      "prs": 0,
+      "band": "S",
+      "id": 12,
+      "yard": "fully dormant",
+      "occupant": "none",
+      "constructing": false,
+      "district": "Tram Line",
+      "x": 15,
+      "y": 8.2,
+      "col": 3,
+      "row": 2,
+      "props": []
+    }
+  ]
+}

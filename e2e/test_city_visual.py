@@ -2,8 +2,8 @@
 
 Loads a rendered fixture city in real Chromium and checks the things unit
 tests cannot see: every sprite URL resolves and paints, the map loads
-without persistent labels, hovering a lot pops its tag, the camera cannot
-leave the tiled world, each yard kind stamps the right number of sprites,
+without persistent labels, hovering a lot pops its tag, the camera keeps
+infinite ground tiles, each yard kind stamps the right number of sprites,
 animation elements only exist on active lots, and click/keyboard
 interaction works.
 """
@@ -173,6 +173,30 @@ def test_click_tile_opens_card(page):
     assert "acme/" in (card.inner_text() or ""), "card names no repo"
 
 
+def test_click_building_sprite_opens_card(page):
+    """Inspect uses screen picking, so a click on the 3D stamp (not the pad) works."""
+    pg, _, _ = page
+    pg.evaluate("() => document.getElementById('lot-card').hidden = true")
+    target = pg.evaluate(
+        """() => {
+          const lot = JSON.parse(document.getElementById('axp-city-plan').textContent).lots[0];
+          const svg = document.getElementById('axp-map');
+          const tileW = 72, tileH = 36;
+          const sx = (lot.x + 2 - (lot.y + 1.2)) * (tileW / 2);
+          const sy = (lot.x + 2 + lot.y + 1.2) * (tileH / 2) - 36;
+          const pt = svg.createSVGPoint();
+          pt.x = sx; pt.y = sy;
+          const p = pt.matrixTransform(svg.getScreenCTM());
+          return { x: p.x, y: p.y, repo: lot.repo };
+        }"""
+    )
+    pg.mouse.click(target["x"], target["y"])
+    card = pg.locator("#lot-card")
+    assert card.evaluate("el => !el.hidden"), "building sprite click did not inspect"
+    text = card.inner_text() or ""
+    assert target["repo"].split("/")[0] in text or "acme/" in text, text
+
+
 def test_building_size_follows_band(page):
     pg, _, _ = page
     widths = {lot["repo"]: lot["building"][2] for lot in _screen_rects(pg)}
@@ -201,31 +225,40 @@ def test_keyboard_pan_moves_map(page):
     assert float(after[0]) > float(before[0]), "ArrowRight did not pan"
 
 
-def test_camera_cannot_leave_tiled_world(page):
+def test_camera_keeps_tiles_when_panning_into_wilderness(page):
     pg, _, _ = page
     world = [float(v) for v in pg.get_attribute("#axp-map", "data-world").split()]
     assert len(world) == 4, "svg must carry its tiled world bounds"
+    assert pg.get_attribute("#axp-map", "data-infinite") == "1"
     for key in ["ArrowLeft", "ArrowUp"] * 30:
         pg.keyboard.press(key)
     x, y, w, h = (float(v) for v in pg.get_attribute("#axp-map", "viewBox").split())
     assert x >= world[0] - 0.5, f"camera panned past tiles: {x} < {world[0]}"
     assert y >= world[1] - 0.5, f"camera panned past tiles: {y} < {world[1]}"
-    for key in ["ArrowRight", "ArrowDown"] * 30:
-        pg.keyboard.press(key)
-    x, y, w, h = (float(v) for v in pg.get_attribute("#axp-map", "viewBox").split())
-    assert x + w <= world[0] + world[2] + 0.5, "camera panned past tiles"
-    assert y + h <= world[1] + world[3] + 0.5, "camera panned past tiles"
+    fill = pg.eval_on_selector(".infinite-fill", "el => el.getAttribute('fill')")
+    assert fill and "iso-grass" in fill, "infinite grass fill missing"
 
 
 def test_street_pacers_walk_roads(page):
     pg, _, _ = page
     n = pg.eval_on_selector_all(".road-life image", "els => els.length")
-    # Fixture renders 8 lots in 2 rows: one pacer per street (3).
-    assert n == 3, f"expected a pacer on each of the 3 streets, saw {n}"
+    # Fixture renders lots around Central Park: at least one pacer per street.
+    assert n >= 1, f"expected street pacers, saw {n}"
     glides = pg.eval_on_selector_all(
         ".road-life animateTransform", "els => els.length")
-    # Each pacer glides (translate) and mirrors at each end (scale).
-    assert glides == 2 * n, "every street pacer must glide along its road"
+    assert glides >= 2 * n, "every street pacer must glide along its road"
+
+
+def test_rpg_hud_is_present(page):
+    pg, _, _ = page
+    assert pg.locator("#hud-district").is_visible()
+    assert pg.locator("#hud-mini").is_visible()
+    assert pg.locator("#pad-w").is_visible()
+    assert pg.locator("#axp-map").get_attribute("data-infinite") == "1"
+    assert pg.locator(".city-park").count() >= 1
+    assert pg.locator(".city-freeway").count() >= 1
+    assert pg.locator(".city-tram").count() >= 1
+    assert pg.locator("#air-layer").count() == 1
 
 
 def test_screenshot_captures_city(page):

@@ -38,6 +38,9 @@ export type YardKind =
   | "prs_quiet"
   | "prs_active";
 
+/** Who is working the lot. Humans for human activity; robots/drones for AI. */
+export type OccupantClass = "human" | "robot" | "none";
+
 export interface CityLot {
   fullName: string;
   owner: string;
@@ -54,6 +57,8 @@ export interface CityLot {
   showCrew: boolean;
   showDrone: boolean;
   botDetected: boolean;
+  /** Ground crew class. Drones may still fly over human high-PR yards. */
+  occupantClass: OccupantClass;
   stars: number;
   forks: number;
   openIssues: number;

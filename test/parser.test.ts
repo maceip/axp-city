@@ -74,6 +74,7 @@ describe("parseLot yard states", () => {
     expect(lot.showCrew).toBe(false);
     expect(lot.showDrone).toBe(false);
     expect(lot.recentActivity).toBe(false);
+    expect(lot.occupantClass).toBe("none");
   });
 
   it("issues quiet: open issues, no recent activity, no crew", () => {
@@ -99,6 +100,7 @@ describe("parseLot yard states", () => {
     expect(lot.showBlueprint).toBe(true);
     expect(lot.showCrew).toBe(true);
     expect(lot.showMaterials).toBe(false);
+    expect(lot.occupantClass).toBe("human");
   });
 
   it("PRs quiet: open PRs, no recent activity → materials, empty sidewalk", () => {
@@ -175,6 +177,7 @@ describe("drones and bots", () => {
     );
     expect(lot.botDetected).toBe(true);
     expect(lot.showDrone).toBe(true);
+    expect(lot.occupantClass).toBe("robot");
   });
 
   it("does not drone issue-only lots", () => {

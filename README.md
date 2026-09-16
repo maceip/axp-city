@@ -2,6 +2,8 @@
 
 A real **GitHub → isometric city** pipeline. Each repository becomes two adjacent plots: a **building pad** sized from stars, and a **receiving yard** whose props come from open issues, open PRs, and recent activity.
 
+Lots sit around **Central Park** with a reserved **freeway**, **tram**, and **river** that grow as repos are added (sticky addresses — the map never reshuffles). Ground tiles continue infinitely in every direction. The live page is an RPG-style HUD with touch controls; a new repo appears for every open browser as an under-construction plot.
+
 This is not a collage and not a hardcoded demo. The twelve Android repos in `repos.txt` are just the first city the CLI paints.
 
 ## Pipeline
@@ -18,7 +20,9 @@ repos.txt  →  ingest/  →  out/metrics.json
 | --- | --- |
 | `src/ingest/` | GitHub GraphQL (token) or REST. Writes `fixtures/github/` so later runs and tests can stay offline. |
 | `src/parser/` | Pure `RepoMetrics → CityLot`. Thresholds and precedence are documented in code and in [`docs/PARSER.md`](docs/PARSER.md). |
-| `src/render/` | Isometric SVG city (environment tiles + building silhouettes 01–50). Labels `owner/name`. Next engine: Phaser 4 — see [`docs/ENGINE.md`](docs/ENGINE.md). |
+| `src/world/` | Sticky lot addresses, Central Park / freeway / tram / river, infinite tiles. |
+| `src/render/` | Isometric SVG city (environment tiles + building silhouettes 01–50). Labels `owner/name`. RPG HUD, touch, air traffic. Next engine: Phaser 4 — see [`docs/ENGINE.md`](docs/ENGINE.md). |
+| `src/live/` | Shared city map (`data/city-map.json`) so every visitor sees the same plots. |
 | `src/cli/` | `ingest`, `render`, `demo`, `preview`. |
 
 ## Thresholds (parser)
@@ -29,6 +33,7 @@ Documented in `src/parser/thresholds.ts` and [`docs/PARSER.md`](docs/PARSER.md).
 - **Recent** = `pushed_at` within **14 days** **or** default-branch commits in that window.
 - **Yard precedence**: open PRs beat open issues. If both exist, the yard keeps PR materials *and* a small blueprint.
 - **Drones** when `openPrs ≥ 15` or a bot/agent author is present.
+- **Occupants:** humans on recent human yards; robots/drones on AI (bot) yards. See [`docs/CITY.md`](docs/CITY.md).
 
 ## Commands
 

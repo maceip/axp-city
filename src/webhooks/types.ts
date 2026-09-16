@@ -10,6 +10,7 @@ export type CitySignal =
   | "pr_closed"
   | "issue_opened"
   | "issue_closed"
+  | "repo_created"
   | "ping";
 
 export interface CityEvent {
