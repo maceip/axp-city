@@ -30,10 +30,30 @@ export interface HudActions {
   toggleMotion(): boolean;
 }
 
-const FONT = "ui-monospace, Menlo, Consolas, monospace";
+const FONT = "JetBrains Mono";
 const GOLD = "#f6dd91";
 const INK = "#f2efe2";
 const MUTED = "#b9c4b3";
+
+/** Phaser canvas text: one loaded mono face, no letterSpacing (that path doubles glyphs). */
+function ink(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  text: string,
+  style: { fontSize?: string; color?: string; fontStyle?: string; wordWrap?: { width: number } } = {},
+): Phaser.GameObjects.Text {
+  const label = scene.add.text(x, y, text, {
+    fontFamily: FONT,
+    fontSize: style.fontSize ?? "12px",
+    color: style.color ?? INK,
+    fontStyle: style.fontStyle,
+    padding: { x: 3, y: 2 },
+    wordWrap: style.wordWrap,
+  });
+  label.setResolution(2);
+  return label;
+}
 
 interface Button {
   container: Phaser.GameObjects.Container;
@@ -166,9 +186,9 @@ export class HudScene extends Phaser.Scene {
     this.mast.setName("mast");
     this.plate = this.add.container(16, 16);
     const plateBg = this.hudPanel("plate", 250, 78);
-    const title = this.add.text(14, 12, "SURVEY DESK", { fontFamily: FONT, fontSize: "11px", color: GOLD, letterSpacing: 3 });
-    this.district = this.add.text(14, 30, "Central Park", { fontFamily: FONT, fontSize: "18px", color: INK, fontStyle: "bold" });
-    this.coords = this.add.text(14, 55, "0 · 0", { fontFamily: FONT, fontSize: "11px", color: MUTED });
+    const title = ink(this, 14, 12, "SURVEY DESK", { fontSize: "11px", color: GOLD });
+    this.district = ink(this, 14, 30, "Central Park", { fontSize: "18px", fontStyle: "bold" });
+    this.coords = ink(this, 14, 55, "0 · 0", { fontSize: "11px", color: MUTED });
     this.plate.add([plateBg, title, this.district, this.coords]);
     this.plate.setSize(250, 78).setName("plate");
 
@@ -177,19 +197,19 @@ export class HudScene extends Phaser.Scene {
     status.setSize(320, 62);
     const statusBg = this.hudPanel("status", 320, 62);
     this.statusDot = this.add.graphics();
-    this.statusText = this.add.text(30, 10, "Connecting", { fontFamily: FONT, fontSize: "13px", color: INK });
-    this.freshText = this.add.text(14, 30, "GitHub data: —", { fontFamily: FONT, fontSize: "11px", color: MUTED });
-    this.countText = this.add.text(14, 45, "", { fontFamily: FONT, fontSize: "11px", color: MUTED });
+    this.statusText = ink(this, 30, 10, "Connecting", { fontSize: "13px" });
+    this.freshText = ink(this, 14, 30, "GitHub data: —", { fontSize: "11px", color: MUTED });
+    this.countText = ink(this, 14, 45, "", { fontSize: "11px", color: MUTED });
     status.add([statusBg, this.statusDot, this.statusText, this.freshText, this.countText]);
     status.setName("status");
     this.tools = status;
 
     this.compass = this.add.container(0, 92);
     const ring = this.hudPanel("compass", 52, 52);
-    const n = this.add.text(38, 2, "N", { fontFamily: FONT, fontSize: "10px", color: GOLD, fontStyle: "bold" });
-    const w = this.add.text(6, 24, "W", { fontFamily: FONT, fontSize: "9px", color: MUTED });
-    const e = this.add.text(40, 24, "E", { fontFamily: FONT, fontSize: "9px", color: MUTED });
-    const s = this.add.text(12, 42, "S", { fontFamily: FONT, fontSize: "9px", color: MUTED });
+    const n = ink(this, 38, 2, "N", { fontSize: "10px", color: GOLD, fontStyle: "bold" });
+    const w = ink(this, 6, 24, "W", { fontSize: "9px", color: MUTED });
+    const e = ink(this, 40, 24, "E", { fontSize: "9px", color: MUTED });
+    const s = ink(this, 12, 42, "S", { fontSize: "9px", color: MUTED });
     this.compass.add([ring, n, w, e, s]);
     // Circle centre is offset by the display origin like plateHit() rectangles.
     this.compass.setSize(52, 52).setInteractive({ useHandCursor: true, hitArea: new Phaser.Geom.Circle(52, 52, 26), hitAreaCallback: Phaser.Geom.Circle.Contains });
@@ -198,13 +218,13 @@ export class HudScene extends Phaser.Scene {
 
     this.massContainer = this.add.container(0, 92);
     const massBg = this.hudPanel("mass", 186, 44);
-    this.massLabel = this.add.text(12, 8, "MASS —", { fontFamily: FONT, fontSize: "10px", color: GOLD, letterSpacing: 1 });
+    this.massLabel = ink(this, 12, 8, "MASS —", { fontSize: "10px", color: GOLD });
     this.massBar = this.add.graphics();
     this.massContainer.add([massBg, this.massLabel, this.massBar]);
     this.massContainer.setSize(186, 44).setName("mass");
     this.drawMass(undefined);
 
-    this.zoomText = this.add.text(0, 0, "100%", { fontFamily: FONT, fontSize: "12px", color: INK }).setOrigin(0.5);
+    this.zoomText = ink(this, 0, 0, "100%", { fontSize: "12px" }).setOrigin(0.5);
     this.button("zoom-out", "−", 40, 40, () => this.actions.zoom(1 / 1.2));
     this.button("zoom-in", "+", 40, 40, () => this.actions.zoom(1.2));
 
@@ -213,7 +233,10 @@ export class HudScene extends Phaser.Scene {
     this.minimapBg.setPosition(-6, -6);
     this.minimapPlan = this.add.graphics();
     this.minimapView = this.add.graphics();
-    const mapLabel = this.add.text(this.minimapSize.w / 2, this.minimapSize.h + 8, "CITY OVERVIEW · drag to travel", { fontFamily: FONT, fontSize: "9px", color: MUTED, letterSpacing: 1 }).setOrigin(0.5, 0);
+    const mapLabel = ink(this, this.minimapSize.w / 2, this.minimapSize.h + 8, "CITY OVERVIEW · drag to travel", {
+      fontSize: "9px",
+      color: MUTED,
+    }).setOrigin(0.5, 0);
     this.minimap.add([this.minimapBg, this.minimapPlan, this.minimapView, mapLabel]);
     this.minimap.setSize(this.minimapSize.w, this.minimapSize.h);
     this.minimap.setInteractive({
@@ -257,14 +280,12 @@ export class HudScene extends Phaser.Scene {
     home.container.setPosition(52, 52);
     this.dpad.add(home.container);
 
-    this.hint = this.add
-      .text(0, 0, "FIELD NOTES · drag · scroll/pinch · WASD · / search · C census · F follow · Esc", {
-        fontFamily: FONT,
-        fontSize: "11px",
-        color: "#efe6c8",
-        backgroundColor: "rgba(58,62,52,0.92)",
-        padding: { x: 12, y: 7 },
-      })
+    this.hint = ink(this, 0, 0, "FIELD NOTES · drag · scroll/pinch · WASD · / search · C census · F follow · Esc", {
+      fontSize: "11px",
+      color: "#efe6c8",
+    })
+      .setPadding(12, 7)
+      .setBackgroundColor("rgba(58,62,52,0.92)")
       .setOrigin(0.5, 1);
     this.kitRail = this.hudPanel("rail", 136, 220);
     this.kitRail.setName("kit-rail");
@@ -295,13 +316,10 @@ export class HudScene extends Phaser.Scene {
     this.census.add(closeCensus.container);
 
     this.toastBg = this.hudPanel("toast", 360, 48).setOrigin(0.5, 1).setVisible(false).setDepth(49);
-    this.toastText = this.add
-      .text(0, 0, "", { fontFamily: FONT, fontSize: "13px", color: INK })
-      .setOrigin(0.5, 1)
-      .setVisible(false)
-      .setDepth(50);
-    this.tag = this.add
-      .text(0, 0, "", { fontFamily: FONT, fontSize: "12px", color: INK, backgroundColor: "rgba(21,37,32,0.94)", padding: { x: 8, y: 4 } })
+    this.toastText = ink(this, 0, 0, "", { fontSize: "13px" }).setOrigin(0.5, 1).setVisible(false).setDepth(50);
+    this.tag = ink(this, 0, 0, "", { fontSize: "12px" })
+      .setPadding(8, 4)
+      .setBackgroundColor("rgba(21,37,32,0.94)")
       .setVisible(false)
       .setDepth(60);
 
@@ -335,7 +353,7 @@ export class HudScene extends Phaser.Scene {
     const frame = height >= 40 && width <= 50 ? "btn-sq" : width >= 110 ? "btn-wide" : "btn";
     const img = this.hudPanel(frame, width, height);
     const bg = this.add.graphics();
-    const label = this.add.text(width / 2, height / 2, text, { fontFamily: FONT, fontSize: height >= 40 ? "20px" : "12px", color: INK }).setOrigin(0.5);
+    const label = ink(this, width / 2, height / 2, text, { fontSize: height >= 40 ? "18px" : "13px" }).setOrigin(0.5);
     const paint = (hover: boolean) => {
       img.setTint(hover ? 0xf0e0a0 : 0xffffff);
       bg.clear();
@@ -604,7 +622,7 @@ export class HudScene extends Phaser.Scene {
     const width = this.cardWidth();
     let y = 44;
     for (const [text, color, size] of lines) {
-      const t = this.add.text(16, y, text, { fontFamily: FONT, fontSize: size ?? "12px", color, wordWrap: { width: width - 32 } });
+      const t = ink(this, 16, y, text, { fontSize: size ?? "12px", color, wordWrap: { width: width - 32 } });
       this.card.add(t);
       this.cardTexts.push(t);
       y += t.height + 6;
@@ -722,18 +740,23 @@ export class HudScene extends Phaser.Scene {
     const rowH = 22;
     const visibleRows = Math.max(1, Math.floor((H - 70) / rowH));
     this.censusScroll = Math.min(this.censusScroll, Math.max(0, rows.length - visibleRows));
-    const title = this.add.text(16, 10, `LOT CENSUS · ${rows.length} of ${this.snapshot.plan.placements.length} repositories${this.censusFilter ? ` matching “${this.censusFilter}”` : ""} · sorted by ${this.censusSort.key} ${this.censusSort.descending ? "↓" : "↑"} · scroll or ↑↓ to browse, Enter to inspect`, {
-      fontFamily: FONT,
-      fontSize: "11px",
-      color: GOLD,
-      letterSpacing: 1,
-    });
+    const title = ink(
+      this,
+      16,
+      10,
+      `LOT CENSUS · ${rows.length} of ${this.snapshot.plan.placements.length} repositories${this.censusFilter ? ` matching “${this.censusFilter}”` : ""} · sorted by ${this.censusSort.key} ${this.censusSort.descending ? "↓" : "↑"} · scroll or ↑↓ to browse, Enter to inspect`,
+      { fontSize: "11px", color: GOLD },
+    );
     this.census.add(title);
     this.censusHeader.push(title);
     let x = 16;
     for (const column of this.columns()) {
       const sortable = ["repo", "stars", "issues", "prs", "band", "district"].includes(column.key);
-      const header = this.add.text(x, 34, `${column.label}${this.censusSort.key === column.key ? (this.censusSort.descending ? " ↓" : " ↑") : ""}`, { fontFamily: FONT, fontSize: "11px", color: sortable ? INK : MUTED, fontStyle: "bold" });
+      const header = ink(this, x, 34, `${column.label}${this.censusSort.key === column.key ? (this.censusSort.descending ? " ↓" : " ↑") : ""}`, {
+        fontSize: "11px",
+        color: sortable ? INK : MUTED,
+        fontStyle: "bold",
+      });
       if (sortable) {
         header.setInteractive({ useHandCursor: true });
         header.on("pointerup", () => this.sortBy(column.key as CensusSortKey));
@@ -747,7 +770,7 @@ export class HudScene extends Phaser.Scene {
       const y = 58 + i * rowH;
       const selected = row.repo === this.selected?.lot.fullName;
       let cx = 16;
-      const line = this.add.text(0, y, "", { fontFamily: FONT, fontSize: "11px", color: selected ? GOLD : INK });
+      const line = ink(this, 0, y, "", { fontSize: "11px", color: selected ? GOLD : INK });
       let text = "";
       for (const column of this.columns()) {
         const value = String(cellValue(row, column.key));
@@ -765,7 +788,10 @@ export class HudScene extends Phaser.Scene {
       void cx;
     });
     if (rows.length > visibleRows) {
-      const more = this.add.text((this.census.width || this.scale.width) - 16, H - 18, `${this.censusScroll + slice.length}/${rows.length}`, { fontFamily: FONT, fontSize: "10px", color: MUTED }).setOrigin(1, 1);
+      const more = ink(this, (this.census.width || this.scale.width) - 16, H - 18, `${this.censusScroll + slice.length}/${rows.length}`, {
+        fontSize: "10px",
+        color: MUTED,
+      }).setOrigin(1, 1);
       this.census.add(more);
       this.censusHeader.push(more);
     }
