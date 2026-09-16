@@ -576,6 +576,7 @@ function yardOps(
   images: ImageStamp[],
   anims: RawAnim[],
   ellipses: EllipseOp[],
+  diamonds: DiamondOp[],
 ): void {
   const { lot } = place;
   const origin = yardOrigin(place.x, place.y);
@@ -598,11 +599,32 @@ function yardOps(
     const p = at("materials");
     matsOps(p.x, p.y, lot, images, anims, depth);
     const bays = lot.layout?.bays ?? 1;
+    if (bays > 1) {
+      diamonds.push({
+        kind: "diamond",
+        x: place.x + 1.85,
+        y: place.y + 0.22,
+        w: 2.05,
+        d: 2.05,
+        fill: hex("5c6168"),
+        fillAlpha: 0.95,
+        stroke: hex("d4b45a"),
+        strokeAlpha: 0.7,
+        depth: -99_990,
+      });
+      const apron = project(yx + 1.05, yy + 1.15);
+      images.push(
+        imageStamp(GROUND_SHEET, GROUND_TILES.asphaltSlab, apron.sx, apron.sy, 128, false, depth - 1.2, "world", {
+          repo: lot.fullName,
+          tag: "loading-apron",
+        }),
+      );
+    }
     for (let bay = 1; bay < bays; bay++) {
       const pallet = MATERIAL_PALLETS[(lot.buildingId + bay * 2) % MATERIAL_PALLETS.length];
-      const a = project(p.x + 0.9 + bay * 0.42, p.y + 0.85 - bay * 0.38);
+      const a = project(p.x + 0.45 + bay * 0.85, p.y + 1.25 - bay * 0.52);
       images.push(
-        imageStamp(PROP_SHEETS.materials, pallet, a.sx, a.sy, 70, !lot.recentActivity, depth + 0.2, "world", {
+        imageStamp(PROP_SHEETS.materials, pallet, a.sx, a.sy, 78, !lot.recentActivity, depth + 0.2, "world", {
           repo: lot.fullName,
           tag: `bay:${bay + 1}`,
         }),
@@ -766,7 +788,7 @@ export function planLot(
   const raw: RawAnim[] = [];
   lotTileOps(place, place.lot.buildingId, result.diamonds, result.images);
   buildingOp(place, result.images);
-  if (detail) yardOps(place, result.images, raw, result.ellipses);
+  if (detail) yardOps(place, result.images, raw, result.ellipses, result.diamonds);
   result.hits.push({
     kind: "hit",
     repo: place.lot.fullName,

@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { ambientActors } from "../../src/game/ambient.js";
 import { findPlacement } from "../../src/game/census.js";
-import { buildingBounds, buildingSize } from "../../src/game/geometry.js";
+import { buildingBounds, buildingSize, lotSampleBounds } from "../../src/game/geometry.js";
 import { planLot, type LotRenderPlan } from "../../src/game/plan.js";
 import { overlaps, unproject, visibleChunks, type Rect } from "../../src/game/visibility.js";
 import type { CityMutation, CitySnapshot } from "../../src/live/protocol.js";
@@ -291,29 +291,20 @@ export class CityScene extends Phaser.Scene {
     };
   }
 
-  /** Screen-space rectangle (CSS pixels) covering a lot's building and yard. */
+  /** Screen-space rectangle (CSS pixels) covering a lot's pad, yard, and building foot. */
   private screenRect(repo: string): { x: number; y: number; width: number; height: number } | null {
     const p = this.city.plan.placements.find((p) => p.lot.fullName === repo);
     if (!p) return null;
-    // Union of the building sprite box and the projected lot diamond (yard included).
-    const b = lotBounds(p);
-    const corners = [
-      project(p.x, p.y),
-      project(p.x + LOT_W, p.y),
-      project(p.x, p.y + LOT_D),
-      project(p.x + LOT_W, p.y + LOT_D),
-    ];
-    const xs = [b.x, b.x + b.width, ...corners.map((c) => c.sx)];
-    const ys = [b.y, b.y + b.height, ...corners.map((c) => c.sy)];
-    const left = Math.min(...xs);
-    const top = Math.min(...ys);
+    // Lot-diamond sample: yard bays/props dominate. Tower tops may clip.
+    // Click targeting still uses lotBounds via screenPoint.
+    const b = lotSampleBounds(p);
     const view = this.view();
     const zoom = this.cameras.main.zoom;
     return {
-      x: (left - view.x) * zoom,
-      y: (top - view.y) * zoom,
-      width: (Math.max(...xs) - left) * zoom,
-      height: (Math.max(...ys) - top) * zoom,
+      x: (b.x - view.x) * zoom,
+      y: (b.y - view.y) * zoom,
+      width: b.width * zoom,
+      height: b.height * zoom,
     };
   }
 

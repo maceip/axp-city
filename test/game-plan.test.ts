@@ -1,4 +1,4 @@
-import { buildingSize } from "../src/game/geometry.js";
+import { buildingBounds, buildingSize, lotSampleBounds } from "../src/game/geometry.js";
 import { describe, expect, it } from "vitest";
 import { planLot, requiredSheets } from "../src/game/plan.js";
 import { ambientActors, pointAlong } from "../src/game/ambient.js";
@@ -19,6 +19,22 @@ describe("Phaser scene planning", () => {
       expect(size.width).toBeLessThanOrEqual(168.000001);
       expect(size.height).toBeLessThanOrEqual(210.000001);
     }
+  });
+  it("samples the lot diamond and building foot, not the full L-tower union", () => {
+    const place = planCity(
+      parseCity([metrics({ fullName: "acme/forge", stars: 25000 })], { now: FIXED_NOW }),
+    ).placements[0];
+    place.lot.buildingId = 42;
+    place.lot.buildingBand = "L";
+    const tower = buildingBounds(place);
+    const sample = lotSampleBounds(place);
+    const diamondH =
+      project(place.x + 4, place.y + 2.4).sy - project(place.x, place.y).sy;
+    expect(sample.height).toBeLessThan(tower.height);
+    expect(sample.height).toBeLessThan(diamondH * 2.2);
+    expect(sample.y).toBeGreaterThan(tower.y);
+    expect(diamondH / sample.height).toBeGreaterThan(0.45);
+    expect(sample.width).toBeGreaterThan(diamondH);
   });
   it("preserves the shared world addresses and gives every lot its own building and loading zone", () => {
     const places = planCity(
@@ -129,6 +145,8 @@ describe("Phaser scene planning", () => {
     place.lot.extraProps = ["cones", "lamp", "bench"];
     const custom = planLot(place);
     expect(custom.images.filter((i) => i.tag?.startsWith("bay:"))).toHaveLength(2);
+    expect(custom.images.some((i) => i.tag === "loading-apron")).toBe(true);
+    expect(custom.diamonds.length).toBeGreaterThan(base.diamonds.length);
     expect(custom.images.filter((i) => i.tag?.startsWith("decor:")).map((i) => i.tag)).toEqual([
       "decor:cones",
       "decor:lamp",
