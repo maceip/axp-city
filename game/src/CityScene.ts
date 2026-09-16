@@ -474,7 +474,9 @@ export class CityScene extends Phaser.Scene {
     this.actors.setLotActors(place.lot.fullName, ops.anims);
     for (const anim of ops.anims) if (!this.assets.ready(anim.anim) && !this.assets.isFailed(anim.anim)) incomplete = true;
     this.lots.set(place.lot.fullName, { images, shapes, signature, bounds, place, incomplete, stage: ops.construction?.stage ?? "complete" });
-    if (this.selected === place.lot.fullName && this.hudReady) this.hud.setSelection(place);
+    // A rebuild (construction tick, sheet arrival) refreshes the card quietly; data
+    // changes and stage changes are announced by the HUD itself.
+    if (this.selected === place.lot.fullName && this.hudReady) this.hud.setSelection(place, false);
   }
 
   private view(): Rect {

@@ -388,7 +388,9 @@ export class HudScene extends Phaser.Scene {
     this.drawStatus();
     if (this.selected) {
       const again = snapshot.plan.placements.find((p) => p.lot.fullName === this.selected!.lot.fullName);
-      if (again) this.setSelection(again);
+      // Placements keep their identity across mutations of other lots, so a new
+      // object means this lot changed and is worth announcing; otherwise redraw quietly.
+      if (again) this.setSelection(again, again !== this.selected);
       else this.setSelection(undefined);
     }
     if (this.censusOpen) this.renderCensus();
