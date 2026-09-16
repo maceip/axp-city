@@ -394,7 +394,6 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
     const chevronStep = glance ? 2 : Math.max(2, Math.ceil(span / 6));
-    const labelStep = glance ? 3 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
       const at = project(laneX + 2.2, streetY + band * 0.5);
@@ -402,15 +401,18 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
         .image(at.sx, at.sy, "bike-chevron-k1")
         .setOrigin(0.5)
         .setRotation(Math.atan2(1, 2))
-        .setDisplaySize(glance ? 84 : 48, glance ? 50 : 28)
+        .setDisplaySize(glance ? 100 : 44, glance ? 60 : 26)
         .setDepth(at.sy + 6);
       chevron.setData("bikeLaneMark", true);
       chevron.setData("bikeLaneGlance", glance);
       objects.push(chevron);
     }
-    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += labelStep) {
-      const at = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.6, streetY + band * 0.5);
-      objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 20 : 10), glance));
+    if (glance) {
+      const labelStep = 3;
+      for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += labelStep) {
+        const at = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.6, streetY + band * 0.5);
+        objects.push(bikeLanePlaque(scene, at.sx, at.sy + 18, true));
+      }
     }
   };
   for (const row of plan.streetRows) {
