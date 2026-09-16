@@ -593,9 +593,9 @@ export class CityScene extends Phaser.Scene {
     const developed = center.x >= b.minX && center.x <= b.maxX && center.y >= b.minY && center.y <= b.maxY;
     if (this.hudReady)
       this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
-    const markScale = Math.min(3.4, Math.max(1, 1.05 / this.cameras.main.zoom));
+    const markScale = Math.min(2.4, Math.max(1, 0.95 / this.cameras.main.zoom));
     for (const object of this.civics) {
-      if (object.getData("bikeLaneMark")) (object as Phaser.GameObjects.Container).setScale(markScale);
+      if (object.getData("bikeLaneGlance")) (object as Phaser.GameObjects.Container).setScale(markScale);
     }
   }
 

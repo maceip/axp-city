@@ -368,23 +368,33 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   };
   ensureBikeMarkTextures(scene);
   const paintBikeBand = (x: number, streetY: number, w: number, band: number, glance: boolean) => {
-    const mid = project(x + w / 2, streetY + band * 0.5);
-    const bandG = scene.add.graphics().setDepth(mid.sy - 4);
-    objects.push(bandG);
-    const fillBand = (bx: number, by: number, bw: number, bh: number, color: number, alpha = 1) => {
-      const p = [project(bx, by), project(bx + bw, by), project(bx + bw, by + bh), project(bx, by + bh)].map(
-        (q) => new Phaser.Math.Vector2(q.sx, q.sy),
-      );
-      bandG.fillStyle(color, alpha);
-      bandG.fillPoints(p, true);
-    };
-    fillBand(x - 0.08, streetY - 0.08, w + 0.16, band + 0.16, 0x3f3c34, 1);
-    fillBand(x, streetY, w, band, 0xa89c68, 1);
-    fillBand(x, streetY, w, 0.18, 0xece3b8, 0.98);
-    fillBand(x, streetY + band - 0.18, w, 0.18, 0xece3b8, 0.98);
+    if (glance) {
+      const mid = project(x + w / 2, streetY + band * 0.5);
+      const bandG = scene.add.graphics().setDepth(mid.sy - 4);
+      objects.push(bandG);
+      for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
+        const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
+        const outline = [
+          project(laneX - 0.06, streetY - 0.06),
+          project(laneX + STRIDE_X + 0.06, streetY - 0.06),
+          project(laneX + STRIDE_X + 0.06, streetY + band + 0.06),
+          project(laneX - 0.06, streetY + band + 0.06),
+        ].map((q) => new Phaser.Math.Vector2(q.sx, q.sy));
+        bandG.fillStyle(0x3f3c34, 1);
+        bandG.fillPoints(outline, true);
+        const fill = [
+          project(laneX, streetY),
+          project(laneX + STRIDE_X, streetY),
+          project(laneX + STRIDE_X, streetY + band),
+          project(laneX, streetY + band),
+        ].map((q) => new Phaser.Math.Vector2(q.sx, q.sy));
+        bandG.fillStyle(0xa89c68, 1);
+        bandG.fillPoints(fill, true);
+      }
+    }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
-    const chevronStep = glance ? 1 : Math.max(1, Math.ceil(span / 8));
-    const labelStep = Math.max(2, Math.ceil(span / 5));
+    const chevronStep = glance ? 2 : Math.max(2, Math.ceil(span / 6));
+    const labelStep = glance ? 3 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
       const at = project(laneX + 2.2, streetY + band * 0.5);
@@ -392,14 +402,15 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
         .image(at.sx, at.sy, "bike-chevron-k1")
         .setOrigin(0.5)
         .setRotation(Math.atan2(1, 2))
-        .setDisplaySize(glance ? 92 : 70, glance ? 54 : 40)
+        .setDisplaySize(glance ? 84 : 48, glance ? 50 : 28)
         .setDepth(at.sy + 6);
       chevron.setData("bikeLaneMark", true);
+      chevron.setData("bikeLaneGlance", glance);
       objects.push(chevron);
     }
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += labelStep) {
       const at = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.6, streetY + band * 0.5);
-      objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 22 : 14), glance));
+      objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 20 : 10), glance));
     }
   };
   for (const row of plan.streetRows) {
@@ -492,5 +503,6 @@ function bikeLanePlaque(scene: Phaser.Scene, sx: number, sy: number, glance: boo
   box.setSize(w, h);
   box.setDepth(sy + 12);
   box.setData("bikeLaneMark", true);
+  box.setData("bikeLaneGlance", glance);
   return box;
 }
