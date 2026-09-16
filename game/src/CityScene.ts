@@ -337,7 +337,7 @@ export class CityScene extends Phaser.Scene {
               type: mark.type,
               kind,
               glance: Boolean(object.getData("bikeLaneGlance")),
-              visible: object.visible,
+              visible: (object as Phaser.GameObjects.Container).visible,
             };
           });
       },
@@ -612,7 +612,7 @@ export class CityScene extends Phaser.Scene {
     const showPlaques = zoom >= BIKE_PLAQUE_MIN_ZOOM;
     for (const object of this.civics) {
       if (object.getData("bikeLanePlaque")) {
-        object.setVisible(showPlaques);
+        (object as Phaser.GameObjects.Container).setVisible(showPlaques);
         continue;
       }
       if (!object.getData("bikeLaneGlance")) continue;
