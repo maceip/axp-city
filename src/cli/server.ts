@@ -6,6 +6,7 @@ import { parseLot } from "../parser/parseLot.js";
 import { loadFixtureRepositoryRules, loadLocalRules, repoName } from "../rules/load.js";
 import { loadArtworkApprovals } from "../rules/artwork.js";
 import {
+  PrivateRepositoryError,
   resolveRepository,
   type ResolvedRepository,
 } from "../live/repository.js";
@@ -136,6 +137,8 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     const rows = await readFixture(fixturePath);
     const row = rows.find((item) => item.fullName.toLowerCase() === name.toLowerCase());
     if (!row) throw new Error(`Offline fixture has no repository ${name}`);
+    // Same visibility rule as the live resolver: a row that turned private is withdrawn, not retried.
+    if (row.isPrivate === true) throw new PrivateRepositoryError(name);
     const metrics: RepoMetrics = { ...row, source: "fixture", isPrivate: row.isPrivate ?? false };
     const local = await loadLocalRules(config.rulesDir);
     const rules = await loadFixtureRepositoryRules(name, config.rulesDir, local);

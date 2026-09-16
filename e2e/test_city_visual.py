@@ -5,6 +5,8 @@ by their canvas positions (`hudPoint`), and saves screenshots for inspection.
 """
 import json
 import time
+
+import pytest
 from pathlib import Path
 
 from conftest import ADMIN, ready, repo_metrics
@@ -444,6 +446,59 @@ def test_rename_keeps_the_address_and_removal_keeps_neighbours(page, server):
     for name, at in final.items():
         assert at == after[name], name
     page.screenshot(path=str(SHOTS / "after-rename-removal.png"))
+
+
+def test_repository_turning_private_is_withdrawn_from_every_public_path(browser, server):
+    """Handoff item 9: a public-to-private transition withdraws the published records
+    everywhere a visitor could still see them — two live browsers, the census and
+    search, the accessible mirror, the snapshot, history, public events and both exports."""
+    import urllib.error
+    import urllib.request
+    a, b = browser.new_page(), browser.new_page()
+    ready(a, server.url)
+    ready(b, server.url)
+    repo = server.metrics[6]["fullName"]  # acme/stale
+    assert server.webhook(repo, "stale-public") == 202
+    a.wait_for_function("r => window.__AXP.snapshot().plan.placements.some(p => p.lot.fullName === r)", arg=repo)
+    assert any(e["repo"] == repo for e in server.get("/events"))
+    select(a, repo)
+    server.metrics[6]["isPrivate"] = True
+    server.save()
+    assert server.webhook(repo, "stale-private") == 202
+    for tab in (a, b):
+        tab.wait_for_function("r => !window.__AXP.snapshot().plan.placements.some(p => p.lot.fullName === r)", arg=repo, timeout=15000)
+        assert diag(tab)["totalLots"] == 7
+        assert repo not in a11y(tab, "#a11y-repos")
+        tab.evaluate("document.activeElement && document.activeElement.blur()")
+        tab.keyboard.press("c")
+        tab.wait_for_function("window.__AXP.diagnostics().censusOpen")
+        tab.locator("#repo-search").fill("stale")
+        tab.wait_for_function("document.querySelectorAll('#a11y-census tr').length === 1")  # header only
+        tab.locator("#repo-search").press("Escape")
+        tab.keyboard.press("Escape")
+        tab.wait_for_function("!window.__AXP.diagnostics().censusOpen")
+    # The selection that pointed at it is gone, not left pointing at a phantom.
+    assert diag(a)["selected"] != repo and not diag(a)["cardVisible"]
+    a.screenshot(path=str(SHOTS / "private-withdrawn.png"))
+    # Every server-side public path agrees.
+    assert all(p["lot"]["fullName"] != repo for p in server.get("/api/city")["plan"]["placements"])
+    assert all(p["lot"]["fullName"] != repo for p in server.get("/api/city/export.json")["plan"]["placements"])
+    assert all(e["repo"] != repo for e in server.get("/events"))
+    with pytest.raises(urllib.error.HTTPError) as denied:
+        urllib.request.urlopen(f"{server.url}/api/city/history?repo={repo}", timeout=5)
+    assert denied.value.code == 404
+    with urllib.request.urlopen(f"{server.url}/api/city/export.svg", timeout=10) as response:
+        svg = response.read().decode()
+    assert 'data-repo="acme/forge"' in svg and repo not in svg
+    # Later deliveries for it are recorded as ignored and change nothing; neighbours keep their addresses.
+    before = {p["lot"]["fullName"]: (p["x"], p["y"]) for p in server.get("/api/city")["plan"]["placements"]}
+    assert server.webhook(repo, "stale-after") == 202
+    a.wait_for_timeout(1500)
+    assert {p["lot"]["fullName"]: (p["x"], p["y"]) for p in server.get("/api/city")["plan"]["placements"]} == before
+    status = server.get("/api/city/status")
+    assert status["freshness"]["failingRepositories"] == 0, status["freshness"]
+    a.close()
+    b.close()
 
 
 def test_reduced_motion_holds_crews_and_traffic(page):
