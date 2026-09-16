@@ -730,15 +730,28 @@ function roofOps(place: LotPlacement, images: ImageStamp[]): void {
   const roofY = foot.sy - size.height * 0.86;
   const depth = depthAt(place.x, place.y, 8);
   if (bays > 1) {
+    images.push(
+      imageStamp(
+        CIVIC_SHEET,
+        CIVIC_SPRITES["bank-office"],
+        roofX,
+        roofY + 28,
+        58,
+        false,
+        depth,
+        "world",
+        { repo: lot.fullName, tag: "roof-sign" },
+      ),
+    );
     for (let bay = 1; bay < bays; bay++) {
       const pallet = MATERIAL_PALLETS[(lot.buildingId + bay * 3) % MATERIAL_PALLETS.length];
       images.push(
         imageStamp(
           PROP_SHEETS.materials,
           pallet,
-          roofX - 30 + bay * 30,
-          roofY + 40,
-          54,
+          roofX - 36 + bay * 36,
+          roofY + 52,
+          68,
           false,
           depth,
           "world",
