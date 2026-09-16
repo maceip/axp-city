@@ -1,0 +1,7 @@
+{
+  "fetchedAt": "2026-09-16T12:00:00.000Z",
+  "source": "test-fixture",
+  "daily": ["trend/daily-one", "trend/daily-two", "trend/shared"],
+  "weekly": ["trend/weekly-one", "trend/weekly-two", "trend/shared"],
+  "monthly": ["trend/monthly-one", "trend/monthly-two", "trend/weekly-one"]
+}

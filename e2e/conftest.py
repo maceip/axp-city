@@ -32,9 +32,10 @@ def fixture_metrics():
 
 
 class CityServer:
-    def __init__(self, root, metrics):
+    def __init__(self, root, metrics, extra_env=None):
         self.root = root
         self.metrics = metrics
+        self.extra_env = extra_env or {}
         self.file = root / "metrics.json"
         self.rules = root / "rules"
         self.rules.mkdir()
@@ -50,7 +51,7 @@ class CityServer:
         self.file.write_text(json.dumps(self.metrics))
 
     def start(self):
-        env = dict(os.environ, CITY_OFFLINE="1", CITY_DATA_DIR=str(self.root / "data"), CITY_FIXTURE_PATH=str(self.file), CITY_RULES_DIR=str(self.rules), GITHUB_WEBHOOK_SECRET=SECRET, CITY_ADMIN_TOKEN=ADMIN, HOST="127.0.0.1")
+        env = dict(os.environ, CITY_OFFLINE="1", CITY_DATA_DIR=str(self.root / "data"), CITY_FIXTURE_PATH=str(self.file), CITY_RULES_DIR=str(self.rules), GITHUB_WEBHOOK_SECRET=SECRET, CITY_ADMIN_TOKEN=ADMIN, HOST="127.0.0.1", **self.extra_env)
         self.log = (self.root / "server.log").open("a")
         self.proc = subprocess.Popen(["node", "dist/server/cli/server.js", "--port", str(self.port)], cwd=REPO, env=env, stdout=self.log, stderr=subprocess.STDOUT)
         for _ in range(100):

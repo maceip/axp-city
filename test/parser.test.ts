@@ -311,3 +311,11 @@ describe("does not hardcode demo repo names", () => {
     expect(a.buildingBand).toBe(b.buildingBand);
   });
 });
+
+describe("trending cadence", () => {
+  it("passes cadence through without deriving it from metrics", () => {
+    const lot = parseLot(metrics({ fullName: "acme/daily" }), { ...opts, cadence: "daily" });
+    expect(lot.cadence).toBe("daily");
+    expect(parseLot(metrics({ fullName: "acme/daily" }), opts).cadence).toBeUndefined();
+  });
+});

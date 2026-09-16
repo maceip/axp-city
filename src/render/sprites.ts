@@ -405,13 +405,16 @@ export const DECOR_LAMP = groundBox("lampPost");
 export const DECOR_BENCH = groundBox("benchProp");
 
 /**
- * Streets and lot bases from the ground kit. ROAD_TILES alternate along a
- * street run; the dual-plot tiles stamp one connected pad+yard per lot
- * (concrete production pad on the art's left, yard on the right).
+ * Streets and lot bases from the v5 Kenney-style ground kit. Lot plates use
+ * the single isometric diamonds (grass / dirt / pave) at native 2:1 aspect —
+ * the dual-plot tiles are a different raised-hex construction language and
+ * are not stamped as lot pads.
  */
 export const ROAD_TILES = ["roadPlain", "roadDashed"].map(groundBox);
-export const LOT_TILE_GRASS = ["dualGrassA", "dualGrassB"].map(groundBox);
-export const LOT_TILE_DIRT = groundBox("dualDirt");
+export const LOT_TILE_GRASS = ["grassA", "grassB", "grassC"].map(groundBox);
+export const LOT_TILE_DIRT = groundBox("dirtA");
+export const LOT_TILE_PAVE = ["paveA", "paveB"].map(groundBox);
+export const LOADING_APRON_TILE = groundBox("asphaltSlab");
 export const MANHOLE_TILE = groundBox("manhole");
 export const CONE_TILE = groundBox("cone");
 

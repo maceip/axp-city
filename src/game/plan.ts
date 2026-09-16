@@ -26,8 +26,10 @@ import {
   GROUND_SHEET,
   GROUND_TILES,
   HUD_SHEET,
+  LOADING_APRON_TILE,
   LOT_TILE_DIRT,
   LOT_TILE_GRASS,
+  LOT_TILE_PAVE,
   MATERIAL_LOOSE,
   MATERIAL_PALLETS,
   PLANNING_SHEET,
@@ -169,51 +171,57 @@ function imageStamp(
   };
 }
 
+/**
+ * Stamp a v5 Kenney iso diamond at native aspect (uniform scale). Dual-plot
+ * hex pads and independently-scaled plates fight the building camera.
+ */
+function stampIsoTile(
+  box: SpriteBox,
+  wx: number,
+  wy: number,
+  targetW: number,
+  depth: number,
+  layer: StampLayer,
+  extra?: Partial<ImageStamp>,
+): ImageStamp {
+  const a = project(wx, wy);
+  return imageStamp(GROUND_SHEET, box, a.sx, a.sy, targetW, false, depth, layer, extra);
+}
+
 function lotTileOps(
   place: LotPlacement,
   index: number,
-  diamonds: DiamondOp[],
+  _diamonds: DiamondOp[],
   images: ImageStamp[],
 ): void {
   const { lot, x, y } = place;
   const loading = (lot.layout?.bays ?? 1) > 1;
   const worked = lot.yard === "fully_dormant" || lot.yard.startsWith("prs_");
-  const tile: SpriteBox = loading
-    ? GROUND_TILES.asphaltSlab
+  const plate = loading
+    ? LOT_TILE_PAVE[index % LOT_TILE_PAVE.length]
     : worked
       ? LOT_TILE_DIRT
       : LOT_TILE_GRASS[index % LOT_TILE_GRASS.length];
-  const bed = loading ? "5c6168" : worked ? "c9a06b" : "8fc46a";
-  diamonds.push({
-    kind: "diamond",
-    x: x + 0.15,
-    y: y + 0.15,
-    w: LOT_W - 0.3,
-    d: LOT_D - 0.3,
-    fill: hex(bed),
-    fillAlpha: 1,
-    stroke: hex(loading ? "d4b45a" : "283c23"),
-    strokeAlpha: loading ? 0.7 : 0.18,
-    depth: -100_000,
-  });
-  const bc = {
-    sx: project(x + LOT_W / 2, y + LOT_D / 2).sx,
-    sy: project(x + LOT_W, y + LOT_D).sy,
-  };
-  const stamp = imageStamp(
-    GROUND_SHEET,
-    tile,
-    bc.sx,
-    bc.sy,
-    tile.w,
-    false,
-    -99_999,
-    "ground",
-    loading ? { repo: lot.fullName, tag: "loading-pad" } : undefined,
+  // Building-scale plate: same 2:1 iso language as the Kenney catalog, not a
+  // lot-sized raised hex. Terrain already paints the rest of the plot.
+  images.push(
+    stampIsoTile(plate, x + 1.05, y + LOT_D / 2 + 0.05, 118, -99_999, "ground", {
+      repo: lot.fullName,
+      tag: "lot-plate",
+    }),
   );
-  stamp.scaleX = ((LOT_W + LOT_D) * 36) / tile.w;
-  stamp.scaleY = ((LOT_W + LOT_D) * 18) / tile.h;
-  images.push(stamp);
+  // Receiving / loading zone: concrete apron on the yard side.
+  images.push(
+    stampIsoTile(
+      loading ? LOT_TILE_PAVE[(index + 1) % LOT_TILE_PAVE.length] : LOADING_APRON_TILE,
+      x + 2.45,
+      y + 0.95,
+      96,
+      -99_997,
+      "ground",
+      { repo: lot.fullName, tag: loading ? "loading-pad" : "loading-zone" },
+    ),
+  );
 }
 
 function blueprintOps(
@@ -580,7 +588,7 @@ function yardOps(
   images: ImageStamp[],
   anims: RawAnim[],
   ellipses: EllipseOp[],
-  diamonds: DiamondOp[],
+  _diamonds: DiamondOp[],
 ): void {
   const { lot } = place;
   const origin = yardOrigin(place.x, place.y);
@@ -604,21 +612,9 @@ function yardOps(
     matsOps(p.x, p.y, lot, images, anims, depth);
     const bays = lot.layout?.bays ?? 1;
     if (bays > 1) {
-      diamonds.push({
-        kind: "diamond",
-        x: place.x + 1.85,
-        y: place.y + 0.22,
-        w: 2.05,
-        d: 2.05,
-        fill: hex("5c6168"),
-        fillAlpha: 0.95,
-        stroke: hex("d4b45a"),
-        strokeAlpha: 0.7,
-        depth: -99_990,
-      });
       const apron = project(yx + 1.05, yy + 1.15);
       images.push(
-        imageStamp(GROUND_SHEET, GROUND_TILES.asphaltSlab, apron.sx, apron.sy, 128, false, depth - 1.2, "world", {
+        imageStamp(GROUND_SHEET, LOT_TILE_PAVE[0], apron.sx, apron.sy, 102, false, depth - 1.2, "ground", {
           repo: lot.fullName,
           tag: "loading-apron",
         }),
@@ -891,18 +887,13 @@ export function planLot(
       );
     }
     if (site.siteDressing) {
-      result.diamonds.push({
-        kind: "diamond",
-        x: place.x + 0.2,
-        y: place.y + 0.2,
-        w: LOT_W - 0.4,
-        d: LOT_D - 0.4,
-        fill: hex("c9a06b"),
-        fillAlpha: 1,
-        stroke: hex("503214"),
-        strokeAlpha: 0.25,
-        depth: -99_995,
-      });
+      const graded = project(place.x + 1.1, place.y + LOT_D / 2 + 0.1);
+      result.images.push(
+        imageStamp(GROUND_SHEET, LOT_TILE_DIRT, graded.sx, graded.sy, 118, false, -99_995, "ground", {
+          repo: place.lot.fullName,
+          tag: "site-grade",
+        }),
+      );
       for (const [i, [cx, cy]] of [
         [0.35, 0.4],
         [3.4, 1.8],

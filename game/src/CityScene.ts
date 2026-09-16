@@ -257,6 +257,31 @@ export class CityScene extends Phaser.Scene {
         uniqueFacades: new Set(
           this.city.plan.placements.map((p) => `${p.lot.buildingId}:${p.lot.facadeTint}:${p.lot.dressingProp}`),
         ).size,
+        cityName: this.city.city?.name ?? "AXP City",
+        cityKind: this.city.city?.kind ?? "standard",
+        labels: this.city.plan.labels ?? [],
+        cadences: this.city.plan.placements.reduce<Record<string, number>>((acc, place) => {
+          const key = place.lot.cadence ?? "none";
+          acc[key] = (acc[key] ?? 0) + 1;
+          return acc;
+        }, {}),
+        districts: this.city.plan.placements.reduce<Record<string, number>>((acc, place) => {
+          acc[place.district] = (acc[place.district] ?? 0) + 1;
+          return acc;
+        }, {}),
+        loadingZoneTiles: this.city.plan.placements.slice(0, 8).map((place) => {
+          const plan = planLot(place, true, this.now());
+          return {
+            repo: place.lot.fullName,
+            ground: plan.images
+              .filter((image) => image.layer === "ground")
+              .map((image) => ({ tag: image.tag, scaleX: image.scaleX, scaleY: image.scaleY, box: image.box })),
+            islandDiamonds: plan.diamonds.length,
+            uniformGround: plan.images
+              .filter((image) => image.layer === "ground")
+              .every((image) => Math.abs(image.scaleX - image.scaleY) < 1e-6),
+          };
+        }),
         frameMs: this.frameStats(),
       }),
       snapshot: () => this.city,
@@ -278,6 +303,7 @@ export class CityScene extends Phaser.Scene {
         return place ? planLot(place, true, this.now()).images.map((i) => i.tag ?? i.sheet) : [];
       },
       select: (repo: string | undefined) => this.select(repo, true),
+      home: () => this.home(),
       setReducedMotion: (on: boolean) => this.setReducedMotion(on),
       resetFrameStats: () => {
         this.frameTimes = [];
@@ -551,7 +577,19 @@ export class CityScene extends Phaser.Scene {
     const b = this.city.plan.bounds;
     const developed = center.x >= b.minX && center.x <= b.maxX && center.y >= b.minY && center.y <= b.maxY;
     if (this.hudReady)
-      this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
+      this.hud.setCamera(
+        view,
+        this.cameras.main.zoom,
+        developed
+          ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y), {
+              trending:
+                this.city.city?.kind === "trending" ||
+                this.city.plan.placements.some((p) => p.lot.cadence),
+            })
+          : "The Wilds",
+        center.x,
+        center.y,
+      );
   }
 
   private drawSelection(): void {

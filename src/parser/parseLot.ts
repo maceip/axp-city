@@ -289,6 +289,7 @@ export function parseLot(
       carriedFields: [...options.carried.fields],
       carriedFrom: options.carried.from,
     };
+  if (options.cadence) lot.cadence = options.cadence;
   return lot;
 }
 

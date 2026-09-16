@@ -1,6 +1,6 @@
 # AXP City
 
-A shared isometric city rendered by **Phaser 4.2.1**. Every enrolled GitHub repository has a building and a loading zone. Repository metrics and versioned JSON rules determine the building, materials, human crews, robots, drones, and props.
+A shared isometric city rendered by **Phaser 4.2.1**. The hosted app (`https://demo.glint.sh/city`) is **Trending City**: daily, weekly, and monthly GitHub trending projects as buildings in their current state, on labeled streets. Every enrolled repository has a building and a Kenney-iso loading apron. Repository metrics and versioned JSON rules determine the building, materials, human crews, robots, drones, and props.
 
 **One repository, one application:** the Node server serves the Phaser client, the city API, SSE streams, exports, and signed GitHub webhooks from one origin. There is no SVG city client or static HTML map to deploy; SVG exists only as an export of the shared plan.
 
@@ -39,7 +39,8 @@ The production server listens on **http://127.0.0.1:43174/city**. `/`, `/city`, 
 | `CITY_DATA_DIR` | SQLite store directory (`city.sqlite`, verified artwork cache). Default `data` live, `data/offline` fixture. A database created in one mode refuses to open in the other. |
 | `CITY_BACKUP_DIR` | When set, a verified `VACUUM INTO` copy of the store is written every 6 hours; the newest 14 are kept. |
 | `CITY_RULES_DIR` | City default rules and `approved-artwork.json`, default `.city`. |
-| `CITY_ENROLL_FILE` / `--enroll <file>` | Repositories to enroll on start (`owner/name` per line). An empty live city reads `repos.txt`. |
+| `CITY_ENROLL_FILE` / `--enroll <file>` | Extra repositories to pin on start (`owner/name` per line). Live Trending City does not fall back to `repos.txt`. |
+| `CITY_TRENDING`, `CITY_TRENDING_INTERVAL_MS`, `CITY_TRENDING_FIXTURE` | Live default is Trending City (`CITY_TRENDING` unset). Fetches GitHub trending every 30 minutes. A failed fetch keeps the last-good snapshot and reports the error; it never loads fixture repos. `CITY_TRENDING_FIXTURE` is test-only. |
 | `CITY_REFRESH_INTERVAL_MS`, `CITY_STALE_AFTER_MS` | Reconciliation cadence (default 15 min) and the age after which data is reported stale (default 45 min). |
 | `CITY_RATE_LIMIT_MAX`, `CITY_RATE_LIMIT_WINDOW_MS`, `CITY_TRUSTED_PROXIES` | Webhook flood limits (default 120 / 60 s per client) and the proxy addresses whose `X-Forwarded-For` is trusted (default loopback for Caddy). |
 | `CITY_ALERT_URL` | Optional webhook that receives stale-data and recovery alerts from the reconciler. |

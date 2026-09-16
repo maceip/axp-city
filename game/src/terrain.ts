@@ -345,6 +345,20 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
           .setDepth(-90_000),
       );
     }
+  for (const label of plan.labels ?? []) {
+    const a = project(label.x, label.y);
+    objects.push(
+      scene.add
+        .text(a.sx, a.sy, label.text, {
+          fontFamily: "monospace",
+          fontSize: "12px",
+          color: "#3f5a44",
+          letterSpacing: 2,
+        })
+        .setOrigin(0.5)
+        .setDepth(-89_500),
+    );
+  }
 
   const civicWidth: Record<CivicKind, number> = {
     office: OFFICE_STAMP_WIDTH,

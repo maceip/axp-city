@@ -23,8 +23,10 @@ source of truth. No pixels changed; only the location is new.
   sand, cliffs, snow, props). Reference for the tile pass; not stamped yet.
 - `v5-ground-tiles-kit-k1.png` — 34 measured iso ground tiles + props
   (grass/dirt/pave, 6 road pieces, dual-plots, water/sand, park, curb,
-  cliffs, snow, trees, lamp, cone, bench, manhole). Trees/lamp/bench stamp
-  the map decor; see `GROUND_TILES` in `src/render/sprites.ts`.
+  cliffs, snow, trees, lamp, cone, bench, manhole). Lot plates and loading
+  aprons use the single grass/dirt/pave diamonds at native aspect — not the
+  dual-plot raised hexes. Trees/lamp/bench stamp map decor; see `GROUND_TILES`
+  in `src/render/sprites.ts`.
 - `v6-anim-unit-walk.png` (34f), `v6-anim-carry-crate.png` (18f),
   `v6-anim-blueprint.png` (26f), `v6-anim-pallet-jack.png` (19f) —
   transparent 384px-grid walk/work cycles (~8 fps) from the grok crew packs.

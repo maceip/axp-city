@@ -114,6 +114,7 @@ export class HudScene extends Phaser.Scene {
   private tools!: Phaser.GameObjects.Container;
   private kitRail!: Phaser.GameObjects.Image;
   private mast!: Phaser.GameObjects.Image;
+  private cityTitle!: Phaser.GameObjects.Text;
   private listeners = new Set<(event: string, detail?: unknown) => void>();
   private constructionStamp?: string;
   private lastView?: Rect;
@@ -166,10 +167,10 @@ export class HudScene extends Phaser.Scene {
     this.mast.setName("mast");
     this.plate = this.add.container(16, 16);
     const plateBg = this.hudPanel("plate", 250, 78);
-    const title = this.add.text(14, 12, "SURVEY DESK", { fontFamily: FONT, fontSize: "11px", color: GOLD, letterSpacing: 3 });
+    this.cityTitle = this.add.text(14, 12, "TRENDING CITY", { fontFamily: FONT, fontSize: "11px", color: GOLD, letterSpacing: 3 });
     this.district = this.add.text(14, 30, "Central Park", { fontFamily: FONT, fontSize: "18px", color: INK, fontStyle: "bold" });
     this.coords = this.add.text(14, 55, "0 · 0", { fontFamily: FONT, fontSize: "11px", color: MUTED });
-    this.plate.add([plateBg, title, this.district, this.coords]);
+    this.plate.add([plateBg, this.cityTitle, this.district, this.coords]);
     this.plate.setSize(250, 78).setName("plate");
 
     // Connection and freshness are separate readings.
@@ -433,7 +434,19 @@ export class HudScene extends Phaser.Scene {
     this.snapshot = snapshot;
     this.clockOffset = Date.parse(snapshot.serverTime) - Date.now();
     this.freshness = snapshot.freshness;
-    this.countText.setText(`${snapshot.plan.placements.length.toLocaleString()} repositories · ${snapshot.mode === "offline" ? "fixture mode" : "live mode"} · r${snapshot.revision}`);
+    const cityName = (snapshot.city?.name ?? "Trending City").toUpperCase();
+    if (this.cityTitle.text !== cityName) this.cityTitle.setText(cityName);
+    const trending = snapshot.trending;
+    const trendNote = trending
+      ? trending.usingCache
+        ? " · trending cache"
+        : trending.source === "github-trending"
+          ? " · trending live"
+          : trending.source === "test-fixture"
+            ? " · trending fixture"
+            : ""
+      : "";
+    this.countText.setText(`${snapshot.plan.placements.length.toLocaleString()} repositories · ${snapshot.mode === "offline" ? "fixture mode" : "live mode"}${trendNote} · r${snapshot.revision}`);
     this.drawMinimapPlan();
     this.drawStatus();
     if (this.selected) {
@@ -494,7 +507,14 @@ export class HudScene extends Phaser.Scene {
         freshColour = "#f2b36b";
       }
     }
-    this.freshText.setText(fresh.length > 50 ? `${fresh.slice(0, 49)}…` : fresh);
+    const trending = this.snapshot?.trending;
+    if (trending?.lastError) {
+      fresh += ` · trending: ${trending.usingCache ? "last-good cache" : "failed"}`;
+      freshColour = "#f2b36b";
+    } else if (trending?.source === "github-trending") {
+      fresh += " · trending list live";
+    }
+    this.freshText.setText(fresh.length > 56 ? `${fresh.slice(0, 55)}…` : fresh);
     this.freshText.setColor(freshColour);
     this.emit("status", { connection: labels[this.connection], freshness: fresh });
   }
@@ -587,7 +607,7 @@ export class HudScene extends Phaser.Scene {
     const site = constructionState(place, this.now());
     this.constructionStamp = `${site.stage}:${Math.round(site.progress * 50)}`;
     const lines: Array<[string, string, string?]> = [
-      [`${place.district.toUpperCase()} · ${lot.buildingBand} BUILDING · SLOT ${place.col},${place.row}`, GOLD, "10px"],
+      [`${place.district.toUpperCase()} · ${lot.buildingBand} BUILDING · SLOT ${place.col},${place.row}${lot.cadence ? ` · TRENDING ${lot.cadence.toUpperCase()}` : ""}`, GOLD, "10px"],
       [lot.name, INK, "20px"],
       [`${lot.owner} / ${lot.name}`, MUTED, "11px"],
       [`STARS ${lot.stars.toLocaleString()}    ISSUES ${lot.openIssues}    OPEN PRS ${lot.openPrs}`, INK, "12px"],

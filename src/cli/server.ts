@@ -10,6 +10,7 @@ import {
   type ResolvedRepository,
 } from "../live/repository.js";
 import { createReconciler, httpAlerter } from "../live/reconcile.js";
+import { createTrendingSync } from "../live/trendingSync.js";
 import { tokenProviderFromEnv } from "../ingest/githubApp.js";
 import { consoleLogger, createWebhookServer } from "../webhooks/server.js";
 import { LOOPBACK_PROXIES } from "../webhooks/rateLimit.js";
@@ -34,6 +35,15 @@ export interface ServerConfig {
   webhookSecretSet: boolean;
   adminTokenSet: boolean;
   githubCredential: "github-app" | "github-token" | "github-anonymous" | "fixture";
+  trendingEnabled: boolean;
+  trendingIntervalMs: number;
+  trendingFixture: string | undefined;
+}
+
+function envFlag(name: string): boolean | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return undefined;
+  return raw !== "0" && raw.toLowerCase() !== "false";
 }
 
 function numberEnv(name: string, fallback: number): number {
@@ -62,6 +72,14 @@ export function resolveConfig(argv: string[]): ServerConfig {
     .filter(Boolean);
   const enrollIndex = argv.indexOf("--enroll");
   const provider = offline ? "fixture" : tokenProviderFromEnv().kind;
+  const trendingFixture = process.env.CITY_TRENDING_FIXTURE;
+  const trendingFlag = envFlag("CITY_TRENDING");
+  const trendingEnabled =
+    trendingFixture !== undefined && trendingFixture !== ""
+      ? true
+      : trendingFlag !== undefined
+        ? trendingFlag
+        : !offline;
   return {
     dev,
     offline,
@@ -88,6 +106,9 @@ export function resolveConfig(argv: string[]): ServerConfig {
     webhookSecretSet: Boolean(process.env.GITHUB_WEBHOOK_SECRET),
     adminTokenSet: Boolean(process.env.CITY_ADMIN_TOKEN),
     githubCredential: provider,
+    trendingEnabled,
+    trendingIntervalMs: numberEnv("CITY_TRENDING_INTERVAL_MS", 30 * 60_000),
+    trendingFixture: trendingFixture || undefined,
   };
 }
 
@@ -196,11 +217,16 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
   );
   const { migrated } = await runtime.city.load();
   if (migrated) log("info", "imported legacy JSON city state into SQLite", { dataDir: config.dataDir });
+  runtime.city.setIdentity(
+    config.trendingEnabled
+      ? { name: "Trending City", kind: "trending" }
+      : { name: "AXP City", kind: "standard" },
+  );
 
   // Fixture mode seeds an empty city from the fixture; the live city is only
   // ever populated through the canonical resolver (enrollment), never from a
-  // stale metrics export.
-  if (config.offline && runtime.city.lots().length === 0) {
+  // stale metrics export. Trending City enrolls from the trending list instead.
+  if (config.offline && !config.trendingEnabled && runtime.city.lots().length === 0) {
     const rows = await readFixture(fixturePath);
     await runtime.city.hydrate(
       rows.map((row) => parseLot({ ...row, source: "fixture" }, { rules: defaults })),
@@ -219,14 +245,19 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     databasePath: runtime.city.path,
     buildRevision,
   };
-  log("info", `AXP City · Phaser 4 · ${config.offline ? "OFFLINE FIXTURES" : "LIVE"} · http://${config.host}:${config.port}/city`);
+  log(
+    "info",
+    `${config.trendingEnabled ? "Trending City" : "AXP City"} · Phaser 4 · ${config.offline ? "OFFLINE FIXTURES" : "LIVE"} · http://${config.host}:${config.port}/city`,
+  );
   log("info", "effective configuration", effective as unknown as Record<string, unknown>);
 
-  // Enrollment: repositories listed in the enroll file join the city through
-  // the resolver. Already enrolled lots are refreshed, not re-added.
+  // Enrollment: explicit pins join through the resolver. An empty live city
+  // used to read repos.txt; Trending City reads GitHub trending instead.
   const enrollFile =
     config.enrollFile ??
-    (!config.offline && runtime.city.lots().length === 0 ? "repos.txt" : undefined);
+    (!config.offline && !config.trendingEnabled && runtime.city.lots().length === 0
+      ? "repos.txt"
+      : undefined);
   if (enrollFile && !config.offline) {
     let lines: string[] = [];
     try {
@@ -251,6 +282,27 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     }
   }
 
+  const pinNames: string[] = [];
+  if (enrollFile) {
+    try {
+      for (const line of (await readFile(enrollFile, "utf8")).split("\n")) {
+        const parsed = parseRepoLine(line);
+        if (parsed) pinNames.push(`${parsed.owner}/${parsed.name}`);
+      }
+    } catch {
+      /* enroll loop already warned */
+    }
+  }
+  const trending = createTrendingSync({
+    city: runtime.city,
+    dataDir: config.dataDir,
+    fixturePath: config.trendingFixture,
+    pins: pinNames,
+    intervalMs: config.trendingIntervalMs,
+    log,
+    enabled: config.trendingEnabled,
+    refresh: (name, opts) => runtime.refreshRepository(name, opts),
+  });
   const reconciler = createReconciler({
     city: runtime.city,
     refresh: (name) => runtime.refreshRepository(name),
@@ -264,6 +316,14 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     },
   });
   runtime.startWorker();
+  if (config.trendingEnabled) {
+    log("info", "Trending City is the default city", {
+      intervalMs: config.trendingIntervalMs,
+      fixture: Boolean(config.trendingFixture),
+    });
+    await trending.run();
+    trending.start({ immediate: false });
+  }
   reconciler.start();
 
   const housekeeping = setInterval(() => {
@@ -293,6 +353,7 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
   const stop = () => {
     if (stopping) return;
     stopping = true;
+    trending.stop();
     reconciler.stop();
     runtime.stopWorker();
     clearInterval(housekeeping);

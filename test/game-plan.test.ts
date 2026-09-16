@@ -1,6 +1,7 @@
 import { buildingBounds, buildingSize, lotSampleBounds } from "../src/game/geometry.js";
 import { describe, expect, it } from "vitest";
 import { planLot, requiredSheets } from "../src/game/plan.js";
+import { GROUND_TILES } from "../src/render/sprites.js";
 import { ambientActors, pointAlong } from "../src/game/ambient.js";
 import { censusRows, filterCensus, findPlacement, massPercent, sortCensus } from "../src/game/census.js";
 import { constructionLabel, constructionState } from "../src/game/construction.js";
@@ -149,7 +150,9 @@ describe("Phaser scene planning", () => {
     expect(custom.images.some((i) => i.tag === "roof-bench")).toBe(true);
     expect(custom.images.filter((i) => i.tag?.startsWith("roof-bay:")).length).toBe(2);
     expect(base.images.some((i) => i.tag === "loading-pad")).toBe(false);
-    expect(custom.diamonds.length).toBeGreaterThan(base.diamonds.length);
+    expect(custom.images.filter((i) => i.tag === "loading-apron" || i.tag?.startsWith("bay:")).length).toBeGreaterThan(
+      base.images.filter((i) => i.tag === "loading-apron" || i.tag?.startsWith("bay:")).length,
+    );
     expect(custom.images.filter((i) => i.tag?.startsWith("decor:")).map((i) => i.tag)).toEqual([
       "decor:cones",
       "decor:lamp",
@@ -236,6 +239,23 @@ describe("Phaser scene planning", () => {
     expect(requiredSheets()).toContain("civic-kit-k1.png");
     expect(requiredSheets()).toContain("hud-kit-k1.png");
   });
+  it("stamps Kenney iso lot plates at uniform scale instead of dual-plot hex pads", () => {
+    const place = planCity(
+      parseCity([metrics({ fullName: "acme/pad", stars: 12 })], { now: FIXED_NOW }),
+    ).placements[0];
+    const plan = planLot(place);
+    const ground = plan.images.filter((image) => image.layer === "ground");
+    expect(ground.some((image) => image.tag === "lot-plate")).toBe(true);
+    expect(ground.some((image) => image.tag === "loading-zone")).toBe(true);
+    for (const stamp of ground) {
+      expect(stamp.scaleX).toBeCloseTo(stamp.scaleY, 8);
+      expect(stamp.box).not.toEqual(GROUND_TILES.dualDirt);
+      expect(stamp.box).not.toEqual(GROUND_TILES.dualGrassA);
+      expect(stamp.box).not.toEqual(GROUND_TILES.dualGrassB);
+    }
+    expect(plan.diamonds).toHaveLength(0);
+  });
+
   it("tints repo facades and stamps dressing plus construction art from the civic kit", () => {
     const places = planCity(
       parseCity(
