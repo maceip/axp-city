@@ -96,9 +96,14 @@ class FakeGitHub:
                 if repo is None or repo.get("deleted"):
                     self._send(404, dict(message="Not Found"))
                     return
+                if repo.get("forbidden"):
+                    # Authorization lost (installation removed, token scope revoked): a 403
+                    # that is not about quota.
+                    self._send(403, dict(message="Resource not accessible by integration"))
+                    return
                 rest = parts[3:]
                 if not rest:
-                    body = {k: v for k, v in repo.items() if k not in ("pulls", "languages", "commits", "rules", "deleted")}
+                    body = {k: v for k, v in repo.items() if k not in ("pulls", "languages", "commits", "rules", "deleted", "forbidden")}
                     self._send(200, body)
                 elif rest == ["pulls"]:
                     self._send(200, repo["pulls"])

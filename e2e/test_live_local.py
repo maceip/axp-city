@@ -156,6 +156,22 @@ def test_live_mode_against_a_local_github_reaches_two_browsers_alerts_on_outage_
         tab.wait_for_function("window.__AXP.diagnostics().totalLots === 1", timeout=30000)
         assert lot(tab, BETA) is None and lot(tab, ALPHA)["stars"] == 4321
     assert [p["lot"]["fullName"] for p in server.get("/api/city")["plan"]["placements"]] == [ALPHA]
+    address = [(p["x"], p["y"]) for p in server.get("/api/city")["plan"]["placements"]]
+
+    # 8. Losing authorization (a 403 that is not about quota) withdraws as well — through the
+    #    poll, no delivery — and the city keeps serving with nothing published for it.
+    github.set(ALPHA, forbidden=True)
+    for tab in (first, second):
+        tab.wait_for_function("window.__AXP.diagnostics().totalLots === 0", timeout=30000)
+    status = server.get("/api/city/status")
+    assert status["lots"] == 0 and status["withdrawn"] == 2, status
+    # Access restored: an administrator re-enrolls and the same address comes back.
+    github.set(ALPHA, forbidden=False)
+    assert server.enroll(ALPHA) in (200, 201)
+    for tab in (first, second):
+        tab.wait_for_function("window.__AXP.diagnostics().totalLots === 1", timeout=30000)
+        assert lot(tab, ALPHA)["stars"] == 4321
+    assert [(p["x"], p["y"]) for p in server.get("/api/city")["plan"]["placements"]] == address
     (SHOTS / "local-live.json").write_text(json.dumps(dict(alerts=github.alerts, status=server.get("/api/city/status")), indent=2))
     first.close()
     second.close()
