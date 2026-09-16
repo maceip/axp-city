@@ -326,6 +326,27 @@ export class CityScene extends Phaser.Scene {
         if (!rect) return Promise.reject(new Error(`${repo} is not in the city`));
         return samplePixels(this.game, rect.x, rect.y, rect.width, rect.height, grid);
       },
+      // Any screen rectangle (CSS px), for probes that span several lots.
+      pixelsAt: (x: number, y: number, width: number, height: number, grid?: number) =>
+        samplePixels(this.game, x, y, width, height, grid),
+      // Screen rectangle and depth of the building stamp as the plan lays it out right now.
+      buildingScreenRect: (repo: string) => {
+        const place = this.city.plan.placements.find((p) => p.lot.fullName === repo);
+        if (!place) return null;
+        const stamp = planLot(place, true, this.now()).images.find((i) => i.tag === "building");
+        if (!stamp) return null;
+        const w = stamp.box.w * stamp.scaleX;
+        const h = stamp.box.h * stamp.scaleY;
+        const view = this.view();
+        const zoom = this.cameras.main.zoom;
+        return {
+          x: (stamp.sx - w / 2 - view.x) * zoom,
+          y: (stamp.sy - h - view.y) * zoom,
+          width: w * zoom,
+          height: h * zoom,
+          depth: stamp.depth,
+        };
+      },
       hudPoint: (name: string) => {
         if (!this.hudReady) return null;
         return this.hud.locate(name);

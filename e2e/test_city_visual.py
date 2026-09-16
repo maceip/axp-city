@@ -9,7 +9,7 @@ import time
 import pytest
 from pathlib import Path
 
-from conftest import ADMIN, ready, repo_metrics
+from conftest import ADMIN, ready, repo_metrics, settled
 
 SHOTS = Path(__file__).parent / "screenshots"
 SHOTS.mkdir(exist_ok=True)
@@ -607,6 +607,97 @@ def test_custom_artwork_rule_is_rendered_only_once_approved(page, server):
     page.wait_for_timeout(400)
     reverted = lot_pixels(page, repo)
     assert pixel_distance(reverted, original) < pixel_distance(reverted, with_art), "revoked artwork was still drawn"
+    page.keyboard.press("m")
+    page.wait_for_function("!window.__AXP.diagnostics().reducedMotion")
+
+
+def approve_solid_artwork(server, repo, rgb, width, height):
+    import hashlib
+    art = png_bytes(width, height, rgb)
+    sha = hashlib.sha256(art).hexdigest()
+    folder = server.rules / "repos" / repo
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "building.png").write_bytes(art)
+    server.repo_rules(repo, building=dict(version=2, artwork=dict(path=".city/building.png", sha256=sha, width=width, height=height)))
+    return sha
+
+
+def mean_colour(sample):
+    cells = sample["cells"]
+    return tuple(round(sum(c[i] for c in cells) / len(cells)) for i in range(3))
+
+
+def looks_cyan(rgb):
+    # Facade tints and the quiet-lot dim blend the artwork a little; judge by channel shape.
+    r, g, b = rgb
+    return r < 110 and g > 120 and b > 140
+
+
+def looks_magenta(rgb):
+    r, g, b = rgb
+    return r > 150 and g < 110 and b > r * 0.5
+
+
+def test_neighbouring_lots_layer_by_depth_in_rendered_pixels(page, server):
+    """Handoff item 1: layering across neighbouring lots in the rendered output, not a depth
+    number. Two lots whose buildings overlap on screen get flat, tall, single-colour approved
+    artwork; the pixels where they overlap must show the lot that is nearer the viewer, and
+    the part of the far lot that is not covered must still be drawn."""
+    page.keyboard.press("m")
+    page.wait_for_function("window.__AXP.diagnostics().reducedMotion")
+    magenta, cyan = (236, 40, 160), (30, 190, 230)
+    repos = page.evaluate("window.__AXP.snapshot().plan.placements.map(p => p.lot.fullName)")
+    # Building widths do not depend on the artwork, so the catalog stamps already say which
+    # buildings share screen columns; slabs 3x taller than wide then overlap vertically.
+    rects = {r: page.evaluate("r => window.__AXP.buildingScreenRect(r)", r) for r in repos}
+    def x_overlap(a, b):
+        return min(a["x"] + a["width"], b["x"] + b["width"]) - max(a["x"], b["x"])
+    candidates = sorted(((a, b) for a in repos for b in repos if rects[a]["depth"] < rects[b]["depth"] and x_overlap(rects[a], rects[b]) >= 24),
+                        key=lambda ab: rects[ab[1]]["depth"] - rects[ab[0]]["depth"])
+    assert candidates, ("no two buildings share a screen column", rects)
+    chosen = None
+    for attempt, (back, front) in enumerate(candidates[:6]):
+        shas = [approve_solid_artwork(server, back, magenta, 64, 192), approve_solid_artwork(server, front, cyan, 64, 192)]
+        (server.rules / "approved-artwork.json").write_text(json.dumps(dict(version=1, approved=[dict(repo=back, sha256=shas[0]), dict(repo=front, sha256=shas[1])])))
+        assert server.webhook(back, f"layer-{attempt}-{back}") == 202
+        assert server.webhook(front, f"layer-{attempt}-{front}") == 202
+        page.wait_for_function("([a, b]) => { const p = window.__AXP.snapshot().plan.placements; return a.every((r, i) => (p.find(q => q.lot.fullName === r).lot.artwork || {}).sha256 === b[i]); }", arg=[[back, front], shas], timeout=15000)
+        page.wait_for_function("([a, b]) => window.__AXP.diagnostics().assetsInflight === 0 && a.every((r, i) => (window.__AXP.drawnRenderKey(r) || '').includes(b[i]))", arg=[[back, front], shas], timeout=20000)
+        page.evaluate("r => window.__AXP.select(r)", front)
+        page.wait_for_function("window.__AXP.diagnostics().cardVisible")
+        page.keyboard.press("Escape")
+        page.wait_for_function("!window.__AXP.diagnostics().selected && !window.__AXP.diagnostics().cardVisible && !window.__AXP.diagnostics().toastVisible", timeout=10000)
+        settled(page)
+        # Zoom out until both slabs are fully inside the viewport (the HUD bar is ~60 px).
+        for _ in range(4):
+            a = page.evaluate("r => window.__AXP.buildingScreenRect(r)", back)
+            b = page.evaluate("r => window.__AXP.buildingScreenRect(r)", front)
+            if a["y"] >= 60 and b["y"] >= 60 and b["y"] + b["height"] <= 1000:
+                break
+            page.keyboard.press("-")
+            settled(page)
+        assert a["depth"] < b["depth"], (a, b)
+        left, right = max(a["x"], b["x"]), min(a["x"] + a["width"], b["x"] + b["width"])
+        top, bottom = max(a["y"], b["y"]), min(a["y"] + a["height"], b["y"] + b["height"])
+        if right - left >= 12 and bottom - top >= 24 and a["y"] >= 60 and b["y"] >= 60 and top - a["y"] >= 24:
+            chosen = (back, front, a, b, (left, top, right - left, bottom - top))
+            break
+        # These two do not overlap after all: take the artwork away again and try the next pair.
+        (server.rules / "approved-artwork.json").write_text(json.dumps(dict(version=1, approved=[])))
+        for lot in (back, front):
+            assert server.webhook(lot, f"unlayer-{attempt}-{lot}") == 202
+        page.wait_for_function("a => a.every(r => !window.__AXP.snapshot().plan.placements.find(q => q.lot.fullName === r).lot.artwork)", arg=[back, front], timeout=15000)
+        click_hud(page, "home")
+        settled(page)
+    assert chosen, ("no two slabs overlap on screen", candidates[:6])
+    back, front, a, b, (ox, oy, ow, oh) = chosen
+    page.screenshot(path=str(SHOTS / "layering-neighbours.png"))
+    # Probe the middle of the overlap so edges and outlines do not vote.
+    overlap = mean_colour(page.evaluate("([x, y, w, h]) => window.__AXP.pixelsAt(x + w * 0.25, y + h * 0.25, w * 0.5, h * 0.5, 4)", [ox, oy, ow, oh]))
+    assert looks_cyan(overlap) and not looks_magenta(overlap), ("front lot is not drawn over the back lot", overlap, chosen)
+    # The part of the back lot that is not covered is still drawn (it is behind, not missing).
+    exposed = mean_colour(page.evaluate("([x, y, w, h]) => window.__AXP.pixelsAt(x + w * 0.25, y + h * 0.25, w * 0.5, h * 0.5, 4)", [a["x"], a["y"], a["width"], oy - a["y"]]))
+    assert looks_magenta(exposed) and not looks_cyan(exposed), ("back lot is not drawn where it is uncovered", exposed, chosen)
     page.keyboard.press("m")
     page.wait_for_function("!window.__AXP.diagnostics().reducedMotion")
 
