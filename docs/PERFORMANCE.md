@@ -64,7 +64,7 @@ Rows are added only from a real run whose `performance.json` is attached to the 
 - Terrain: chunks are rendered once into cached textures (`game/src/terrain.ts`) and reused while panning; a geometry change (new district, feature move) invalidates them.
 - Lots: images and graphics come from pools (`game/src/pool.ts`); a lot is rebuilt only when its plan signature changes, and freshness-only updates do not change the signature.
 - Actors: all actors advance in `ActorSystem.step()`; only those inside the camera view hold a sprite. Reduced motion pauses stepping.
-- Assets: five core sheets load before the first frame; yard props, crew atlases and approved artwork load on first use (`game/src/assets.ts`).
+- Assets: seven core sheets (buildings S/M/L, ground, civic, HUD, wild trees) load before the first frame; yard props, crew atlases and approved artwork load on first use (`game/src/assets.ts`). Measured, not asserted from the manifest: `test_thousand_lots_fully_featured_meets_its_profile_budget` records every sprite response until the boot card hides as `bootPayload` in `performance.json` — 4.47 MB downloaded before the city appeared (the seven core sheets plus the two lazy sheets the first visible lots asked for) against a 19.8 MB kit of 20 referenced sheets, i.e. 22.6 %; the test fails above 6 MB or half the kit.
 
 The 1,000-lot fixture measures rendering. It does not establish 1,000 live GitHub integrations or many simultaneous visitors; server load is a separate concern covered by `/api/city/status` and the delivery queue metrics.
 

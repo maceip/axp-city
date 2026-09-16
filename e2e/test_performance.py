@@ -71,6 +71,23 @@ def measure(page, name, action, settle_ms=1600):
     )
 
 
+def boot_payload_report(boot_sheets):
+    """Handoff item 3: what the browser had to download before the first frame, against the
+    whole sprite kit the client can ever ask for (every sheet named in the client or the
+    shared plan). The kit total is taken from the checked-in files."""
+    import re
+    sprites = Path(__file__).parent.parent / "assets" / "city-sprites"
+    referenced = set()
+    root = Path(__file__).parent.parent
+    for source in [*(root / "game" / "src").glob("*.ts"), *(root / "src" / "game").glob("*.ts"), *(root / "src" / "render").glob("*.ts")]:
+        referenced.update(re.findall(r'"([\w.-]+\.png)"', source.read_text()))
+    kit = {name: (sprites / name).stat().st_size for name in sorted(referenced) if (sprites / name).exists()}
+    boot_bytes = sum(boot_sheets.values())
+    kit_bytes = sum(kit.values())
+    return dict(bootSheets=boot_sheets, bootBytes=boot_bytes, kitSheets=len(kit), kitBytes=kit_bytes,
+                bootShareOfKit=round(boot_bytes / kit_bytes, 3) if kit_bytes else None)
+
+
 def choose_profile(driver):
     forced = os.environ.get("CITY_PERF_PROFILE")
     if forced in BUDGETS:
@@ -80,11 +97,24 @@ def choose_profile(driver):
 
 def test_thousand_lots_fully_featured_meets_its_profile_budget(browser, large_server, backend):
     page = browser.new_page(viewport=dict(width=1600, height=1000))
+    boot_sheets = {}
+    booting = [True]
+
+    def on_response(response):
+        if booting[0] and "/assets/sprites/" in response.url and response.ok:
+            try:
+                boot_sheets[response.url.rsplit("/", 1)[-1]] = len(response.body())
+            except Exception:  # noqa: BLE001 - a body that is gone by now is not a measurement failure
+                pass
+
+    page.on("response", on_response)
     started = time.perf_counter()
     page.goto(large_server.url + "/city", wait_until="domcontentloaded")
     page.wait_for_function("Boolean(window.__AXP) && window.__AXP.diagnostics().chunks > 0", timeout=60000)
     first_frame_ms = round((time.perf_counter() - started) * 1000)
     page.locator("#boot-card").wait_for(state="hidden")
+    booting[0] = False
+    boot_payload = boot_payload_report(boot_sheets)
     page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=60000)
     page.wait_for_timeout(1000)
 
@@ -165,11 +195,15 @@ def test_thousand_lots_fully_featured_meets_its_profile_budget(browser, large_se
         scene=dict(totalLots=initial["totalLots"], initialVisibleLots=initial["visibleLots"], renderer=initial["rendererName"], phaser=initial["version"]),
         features=dict(persistentActors=True, ambientTraffic=True, stagedConstruction=True, fullDetailAllZooms=True, reducedMotion=initial["reducedMotion"], followed=following),
         first_frame_ms=first_frame_ms,
+        bootPayload=boot_payload,
         scenarios=scenarios,
         measuredAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         note="A software profile pass demonstrates correctness only; hardware numbers on named devices are recorded in docs/PERFORMANCE.md.",
     )
     (SHOTS / "performance.json").write_text(json.dumps(report, indent=2))
+    # The first frame must not wait for the whole kit: core sheets only (well under half of it).
+    assert boot_payload["bootBytes"] > 0 and boot_payload["kitSheets"] >= 10, boot_payload
+    assert boot_payload["bootBytes"] < 6_000_000 and boot_payload["bootShareOfKit"] < 0.5, boot_payload
     print(json.dumps(report, indent=2))
     page.close()
 
