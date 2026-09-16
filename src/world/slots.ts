@@ -40,11 +40,12 @@ export function isReservedSlot(sx: number, sy: number): boolean {
 }
 
 /**
- * Slots that hug the freeway. Tall odd/parking stamps here sit on the
- * asphalt; unused buildings belong on inland vacant plots instead.
+ * Slots whose tall odd/parking stamps reach the freeway asphalt.
+ * Immediate neighbors are not enough — a 120px civic still overlaps
+ * two rows south of FREEWAY_SY.
  */
 export function isCorridorShoulderSlot(_sx: number, sy: number): boolean {
-  return sy === FREEWAY_SY - 1 || sy === FREEWAY_SY + 1;
+  return Math.abs(sy - FREEWAY_SY) <= 2;
 }
 
 /**

@@ -187,6 +187,13 @@ function onTravelLane(x: number, y: number, features: CityFeature[]): boolean {
   });
 }
 
+/** Feet plus the north reach of a tall odd/parking stamp. */
+function stampOverlapsTravel(x: number, y: number, features: CityFeature[]): boolean {
+  return (
+    [[x, y], [x, y - 1.4], [x, y - 2.8], [x - 0.9, y - 1.4], [x + 0.9, y - 1.4]] as const
+  ).some(([px, py]) => onTravelLane(px, py, features));
+}
+
 function isConstructing(
   fullName: string,
   options: PlanOptions,
@@ -472,7 +479,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
 
   const travelSafe = civics.filter((c) => {
     if (c.kind !== "odd" && c.kind !== "parking") return true;
-    return !onTravelLane(c.x, c.y, features);
+    return !stampOverlapsTravel(c.x, c.y, features);
   });
 
   return {

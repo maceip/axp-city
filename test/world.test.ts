@@ -79,7 +79,8 @@ describe("planCity", () => {
   it("keeps odd unused buildings and parking off the freeway and bike bands", () => {
     expect(isCorridorShoulderSlot(0, FREEWAY_SY - 1)).toBe(true);
     expect(isCorridorShoulderSlot(0, FREEWAY_SY + 1)).toBe(true);
-    expect(isCorridorShoulderSlot(0, FREEWAY_SY + 2)).toBe(false);
+    expect(isCorridorShoulderSlot(0, FREEWAY_SY + 2)).toBe(true);
+    expect(isCorridorShoulderSlot(0, FREEWAY_SY + 3)).toBe(false);
     for (const n of [8, 9, 24, 36]) {
       const plan = planCity(lots(n));
       expect(plan.civics.some((c) => c.kind === "odd"), `${n} lots lost unused buildings`).toBe(true);
@@ -89,7 +90,7 @@ describe("planCity", () => {
         const plotY = c.y - 1.0;
         const sy = Math.round(plotY / STRIDE_Y);
         expect(sy, `${c.id} on freeway row`).not.toBe(FREEWAY_SY);
-        expect(Math.abs(sy - FREEWAY_SY), `${c.id} on freeway shoulder`).toBeGreaterThan(1);
+        expect(Math.abs(sy - FREEWAY_SY), `${c.id} on freeway shoulder`).toBeGreaterThan(2);
         expect(c.y < freeway.y - 0.2 || c.y > freeway.y + freeway.h + 1.6, `${c.id} in freeway band`).toBe(true);
         for (const band of bikes) {
           expect(
