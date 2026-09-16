@@ -178,6 +178,8 @@ export class CityScene extends Phaser.Scene {
     this.bindSearch();
     this.connection.connect();
     const onLost = () => {
+      const pan = this.cameras.main.panEffect;
+      if (pan.isRunning) pan.reset();
       const payload = { scrollX: this.cameras.main.scrollX, scrollY: this.cameras.main.scrollY, zoom: this.cameras.main.zoom, selected: this.selected };
       this.registry.set("restore", payload);
       (window as unknown as { __AXP_RESTORE?: typeof payload }).__AXP_RESTORE = payload;
@@ -233,6 +235,7 @@ export class CityScene extends Phaser.Scene {
         zoom: this.cameras.main.zoom,
         scrollX: this.cameras.main.scrollX,
         scrollY: this.cameras.main.scrollY,
+        panRunning: this.cameras.main.panEffect.isRunning,
         selected: this.selected,
         following: this.followActor,
         mode: this.city.mode,
