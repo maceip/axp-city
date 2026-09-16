@@ -461,6 +461,22 @@ def test_rename_keeps_the_address_and_removal_keeps_neighbours(page, server):
     after = {p["lot"]["fullName"]: (p["x"], p["y"]) for p in page.evaluate("window.__AXP.snapshot().plan.placements")}
     assert after["acme/annex2"] == before["acme/annex"]
     assert "acme/annex" not in after
+    # A transfer to another owner is the same identity (GitHub id): same address, same
+    # construction start, and the lot's history records both moves.
+    added_at = page.evaluate("window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === 'acme/annex2').addedAt")
+    server.metrics[-1]["fullName"] = "newco/annex2"
+    server.metrics[-1]["owner"] = "newco"
+    server.save()
+    assert server.webhook_event("repository", dict(action="transferred", repository=dict(full_name="newco/annex2", name="annex2", id=7701, owner=dict(login="newco")), changes=dict(owner={"from": dict(organization=dict(login="acme"))})), "xfer-1") == 202
+    page.wait_for_function("window.__AXP.snapshot().plan.placements.some(p => p.lot.fullName === 'newco/annex2')", timeout=15000)
+    moved = page.evaluate("window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === 'newco/annex2')")
+    assert (moved["x"], moved["y"]) == before["acme/annex"]
+    assert moved["addedAt"] == added_at, "transfer restarted construction"
+    assert not any(p["lot"]["fullName"] == "acme/annex2" for p in page.evaluate("window.__AXP.snapshot().plan.placements"))
+    history = server.get("/api/city/history?repo=newco/annex2")["history"]
+    renames = [h for h in history if h["kind"] == "renamed"]
+    assert [h["detail"] for h in renames][-2:] == ["from acme/annex", "from acme/annex2"], history
+    after = {name if name != "acme/annex2" else "newco/annex2": at for name, at in after.items()}
     # Removal by an administrator withdraws the lot; every neighbour keeps its address.
     import urllib.request
     request = urllib.request.Request(server.url + "/api/city/lots/acme/quiet", method="DELETE", headers={"Authorization": f"Bearer {ADMIN}"})
@@ -490,7 +506,7 @@ def test_custom_artwork_rule_is_rendered_only_once_approved(page, server):
     """Handoff item 10: the version-2 `artwork` rule in actual rendered output. A repository
     asks for its own building PNG; until an operator approves that exact hash the catalog
     building stays and the card says why; once approved the browser fetches the same-origin
-    copy and draws it; tampered bytes fall back again."""
+    copy and draws it; revoking the approval falls back again."""
     import hashlib
     repo = "acme/robots"
     art = png_bytes(128, 192, (236, 72, 153))  # a flat magenta slab no catalog building looks like
