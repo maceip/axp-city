@@ -6,7 +6,7 @@ Immediate updates exist only for repositories whose owners granted event access:
 
 Every other enrolled repository is refreshed by **reconciliation polling** (`CITY_REFRESH_INTERVAL_MS`, default 15 minutes, 250 ms between repositories). Polling also recovers changes whose deliveries never arrived. The city does not promise instant updates for arbitrary repositories.
 
-`/api/city/status` and the HUD status plate show three separate things: the browser's **connection** to the stream, the **last successful GitHub refresh**, and **stale/error** state (`staleAfterMs`, default 45 minutes, plus the count of failing repositories). Connected does not mean fresh; a GitHub outage leaves the map visibly stale rather than pretending the data is current.
+`/api/city/status` and the HUD status plate show three separate things: the browser's **connection** to the stream, the **last successful GitHub refresh**, and **stale/error** state (`staleAfterMs`, default 45 minutes, plus the count of failing repositories — published lots whose last refresh failed; a refused enrollment or a withdrawn repository is answered to its caller and does not count). Connected does not mean fresh; a GitHub outage leaves the map visibly stale rather than pretending the data is current.
 
 ## Enrollment
 
