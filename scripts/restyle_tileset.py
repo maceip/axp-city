@@ -320,7 +320,7 @@ JANE_ODD_BOXES = {
     "city-hall": (436, 8, 144, 125),
 }
 
-# Phaser civic frames for every still-Jane silhouette, including the gray store.
+# Phaser civic frames for inland unused odds. Boxes stay put; $ bank is not here.
 CATALOG_ODD_BOXES = {
     "odd-2": (588, 8, 171, 202),
     "odd-3": (767, 8, 144, 139),
@@ -330,14 +330,14 @@ CATALOG_ODD_BOXES = {
 }
 
 # Unused large evolutions from ChatGPT AXP CITY family sheet (08_01_22 AM (1)).
-# Not the $ bank, not Jane church/villa/hall/store/mill, not FarmVille interiors.
+# Kept as a source, but inland odds must NOT stamp these — they clone lot 1–50.
 AXP_FAMILY_SHEET = SRC2 / "ChatGPT Image Sep 16, 2026, 08_01_22 AM (1).png"
 AXP_ODD_CELLS = {
-    "odd-2": 7,       # analytics tower
-    "odd-3": 2,       # data-center slab
-    "odd-4": 9,       # utility plant (catalog turbine, not Jane mill)
-    "odd-6": 5,       # community center
-    "city-hall": 4,   # security hub
+    "odd-2": 7,       # analytics tower (lot-clone — do not stamp)
+    "odd-3": 2,       # data-center slab (lot-clone — do not stamp)
+    "odd-4": 9,       # utility plant (lot-clone — do not stamp)
+    "odd-6": 5,       # community center (lot-clone — do not stamp)
+    "city-hall": 4,   # security hub (lot-clone — do not stamp)
 }
 
 
@@ -411,18 +411,163 @@ def extract_axp_family_odds() -> dict[str, Image.Image]:
     return picked
 
 
-def stamp_catalog_odds(path: Path = OUT / "civic-kit-k1.png") -> None:
-    """Replace Jane church/villa/store/mill/hall geometry in place. $ bank stays put."""
-    odds = extract_axp_family_odds()
+def key_attached_paper(im: Image.Image) -> Image.Image:
+    """Teal + near-white paper behind the attached construction / civic sheet."""
+    return key_color(
+        im,
+        lambda r, g, b: (
+            (g > 90 and b > 90 and r < 95 and (g + b) / 2 - r > 40)
+            or (min(r, g, b) >= 236 and abs(r - g) < 18 and abs(g - b) < 18)
+        ),
+        grow=1,
+    )
+
+
+def restyle_civic_pad(im: Image.Image) -> Image.Image:
+    """Warm grey asphalt toward olive-khaki; stall nails stay cream."""
+    out = im.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            sat = max(r, g, b) - min(r, g, b)
+            if sat < 28 and 70 < luma < 210:
+                t = (luma - 70) / 140
+                px[x, y] = (
+                    int(92 + t * 70),
+                    int(88 + t * 62),
+                    int(68 + t * 48),
+                    a,
+                )
+            elif luma >= 210:
+                px[x, y] = (232, 224, 198, a)
+    return outline(out, (52, 46, 34, 200))
+
+
+def restyle_civic_rail(im: Image.Image) -> Image.Image:
+    return outline(restyle(im, sat=0.62, contrast=1.06), (52, 46, 34, 220))
+
+
+def restyle_civic_cottage(im: Image.Image) -> Image.Image:
+    """Dark hip roof stays slate; cool walls → catalog cream. Not a ChatGPT lot."""
+    out = im.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            sat = max(r, g, b) - min(r, g, b)
+            if luma < 100 and sat < 40:
+                t = luma / 100
+                px[x, y] = (
+                    int(42 + t * 36),
+                    int(40 + t * 32),
+                    int(38 + t * 28),
+                    a,
+                )
+                continue
+            if luma > 130:
+                t = min(1.0, (luma - 130) / 90)
+                px[x, y] = (
+                    int(176 + t * 48),
+                    int(166 + t * 42),
+                    int(138 + t * 36),
+                    a,
+                )
+    return outline(out, (52, 46, 34, 230))
+
+
+def _fit_cell(spr: Image.Image, w: int, h: int) -> Image.Image:
+    spr = scale_to(trim(spr), w, h)
+    cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    cell.alpha_composite(spr, ((w - spr.width) // 2, h - spr.height))
+    return cell
+
+
+def extract_civic_distinct_odds() -> dict[str, Image.Image]:
+    """KEEP civic footprints from the attached sheet — not lot-catalog houses."""
+    if not ATTACHED.exists():
+        raise SystemExit(f"attached civic sheet missing: {ATTACHED}")
+    keyed = key_attached_paper(open_rgba(ATTACHED))
+
+    fence = trim(keyed.crop((148, 0, 360, 200)))
+    if not fence.getbbox():
+        raise SystemExit("fence enclosure missing from attached sheet")
+    fence = restyle_civic_rail(fence)
+
+    park = trim(keyed.crop((148, 208, 352, 418)))
+    if not park.getbbox() or park.width < 80:
+        raise SystemExit("parking pad missing from attached sheet")
+    park = restyle_civic_pad(park)
+
+    gates: list[Image.Image] = []
+    for i in range(6):
+        y0 = i * 70
+        gate = trim(keyed.crop((362, y0, 518, y0 + 68)))
+        if gate.getbbox() and gate.width > 40 and gate.height > 16:
+            gates.append(restyle_civic_rail(gate))
+    if len(gates) < 3:
+        raise SystemExit(f"not enough attached gates: {len(gates)}")
+
+    cottage = trim(keyed.crop((8, 480, 130, 595)))
+    if not cottage.getbbox() or cottage.height < 70:
+        raise SystemExit("dark-roof cottage missing from attached sheet")
+    if looks_like_bank(cottage):
+        raise SystemExit("cottage crop grabbed the $ bank")
+    cottage = restyle_civic_cottage(cottage)
+
+    boxes = CATALOG_ODD_BOXES
+    out: dict[str, Image.Image] = {}
+
+    w, h = boxes["odd-2"][2], boxes["odd-2"][3]
+    out["odd-2"] = _fit_cell(fence, w, h)
+
+    w, h = boxes["odd-3"][2], boxes["odd-3"][3]
+    out["odd-3"] = _fit_cell(park, w, h)
+
+    w, h = boxes["odd-4"][2], boxes["odd-4"][3]
+    monument = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    g0 = scale_to(gates[1], w, int(h * 0.48))
+    g1 = scale_to(gates[4] if len(gates) > 4 else gates[0], w, int(h * 0.48))
+    monument.alpha_composite(g0, ((w - g0.width) // 2, 2))
+    monument.alpha_composite(g1, ((w - g1.width) // 2, h - g1.height))
+    out["odd-4"] = monument
+
+    w, h = boxes["odd-6"][2], boxes["odd-6"][3]
+    depot = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    pad = scale_to(park, w, int(h * 0.82))
+    depot.alpha_composite(pad, ((w - pad.width) // 2, h - pad.height))
+    g = scale_to(gates[2], w - 10, int(h * 0.36))
+    depot.alpha_composite(g, ((w - g.width) // 2, 4))
+    out["odd-6"] = depot
+
+    w, h = boxes["city-hall"][2], boxes["city-hall"][3]
+    out["city-hall"] = _fit_cell(cottage, w, h)
+    return out
+
+
+def stamp_civic_distinct_odds(path: Path = OUT / "civic-kit-k1.png") -> None:
+    """Stamp KEEP civic-distinct footprints in place. $ bank and scaffolds stay put."""
+    odds = extract_civic_distinct_odds()
     kit = open_rgba(path)
     for name, (x, y, w, h) in CATALOG_ODD_BOXES.items():
-        spr = scale_to(trim(odds[name]), w, h)
-        cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        cell.alpha_composite(spr, ((w - spr.width) // 2, h - spr.height))
+        cell = odds[name]
+        if cell.size != (w, h):
+            cell = _fit_cell(cell, w, h)
         kit.paste(cell, (x, y))
-        print("stamped", name, "catalog-odd", spr.size, "→", (x, y, w, h))
+        print("stamped", name, "civic-distinct", cell.size, "→", (x, y, w, h))
     kit.save(path)
-    print("replaced Jane odd silhouettes with unused AXP family buildings")
+    print("replaced catalog-clone odds with civic-distinct parking/fence/gates/cottage")
+
+
+def stamp_catalog_odds(path: Path = OUT / "civic-kit-k1.png") -> None:
+    """Legacy flag: never restore AXP lot-clones into inland odd frames."""
+    stamp_civic_distinct_odds(path)
 
 
 # Measured Phaser frames (src/render/sprites.ts). Roof remap stays in-box.
@@ -979,7 +1124,7 @@ def write_civic_and_hud() -> tuple[dict, dict]:
         place(f"bike-{i}", tile, 72, 42)
 
     civic.save(OUT / "civic-kit-k1.png")
-    stamp_catalog_odds()
+    stamp_civic_distinct_odds()
     pack_large_street_tiles(civic_boxes)
 
     kit, hud_boxes = hud_kit()
@@ -1271,7 +1416,7 @@ def main() -> None:
                 "Attached construction / parking / gates / bank, restyled",
                 "Construction-city HUD: beveled wood/slate plaques + brass rivets (not Jane chrome)",
                 "Jane's houses only after saturation crush",
-                "Jane church / villa / mill / hall / store replaced by unused AXP family buildings (not cream-tinted Jane geometry)",
+                "Inland odds are civic-distinct attached footprints (fence, parking, stacked gates, depot, dark-roof cottage) — not ChatGPT lot houses",
                 "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
@@ -1344,8 +1489,8 @@ if __name__ == "__main__":
         stamp_scaffold_frames()
     elif "--stamp-jane-odds" in sys.argv:
         stamp_jane_odd_frames()
-    elif "--stamp-catalog-odds" in sys.argv:
-        stamp_catalog_odds()
+    elif "--stamp-catalog-odds" in sys.argv or "--stamp-civic-odds" in sys.argv:
+        stamp_civic_distinct_odds()
     elif "--stamp-catalog-roofs" in sys.argv:
         stamp_catalog_roofs()
     elif "--civic-only" in sys.argv:
@@ -1359,7 +1504,7 @@ if __name__ == "__main__":
         MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
         boost_civic_readability()
         crush_catalog_vibe()
-        stamp_catalog_odds()
+        stamp_civic_distinct_odds()
         print("civic", len(civic_boxes), "hud", len(hud_boxes))
         for k, v in civic_boxes.items():
             print(k, v)

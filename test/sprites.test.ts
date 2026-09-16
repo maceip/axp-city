@@ -313,23 +313,25 @@ print(f"{sr/n:.1f} {sg/n:.1f} {sb/n:.1f} {pale/n:.3f} {dollar} {bg} {bb}")
     expect(bankBlue, "bank-office is the finished civic, not a stage").toBeGreaterThan(10);
   });
 
-  it("replaces Jane church/villa silhouettes with unused AXP family buildings", () => {
+  it("stamps civic-distinct inland odds, not ChatGPT lot-catalog houses", () => {
     const script = `
 from PIL import Image
 civic = Image.open("assets/city-sprites/civic-kit-k1.png").convert("RGBA")
+large = Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA")
 px = civic.load()
+lpx = large.load()
 
-def steeples(box):
+def tall_steeples(box):
     x0,y0,w,h = box
-    top = y0 + int(h * 0.28)
+    top = y0 + int(h * 0.40)
     cols = []
     for x in range(x0, x0+w):
         dark = 0
         for y in range(y0, top):
             r,g,b,a = px[x,y]
-            if a > 16 and (r+g+b)/3 < 80:
+            if a > 16 and (r+g+b)/3 < 70:
                 dark += 1
-        if dark >= 6:
+        if dark >= 16:
             cols.append(x)
     if not cols:
         return 0
@@ -339,36 +341,77 @@ def steeples(box):
             groups += 1
     return groups
 
-def opaque(box):
+def stats(box, src=None):
+    p = lpx if src == "L" else px
     x0,y0,w,h = box
-    n=glass=0
-    for y in range(y0,y0+h):
-        for x in range(x0,x0+w):
-            r,g,b,a = px[x,y]
+    n=glass=dark=khaki=0
+    fill = w * h
+    for y in range(y0, y0+h):
+        for x in range(x0, x0+w):
+            r,g,b,a = p[x,y]
             if a < 16:
                 continue
             n += 1
-            if b > r + 8 and b > g - 6:
+            luma = (r+g+b)/3
+            sat = max(r,g,b) - min(r,g,b)
+            if b > r + 18 and b >= g - 4 and sat > 28 and luma < 210:
                 glass += 1
-    return n, glass
+            if luma < 90:
+                dark += 1
+            if r > b + 10 and g > b + 6 and sat < 55 and 70 < luma < 190:
+                khaki += 1
+    return n, glass, dark, khaki, n / max(fill, 1)
 
-s2 = steeples((588, 8, 171, 202))
-n2,g2 = opaque((588, 8, 171, 202))
-n6,g6 = opaque((1208, 319, 159, 157))
-n3,_ = opaque((767, 8, 144, 139))
-print(f"{s2} {n2} {g2} {n6} {g6} {n3}")
+s2 = tall_steeples((588, 8, 171, 202))
+n2,g2,d2,k2,f2 = stats((588, 8, 171, 202))
+n3,g3,d3,k3,f3 = stats((767, 8, 144, 139))
+n4,g4,d4,k4,f4 = stats((919, 8, 108, 122))
+n6,g6,d6,k6,f6 = stats((1208, 319, 159, 157))
+nh,gh,dh,kh,fh = stats((436, 8, 144, 125))
+nl,gl,dl,kl,fl = stats((765, 4, 70, 172), "L")
+print(f"{s2} {n2} {g2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {f4:.3f} {n6} {g6} {k6} {nh} {gh} {dh} {gl}")
 `;
-    const [steeples, n2, glass2, n6, glass6, n3] = execFileSync("python3", ["-c", script], {
+    const [
+      steeples,
+      n2,
+      glass2,
+      fill2,
+      n3,
+      glass3,
+      khaki3,
+      n4,
+      glass4,
+      fill4,
+      n6,
+      glass6,
+      khaki6,
+      nh,
+      glassH,
+      darkH,
+      catalogGlass,
+    ] = execFileSync("python3", ["-c", script], {
       encoding: "utf8",
     })
       .trim()
       .split(/\s+/)
       .map(Number);
     expect(steeples, "odd-2 still has Jane twin church steeples").toBeLessThan(2);
-    expect(n2, "odd-2 frame emptied").toBeGreaterThan(4000);
-    expect(glass2, "odd-2 is still a cream Jane mass, not catalog glass").toBeGreaterThan(80);
-    expect(n6, "odd-6 frame emptied").toBeGreaterThan(4000);
-    expect(glass6 + n3, "replacement odds missing catalog mass").toBeGreaterThan(4000);
+    expect(n2, "odd-2 fence enclosure emptied").toBeGreaterThan(400);
+    expect(glass2, "odd-2 still reads as a catalog glass tower").toBeLessThan(40);
+    expect(fill2, "odd-2 should stay a hollow fence, not a house mass").toBeLessThan(0.20);
+    expect(n3, "odd-3 parking pad emptied").toBeGreaterThan(2500);
+    expect(glass3, "odd-3 still reads as a catalog slab").toBeLessThan(40);
+    expect(khaki3, "odd-3 lost its civic parking pad").toBeGreaterThan(4000);
+    expect(n4, "odd-4 gate monument emptied").toBeGreaterThan(300);
+    expect(fill4, "odd-4 should stay stacked rails, not a house mass").toBeLessThan(0.30);
+    expect(n6, "odd-6 depot emptied").toBeGreaterThan(2500);
+    expect(khaki6, "odd-6 lost its parking+gate depot pad").toBeGreaterThan(4000);
+    expect(nh, "city-hall cottage emptied").toBeGreaterThan(2000);
+    expect(glassH / nh, "city-hall still reads as a catalog glass hub").toBeLessThan(0.12);
+    expect(darkH, "city-hall lost its dark hip roof").toBeGreaterThan(1500);
+    expect(catalogGlass, "lot catalog glass tower missing — comparison invalid").toBeGreaterThan(800);
+    expect(glass2 + glass3, "inland odds still carry catalog glass").toBeLessThan(catalogGlass * 0.1);
+    expect(fill2, "need more than one odd silhouette").toBeLessThan(fill4);
   });
 
   it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {

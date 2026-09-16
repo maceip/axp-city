@@ -263,7 +263,7 @@ export const GROUND_SHEET: PropSheet = {
   height: 720,
 };
 
-/** Restyled civic atlas: center office, construction stages, plants, roads, odd unused buildings. */
+/** Restyled civic atlas: center office, construction stages, plants, roads, odd unused civic footprints. */
 export const CIVIC_SHEET: PropSheet = {
   file: "civic-kit-k1.png",
   width: 1536,

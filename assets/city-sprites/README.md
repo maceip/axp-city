@@ -121,11 +121,13 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   `facadeTint` + `dressingProp` are a second hash so two lots that share a
   silhouette still read as different houses.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
-  stamped larger than any repo lot), Jane's city hall / church / villa / store
-  (odd unused buildings from unused AXP family silhouettes — not Jane church/villa geometry), attached construction stages (pad→posts→roof→shell,
-  never the finished bank), parking, gates, bank, isometric plants from the
-  v5 ground kit, and full-size restyled road/bike tiles that read at overview
-  zoom (not the leftover 4px diamonds).
+  stamped larger than any repo lot), inland unused civics from the attached
+  construction sheet (fence enclosure, parking pad, stacked gates, parking+gate
+  depot, dark-roof cottage — not ChatGPT lot-catalog houses and not Jane
+  church/villa geometry), attached construction stages (pad→posts→roof→shell,
+  never the finished bank), amenity parking, gates, `$` bank, isometric plants
+  from the v5 ground kit, and full-size restyled road/bike tiles that read at
+  overview zoom (not the leftover 4px diamonds).
 - `hud-kit-k1.png` — olive-slate + gold panels painted to Jane's chrome sizes
   so the overlay matches the catalog vibe; leftover orange HUD is not used.
 
