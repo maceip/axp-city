@@ -173,6 +173,30 @@ def test_click_tile_opens_card(page):
     assert "acme/" in (card.inner_text() or ""), "card names no repo"
 
 
+def test_click_building_sprite_opens_card(page):
+    """Inspect uses screen picking, so a click on the 3D stamp (not the pad) works."""
+    pg, _, _ = page
+    pg.evaluate("() => document.getElementById('lot-card').hidden = true")
+    target = pg.evaluate(
+        """() => {
+          const lot = JSON.parse(document.getElementById('axp-city-plan').textContent).lots[0];
+          const svg = document.getElementById('axp-map');
+          const tileW = 72, tileH = 36;
+          const sx = (lot.x + 2 - (lot.y + 1.2)) * (tileW / 2);
+          const sy = (lot.x + 2 + lot.y + 1.2) * (tileH / 2) - 36;
+          const pt = svg.createSVGPoint();
+          pt.x = sx; pt.y = sy;
+          const p = pt.matrixTransform(svg.getScreenCTM());
+          return { x: p.x, y: p.y, repo: lot.repo };
+        }"""
+    )
+    pg.mouse.click(target["x"], target["y"])
+    card = pg.locator("#lot-card")
+    assert card.evaluate("el => !el.hidden"), "building sprite click did not inspect"
+    text = card.inner_text() or ""
+    assert target["repo"].split("/")[0] in text or "acme/" in text, text
+
+
 def test_building_size_follows_band(page):
     pg, _, _ = page
     widths = {lot["repo"]: lot["building"][2] for lot in _screen_rects(pg)}

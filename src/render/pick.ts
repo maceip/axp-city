@@ -29,9 +29,9 @@ export function screenToWorld(
 }
 
 export function buildingHitSize(band?: string): { w: number; h: number } {
-  if (band === "L") return { w: 100, h: 210 };
-  if (band === "M") return { w: 84, h: 168 };
-  return { w: 76, h: 128 };
+  if (band === "L") return { w: 180, h: 240 };
+  if (band === "M") return { w: 150, h: 190 };
+  return { w: 124, h: 150 };
 }
 
 /** True when (wx, wy) sits on the lot pad diamond in world tiles. */

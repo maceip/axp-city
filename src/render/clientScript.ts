@@ -140,12 +140,22 @@ export function mapClientScript(): string {
     return Math.min(r.width / view.w, r.height / view.h);
   }
   function toUser(e) {
-    var r = svg.getBoundingClientRect();
-    var s = meetScale();
-    if (!s) return null;
-    var ox = r.left + (r.width - view.w * s) / 2;
-    var oy = r.top + (r.height - view.h * s) / 2;
-    return { x: view.x + (e.clientX - ox) / s, y: view.y + (e.clientY - oy) / s };
+    try {
+      var pt = svg.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      var ctm = svg.getScreenCTM();
+      if (!ctm) return null;
+      var p = pt.matrixTransform(ctm.inverse());
+      return { x: p.x, y: p.y };
+    } catch (err) {
+      var r = svg.getBoundingClientRect();
+      var s = meetScale();
+      if (!s) return null;
+      var ox = r.left + (r.width - view.w * s) / 2;
+      var oy = r.top + (r.height - view.h * s) / 2;
+      return { x: view.x + (e.clientX - ox) / s, y: view.y + (e.clientY - oy) / s };
+    }
   }
 
   var stage = svg.parentElement;
@@ -159,9 +169,9 @@ export function mapClientScript(): string {
     return Boolean(t.closest(".hud button, .hud canvas, .hud-plate, .hud-compass-wrap, .hud-mass, .hud-log-btn, .lotcard, .census"));
   }
   function buildingHitSize(band) {
-    if (band === "L") return { w: 100, h: 210 };
-    if (band === "M") return { w: 84, h: 168 };
-    return { w: 76, h: 128 };
+    if (band === "L") return { w: 180, h: 240 };
+    if (band === "M") return { w: 150, h: 190 };
+    return { w: 124, h: 150 };
   }
   function pickLotAt(sx, sy) {
     var wx = sx / tileW + sy / tileH;
@@ -234,7 +244,7 @@ export function mapClientScript(): string {
   window.addEventListener("pointermove", function (e) {
     if (!dragging || pinch) return;
     var dist = Math.hypot(e.clientX - downX, e.clientY - downY);
-    if (!moved && dist > 12) moved = true;
+    if (!moved && dist > 18) moved = true;
     if (!moved) return;
     var s = meetScale();
     if (s) {
@@ -254,25 +264,39 @@ export function mapClientScript(): string {
   }
   window.addEventListener("pointerup", endDrag);
   window.addEventListener("pointercancel", endDrag);
+  var didInspect = false;
   function inspectFromEvent(e) {
     if (pinch) return;
     if (fromChrome(e)) return;
     var dist = Math.hypot((e.clientX || downX) - downX, (e.clientY || downY) - downY);
-    if (moved && dist >= 16) return;
     var u = toUser(e);
     var lot = u ? pickLotAt(u.x, u.y) : null;
     if (!lot) {
       var el = e.target && e.target.closest ? (e.target.closest(".lot-hit") || e.target.closest("g.lot")) : null;
       if (el) lot = byRepo[el.getAttribute("data-repo")];
     }
+    if (moved && dist >= 64 && lot) return;
+    if (moved && dist >= 64) { hideCard(); return; }
     if (!lot) { hideCard(); return; }
     var hit = hitFor(lot.repo);
     showCard(lot.repo, hit);
     if (hit) centerOn(hit);
+    didInspect = true;
   }
   var inspectRoot = stage || svg;
   inspectRoot.addEventListener("pointerup", inspectFromEvent);
-  inspectRoot.addEventListener("click", inspectFromEvent);
+  inspectRoot.addEventListener("click", function (e) {
+    if (didInspect) { didInspect = false; return; }
+    inspectFromEvent(e);
+  });
+  window.axpInspectAt = function (x, y) {
+    var u = toUser({ clientX: x, clientY: y });
+    var lot = u ? pickLotAt(u.x, u.y) : null;
+    if (!lot) return null;
+    var hit = hitFor(lot.repo);
+    showCard(lot.repo, hit);
+    return lot.repo;
+  };
   svg.addEventListener("wheel", function (e) {
     e.preventDefault();
     stopGlide();
