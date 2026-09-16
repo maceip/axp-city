@@ -15,83 +15,59 @@
   </head>
   <body>
     <div id="game" aria-label="Interactive isometric GitHub city"></div>
-    <header class="mast">
-      <div class="brand">
-        <span class="brand-mark">A</span>
-        <div>
-          <h1>AXP CITY</h1>
-          <p>A living atlas of open source</p>
-        </div>
-      </div>
-      <div class="connection">
-        <span id="connection-dot"></span
-        ><span id="connection-status">Connecting</span
-        ><span id="city-count"></span>
-      </div>
-    </header>
-    <section class="district panel">
-      <span class="eyebrow">YOU ARE EXPLORING</span
-      ><strong id="district-name">Central Park</strong
-      ><span id="coordinates">0 · 0</span>
-    </section>
-    <div class="search panel">
-      <label for="repo-search">Find a repository</label
+    <!--
+      Everything visible is drawn by Phaser. The search field stays a native
+      input so phones open a real keyboard and assistive technology gets real
+      text entry; the #a11y region mirrors status, selection and the census.
+    -->
+    <div class="search">
+      <label for="repo-search">Find a repository (press / to focus)</label
       ><input
         id="repo-search"
         type="search"
-        placeholder="owner / repository"
-        list="repo-options"
+        placeholder="owner / repository · Enter to inspect"
         autocomplete="off"
-      /><datalist id="repo-options"></datalist>
+        spellcheck="false"
+      />
     </div>
-    <div id="hover-tag" hidden></div>
-    <aside
-      id="lot-card"
-      class="panel"
-      hidden
-      aria-label="Repository details"
-    ></aside>
-    <div class="compass" aria-hidden="true">
-      <span>N</span><b>◇</b><small>W &nbsp; E</small><span>S</span>
+    <div id="a11y" class="visually-hidden">
+      <p id="a11y-status" role="status" aria-live="polite"></p>
+      <p id="a11y-live" role="status" aria-live="polite"></p>
+      <h2>Selected repository</h2>
+      <p id="a11y-selection" aria-live="polite">No repository selected.</p>
+      <h2>Repositories in the city</h2>
+      <ul id="a11y-repos"></ul>
+      <h2>Lot census</h2>
+      <table id="a11y-census"></table>
+      <h2>Keyboard</h2>
+      <p>
+        Arrow keys or WASD pan. Plus and minus zoom. H returns home. C opens the
+        census; Up and Down move through it and Enter frames the highlighted
+        repository. F follows the selected crew. M toggles motion. Escape clears.
+      </p>
     </div>
-    <div class="dpad panel" aria-label="Move camera">
-      <button data-move="up" aria-label="Move north">↑</button>
-      <div>
-        <button data-move="left" aria-label="Move west">←</button
-        ><button id="home" aria-label="Return to Central Park">⌂</button
-        ><button data-move="right" aria-label="Move east">→</button>
-      </div>
-      <button data-move="down" aria-label="Move south">↓</button>
-    </div>
-    <div class="map-tools">
-      <div class="zoom panel">
-        <button id="zoom-out" aria-label="Zoom out">−</button
-        ><output id="zoom-level">100%</output
-        ><button id="zoom-in" aria-label="Zoom in">+</button>
-      </div>
-      <div class="minimap panel">
-        <canvas
-          id="minimap"
-          width="180"
-          height="118"
-          aria-label="City overview; click to move"
-        ></canvas
-        ><span>CITY OVERVIEW</span>
-      </div>
-    </div>
-    <footer>
-      <span class="hints"
-        >Drag to explore <i>·</i> Scroll / pinch to zoom <i>·</i> WASD
-        <i>·</i> 1–0 jump <i>·</i> F follow</span
-      ><button id="weather" class="panel">Sky: clear</button>
-    </footer>
-    <div id="toast" role="status" hidden></div>
     <div id="boot-card" class="panel">
       <span class="eyebrow">WELCOME TO AXP CITY</span>
       <h2>Building your view.</h2>
       <p id="boot-message">Loading the city and its artwork…</p>
+      <p id="boot-note" class="note" hidden></p>
       <div id="boot-bar"><span></span></div>
       <button id="retry" hidden>Try again</button>
+    </div>
+    <div id="unsupported" class="panel" hidden role="alert">
+      <span class="eyebrow">AXP CITY</span>
+      <h2>This browser cannot run the city.</h2>
+      <p id="unsupported-reasons"></p>
+      <p>
+        AXP City needs a browser with WebGL or 2D canvas support and live
+        event streams. Current Chrome, Firefox, Safari and their mobile
+        versions work; see the support matrix in
+        <a href="https://github.com/maceip/axp-city/blob/main/docs/SUPPORT.md">docs/SUPPORT.md</a>.
+      </p>
+      <p class="note">Your browser: <code id="unsupported-ua"></code></p>
+      <p>
+        You can still open the <a href="/api/city/export.svg">SVG map export</a>.
+      </p>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
