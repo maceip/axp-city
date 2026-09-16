@@ -12,6 +12,7 @@ import {
   DECOR_LAMP,
   CIVIC_SHEET,
   CIVIC_SPRITES,
+  OFFICE_STAMP_WIDTH,
 } from "../../src/render/sprites.js";
 import { imagePool, type ObjectPool } from "./pool.js";
 import { ensureFrame } from "./stamps.js";
@@ -324,7 +325,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     }
 
   const civicWidth: Record<CivicKind, number> = {
-    office: 268,
+    office: OFFICE_STAMP_WIDTH,
     plant: 48,
     odd: 120,
     parking: 138,
@@ -345,14 +346,31 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     if (marker.kind === "office") {
       objects.push(
         scene.add
-          .text(a.sx, a.sy + 16, "CITY OFFICE", {
+          .text(a.sx, a.sy + 18, "CITY OFFICE", {
             fontFamily: "monospace",
-            fontSize: "11px",
+            fontSize: "12px",
             color: "#45614e",
             letterSpacing: 2,
           })
           .setOrigin(0.5)
           .setDepth(-90_000),
+      );
+    }
+  }
+  const bikeLane = plan.features.find((f) => f.kind === "bike");
+  const bikeA = CIVIC_SPRITES["bike-0"];
+  const bikeB = CIVIC_SPRITES["bike-1"];
+  if (bikeLane && bikeA && bikeB) {
+    for (let t = 0.6; t < bikeLane.w - 0.4; t += 2.4) {
+      const box = Math.floor(t / 2.4) % 2 === 0 ? bikeA : bikeB;
+      const a = project(bikeLane.x + t, bikeLane.y + bikeLane.h * 0.55);
+      objects.push(
+        scene.add
+          .image(a.sx, a.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, box))
+          .setOrigin(0.5, 1)
+          .setDisplaySize(34, 34 * (box.h / box.w))
+          .setDepth(-99_997)
+          .setAlpha(0.92),
       );
     }
   }

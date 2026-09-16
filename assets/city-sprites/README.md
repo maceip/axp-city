@@ -118,10 +118,11 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   pagoda (id 17), packed on a 5-column grid. Repo lots pick `buildingId`
   1–50 as before; `facadeTint` + `dressingProp` are a second hash so two
   lots that share a silhouette do not look like the same house.
-- `civic-kit-k1.png` — restyled center office (`CENTER_OF_MAP_HQ`), Jane's
-  city hall / church / villa (odd unused buildings), attached construction
-  stages, parking, gates, bank, isometric plants copied from the v5 ground
-  kit, and iso bike/road diamonds from SimCity tiles after restyle.
+- `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
+  stamped larger than any repo lot), Jane's city hall / church / villa / store
+  (odd unused buildings), attached construction stages (pad→posts→roof→shell,
+  never the finished bank), parking, gates, bank, isometric plants from the
+  v5 ground kit, and iso bike/road diamonds from SimCity tiles after restyle.
 - `hud-kit-k1.png` — forest+gold panels painted to Jane's chrome sizes;
   leftover orange HUD is not used on screen.
 

@@ -16,6 +16,7 @@ import { CityConnection, type ConnectionState } from "./connection.js";
 import { downloadCapture, samplePixels } from "./export.js";
 import { HudScene } from "./HudScene.js";
 import { graphicsPool, imagePool, type ObjectPool } from "./pool.js";
+import { OFFICE_STAMP_WIDTH } from "../../src/render/sprites.js";
 import { diamondContains, drawDiamond, ensureFrame, stampEllipse } from "./stamps.js";
 import { TerrainCache, drawCivics } from "./terrain.js";
 
@@ -67,6 +68,7 @@ export class CityScene extends Phaser.Scene {
   private clockOffset = 0;
   private connectionState: ConnectionState = "connecting";
   private frameTimes: number[] = [];
+  private restoreSelected?: string;
   reducedMotion = false;
 
   constructor() {
@@ -122,6 +124,15 @@ export class CityScene extends Phaser.Scene {
       capture: () => this.capture(),
       toggleMotion: () => this.setReducedMotion(!this.reducedMotion),
     };
+    const restore = this.registry.get("restore") as { scrollX: number; scrollY: number; zoom: number; selected?: string } | undefined;
+    if (restore) {
+      this.registry.remove("restore");
+      this.cameras.main.setZoom(restore.zoom);
+      this.cameras.main.setScroll(restore.scrollX, restore.scrollY);
+      this.restoreSelected = restore.selected;
+    } else {
+      this.home();
+    }
     this.scene.launch(SceneKeys.Hud, { actions, snapshot: this.city });
     this.hud = this.scene.get(SceneKeys.Hud) as HudScene;
     this.hud.events.once(Phaser.Scenes.Events.CREATE, () => {
@@ -130,12 +141,9 @@ export class CityScene extends Phaser.Scene {
       this.hud.setSnapshot(this.city);
       this.hud.setConnection(this.connectionState);
       if (this.reducedMotion) this.hud.toast("Reduced motion is on: crews and traffic hold still.");
-      const restore = this.registry.get("restore") as { scrollX: number; scrollY: number; zoom: number; selected?: string } | undefined;
-      if (restore) {
-        this.registry.remove("restore");
-        this.cameras.main.setZoom(restore.zoom);
-        this.cameras.main.setScroll(restore.scrollX, restore.scrollY);
-        if (restore.selected) this.select(restore.selected, false);
+      if (this.restoreSelected) {
+        this.select(this.restoreSelected, false);
+        this.restoreSelected = undefined;
         this.hud.toast("Graphics context restored.");
       }
     });
@@ -153,7 +161,6 @@ export class CityScene extends Phaser.Scene {
       },
     });
     this.snapshot(this.city);
-    this.home();
     this.bindInput();
     this.bindSearch();
     this.connection.connect();
@@ -216,6 +223,7 @@ export class CityScene extends Phaser.Scene {
         censusOpen: this.hudReady && this.hud.censusIsOpen,
         cardVisible: this.hudReady && this.hud.cardVisible,
         office: this.city.plan.civics?.find((c) => c.kind === "office") ?? null,
+        officeStampWidth: OFFICE_STAMP_WIDTH,
         civicCount: this.city.plan.civics?.length ?? 0,
         uniqueFacades: new Set(
           this.city.plan.placements.map((p) => `${p.lot.buildingId}:${p.lot.facadeTint}:${p.lot.dressingProp}`),
@@ -432,11 +440,14 @@ export class CityScene extends Phaser.Scene {
         if (!this.assets.isFailed(op.sheet)) incomplete = true;
         continue;
       }
+      const alpha = op.alpha ?? (op.dimmed ? 0.62 : 1);
+      if (op.tag === "building" && alpha < 0.05) continue;
       const image = this.images.acquire();
       image.setTexture(op.sheet, ensureFrame(this, op.sheet, op.box));
       image.setPosition(op.sx, op.sy).setOrigin(0.5, 1).setScale(op.scaleX, op.scaleY);
       image.setDepth(op.layer === "ground" ? -99_999 : op.depth);
-      image.setAlpha(op.alpha ?? (op.dimmed ? 0.62 : 1));
+      image.setAlpha(alpha);
+      image.setVisible(true);
       if (op.tint && op.tint !== 0xffffff) image.setTint(op.tint);
       else image.clearTint();
       image.setData("repo", place.lot.fullName);
@@ -702,40 +713,51 @@ export class CityScene extends Phaser.Scene {
       this.zoomAt(Math.exp(-dy * 0.0015), p.x, p.y);
     });
     const kb = this.input.keyboard;
-    if (kb) {
-      this.keys = kb.addKeys("W,A,S,D,UP,LEFT,DOWN,RIGHT") as typeof this.keys;
-      kb.on("keydown", (event: KeyboardEvent) => {
-        if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLButtonElement) return;
-        const key = event.key;
-        if (/^[0-9]$/.test(key)) {
-          const p = this.city.plan.placements[(Number(key) + 9) % 10];
-          if (p) this.select(p.lot.fullName, true);
-        } else if (key === "/" ) {
-          event.preventDefault();
-          document.querySelector<HTMLInputElement>("#repo-search")?.focus();
-        } else if (key.toLowerCase() === "f") this.toggleFollow();
-        else if (key.toLowerCase() === "c" && this.hudReady) this.hud.toggleCensus();
-        else if (key.toLowerCase() === "h") this.home();
-        else if (key.toLowerCase() === "m") this.setReducedMotion(!this.reducedMotion);
-        else if (key === "+" || key === "=") this.zoomAt(1.2);
-        else if (key === "-" || key === "_") this.zoomAt(1 / 1.2);
-        else if (key === "Escape") {
-          if (this.hudReady && this.hud.censusIsOpen) this.hud.toggleCensus(false);
-          else this.select(undefined, false);
-        } else if (this.hudReady && this.hud.censusIsOpen && (key === "ArrowDown" || key === "ArrowUp" || key === "Enter")) {
-          event.preventDefault();
-          if (key === "Enter") {
-            if (this.selected) this.frameLot(this.city.plan.placements.find((p) => p.lot.fullName === this.selected)!);
-          } else {
-            const row = this.hud.censusStep(key === "ArrowDown" ? 1 : -1);
-            if (row) this.select(row.repo, false);
-          }
+    if (kb) this.keys = kb.addKeys("W,A,S,D,UP,LEFT,DOWN,RIGHT") as typeof this.keys;
+    // Window-level shortcuts so the HUD scene (no keyboard plugin) cannot
+    // swallow C/census, number-key jumps, or Escape.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLButtonElement) return;
+      const key = event.key;
+      if (/^[0-9]$/.test(key)) {
+        const p = this.city.plan.placements[(Number(key) + 9) % 10];
+        if (p) this.select(p.lot.fullName, true);
+      } else if (key === "/") {
+        event.preventDefault();
+        document.querySelector<HTMLInputElement>("#repo-search")?.focus();
+      } else if (key.toLowerCase() === "f") this.toggleFollow();
+      else if (key.toLowerCase() === "c" && this.hudReady) this.hud.toggleCensus();
+      else if (key.toLowerCase() === "h") this.home();
+      else if (key.toLowerCase() === "m") this.setReducedMotion(!this.reducedMotion);
+      else if (key === "+" || key === "=") this.zoomAt(1.2);
+      else if (key === "-" || key === "_") this.zoomAt(1 / 1.2);
+      else if (key === "Escape") {
+        if (this.hudReady && this.hud.censusIsOpen) this.hud.toggleCensus(false);
+        else this.select(undefined, false);
+      } else if (this.hudReady && this.hud.censusIsOpen && (key === "ArrowDown" || key === "ArrowUp" || key === "Enter")) {
+        event.preventDefault();
+        if (key === "Enter") {
+          if (this.selected) this.frameLot(this.city.plan.placements.find((p) => p.lot.fullName === this.selected)!);
+        } else {
+          const row = this.hud.censusStep(key === "ArrowDown" ? 1 : -1);
+          if (row) this.select(row.repo, false);
         }
-      });
-    }
+      }
+    };
+    const blurUi = () => {
+      const el = document.activeElement;
+      if (el instanceof HTMLInputElement || el instanceof HTMLButtonElement) el.blur();
+    };
+    window.addEventListener("keydown", onKey);
+    this.game.canvas.addEventListener("pointerdown", blurUi);
     const double = () => this.home();
     this.game.canvas.addEventListener("dblclick", double);
-    this.events.once("shutdown", () => this.game.canvas.removeEventListener("dblclick", double));
+    this.events.once("shutdown", () => {
+      window.removeEventListener("keydown", onKey);
+      this.game.canvas.removeEventListener("pointerdown", blurUi);
+      this.game.canvas.removeEventListener("dblclick", double);
+    });
   }
 
   private air(time: number): void {

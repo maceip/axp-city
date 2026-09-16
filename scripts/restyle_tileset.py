@@ -241,6 +241,9 @@ def extract_construction(sheet: Image.Image, bg: str) -> list[Image.Image]:
     for b in blobs:
         if b[2] < 40 or b[3] < 40:
             continue
+        # Finished $ bank sits at the bottom of the attached column.
+        if b[1] > keyed.height * 0.72:
+            continue
         stages.append(restyle(trim(b[4]), sat=0.7))
     return stages
 
@@ -529,7 +532,7 @@ def write_civic_and_hud() -> tuple[dict, dict]:
         )
         office = largest_opaque(hq, 200, 160)
         if office:
-            place("office", restyle(office, sat=0.74), 360, 280)
+            place("office", restyle(office, sat=0.74), 420, 320)
 
     hall = extract_last_building(SRC2 / "PC _ Computer - Jane's Realty - Buildings - City Hall.png", "teal")
     if hall:
@@ -537,6 +540,9 @@ def write_civic_and_hud() -> tuple[dict, dict]:
     church = extract_last_building(SRC2 / "PC _ Computer - Jane's Realty - Buildings - Church.png", "teal")
     if church:
         place("odd-2", church, 180, 220)
+    store = extract_last_building(SRC2 / "PC _ Computer - Jane's Realty - Buildings - Store.png", "teal")
+    if store and not is_gray_pad(store) and not is_fragment(store) and store.height > 90:
+        place("odd-3", store, 180, 200)
     maps = SRC2 / "PC _ Computer - Jane's Realty - Map - Map Elements.png"
     if maps.exists():
         mill = key_teal(open_rgba(maps).crop((6, 6, 118, 128)))
@@ -550,7 +556,9 @@ def write_civic_and_hud() -> tuple[dict, dict]:
         bank = extract_last_building(ATTACHED, "mauve")
         if bank:
             place("bank-office", bank, 180, 200)
-        for i, st in enumerate(extract_construction(att, "mauve")[:6]):
+        # First five left-column stages only (pad → posts → roof → cladding →
+        # unfinished shell). The finished $ bank is bank-office, not a scaffold.
+        for i, st in enumerate(extract_construction(att, "mauve")[:5]):
             if st.width >= 40 and st.height >= 40:
                 place(f"scaffold-{i}", st, 140, 180)
         park_crop = att.crop((148, 208, 352, 418))

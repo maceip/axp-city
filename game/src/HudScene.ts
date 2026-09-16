@@ -117,7 +117,7 @@ export class HudScene extends Phaser.Scene {
   motion = true;
 
   constructor() {
-    super({ key: SceneKeys.Hud, active: false });
+    super({ key: SceneKeys.Hud, active: false, input: { keyboard: false } });
   }
 
   init(data: { actions: HudActions; snapshot: CitySnapshot }): void {
@@ -139,6 +139,7 @@ export class HudScene extends Phaser.Scene {
     const box = HUD_FRAMES[frame];
     const img = this.add.image(0, 0, HUD_SHEET.file, ensureFrame(this, HUD_SHEET.file, box));
     img.setOrigin(0, 0).setDisplaySize(width, height);
+    img.disableInteractive();
     return img;
   }
 

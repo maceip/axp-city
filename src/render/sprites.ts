@@ -271,41 +271,43 @@ export const CIVIC_SHEET: PropSheet = {
 };
 
 export const CIVIC_SPRITES: Record<string, SpriteBox> = {
-  office: { x: 8, y: 8, w: 360, h: 260 },
-  "city-hall": { x: 376, y: 8, w: 144, h: 125 },
-  "bank-office": { x: 975, y: 8, w: 99, h: 114 },
-  "scaffold-0": { x: 1082, y: 8, w: 87, h: 73 },
-  "scaffold-1": { x: 1177, y: 8, w: 75, h: 99 },
-  "scaffold-2": { x: 1260, y: 8, w: 88, h: 110 },
-  "scaffold-3": { x: 1356, y: 8, w: 95, h: 110 },
-  "scaffold-4": { x: 8, y: 276, w: 70, h: 116 },
-  "scaffold-5": { x: 86, y: 276, w: 95, h: 99 },
-  parking: { x: 189, y: 276, w: 174, h: 180 },
-  "plant-0": { x: 8, y: 464, w: 74, h: 101 },
-  "plant-1": { x: 90, y: 464, w: 73, h: 101 },
-  "plant-2": { x: 171, y: 464, w: 61, h: 107 },
-  "plant-3": { x: 240, y: 464, w: 57, h: 105 },
-  "plant-5": { x: 305, y: 464, w: 90, h: 65 },
-  "road-0": { x: 403, y: 464, w: 72, h: 47 },
-  "road-1": { x: 483, y: 464, w: 71, h: 48 },
-  "bike-0": { x: 562, y: 464, w: 66, h: 38 },
-  "bike-1": { x: 636, y: 464, w: 66, h: 38 },
-  "odd-2": { x: 528, y: 8, w: 171, h: 202 },
-  "odd-4": { x: 859, y: 8, w: 108, h: 122 },
-  "odd-6": { x: 1311, y: 276, w: 159, h: 157 },
-  "gate-0": { x: 371, y: 276, w: 156, h: 65 },
-  "gate-1": { x: 535, y: 276, w: 156, h: 68 },
-  "gate-2": { x: 699, y: 276, w: 145, h: 68 },
-  "gate-3": { x: 852, y: 276, w: 145, h: 68 },
-  "gate-4": { x: 1005, y: 276, w: 145, h: 68 },
-  "gate-5": { x: 1158, y: 276, w: 145, h: 50 },
+  office: { x: 8, y: 8, w: 420, h: 303 },
+  "city-hall": { x: 436, y: 8, w: 144, h: 125 },
+  "bank-office": { x: 1035, y: 8, w: 99, h: 114 },
+  "scaffold-0": { x: 1142, y: 8, w: 87, h: 73 },
+  "scaffold-1": { x: 1237, y: 8, w: 75, h: 99 },
+  "scaffold-2": { x: 1320, y: 8, w: 88, h: 110 },
+  "scaffold-3": { x: 1416, y: 8, w: 95, h: 110 },
+  parking: { x: 86, y: 319, w: 174, h: 180 },
+  "plant-0": { x: 1375, y: 319, w: 74, h: 101 },
+  "plant-1": { x: 8, y: 507, w: 73, h: 101 },
+  "plant-2": { x: 89, y: 507, w: 61, h: 107 },
+  "plant-3": { x: 158, y: 507, w: 57, h: 105 },
+  "plant-5": { x: 223, y: 507, w: 90, h: 65 },
+  "road-0": { x: 321, y: 507, w: 72, h: 47 },
+  "road-1": { x: 401, y: 507, w: 71, h: 48 },
+  "bike-0": { x: 480, y: 507, w: 66, h: 38 },
+  "bike-1": { x: 554, y: 507, w: 66, h: 38 },
+  "odd-2": { x: 588, y: 8, w: 171, h: 202 },
+  "odd-3": { x: 767, y: 8, w: 144, h: 139 },
+  "odd-4": { x: 919, y: 8, w: 108, h: 122 },
+  "odd-6": { x: 1208, y: 319, w: 159, h: 157 },
+  "gate-0": { x: 268, y: 319, w: 156, h: 65 },
+  "gate-1": { x: 432, y: 319, w: 156, h: 68 },
+  "gate-2": { x: 596, y: 319, w: 145, h: 68 },
+  "gate-3": { x: 749, y: 319, w: 145, h: 68 },
+  "gate-4": { x: 902, y: 319, w: 145, h: 68 },
+  "gate-5": { x: 1055, y: 319, w: 145, h: 50 },
 };
+
+/** On-screen width of the park-center HQ compound — larger than any repo lot. */
+export const OFFICE_STAMP_WIDTH = 480;
 
 export const CONSTRUCTION_STAGES: Record<string, SpriteBox> = {
   grading: CIVIC_SPRITES["scaffold-0"],
   framing: CIVIC_SPRITES["scaffold-1"],
-  cladding: CIVIC_SPRITES["scaffold-3"],
-  finishing: CIVIC_SPRITES["scaffold-5"],
+  cladding: CIVIC_SPRITES["scaffold-2"],
+  finishing: CIVIC_SPRITES["scaffold-3"],
 };
 
 export const CIVIC_PLANTS = [
@@ -318,6 +320,7 @@ export const CIVIC_PLANTS = [
 
 export const CIVIC_ODD = [
   CIVIC_SPRITES["odd-2"],
+  CIVIC_SPRITES["odd-3"],
   CIVIC_SPRITES["odd-4"],
   CIVIC_SPRITES["odd-6"],
   CIVIC_SPRITES["bank-office"],

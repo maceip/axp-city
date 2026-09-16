@@ -784,6 +784,23 @@ export function planLot(
   if (site.stage !== "complete") {
     result.construction = site;
     if (building) building.alpha = Math.min(building.alpha ?? 1, site.buildingAlpha);
+    const stageBox = CONSTRUCTION_STAGES[site.stage];
+    if (stageBox) {
+      const a = project(place.x + 1.0, place.y + LOT_D / 2);
+      result.images.push(
+        imageStamp(
+          CIVIC_SHEET,
+          stageBox,
+          a.sx,
+          a.sy,
+          buildingSize(place.lot).width * 0.92,
+          false,
+          a.sy + 2,
+          "world",
+          { repo: place.lot.fullName, tag: "scaffold-art" },
+        ),
+      );
+    }
     if (site.siteDressing) {
       result.diamonds.push({
         kind: "diamond",
@@ -797,23 +814,6 @@ export function planLot(
         strokeAlpha: 0.25,
         depth: -99_995,
       });
-      const stageBox = CONSTRUCTION_STAGES[site.stage];
-      if (stageBox) {
-        const a = project(place.x + 1.0, place.y + LOT_D / 2);
-        result.images.push(
-          imageStamp(
-            CIVIC_SHEET,
-            stageBox,
-            a.sx,
-            a.sy,
-            buildingSize(place.lot).width * 0.92,
-            false,
-            a.sy + 2,
-            "world",
-            { repo: place.lot.fullName, tag: "scaffold-art" },
-          ),
-        );
-      }
       for (const [i, [cx, cy]] of [
         [0.35, 0.4],
         [3.4, 1.8],

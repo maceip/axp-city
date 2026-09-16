@@ -190,7 +190,7 @@ describe("civic and HUD kits", () => {
       expect(box.x + box.w, name).toBeLessThanOrEqual(HUD_SHEET.width);
       expect(box.y + box.h, name).toBeLessThanOrEqual(HUD_SHEET.height);
     }
-    expect(CIVIC_SPRITES.office.w).toBeGreaterThan(200);
+    expect(CIVIC_SPRITES.office.w).toBeGreaterThan(400);
     expect(CIVIC_SPRITES["plant-0"].h).toBeGreaterThan(60);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);

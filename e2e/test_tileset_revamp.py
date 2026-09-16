@@ -50,6 +50,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert info["rendererName"] in ("webgl", "canvas")
         assert info["totalLots"] == 36
         assert info["office"] and info["office"]["sprite"] == "office"
+        assert info["officeStampWidth"] >= 400
         assert info["civicCount"] > 8
         assert info["uniqueFacades"] >= 12, f"repo lots still look cloned: {info['uniqueFacades']} unique facades"
 

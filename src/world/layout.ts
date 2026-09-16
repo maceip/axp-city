@@ -255,7 +255,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       vacancies.push({ sx, sy, x: origin.x, y: origin.y, variant });
       // Occasional odd unused buildings — never assigned to a repository.
       if (variant === "plaza" && hash01(sx, sy, 41) < 0.55) {
-        const odd = ["odd-2", "odd-4", "odd-6", "bank-office", "city-hall"];
+        const odd = ["odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"];
         civics.push({
           kind: "odd",
           id: `odd-${sx}-${sy}`,

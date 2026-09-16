@@ -113,6 +113,7 @@ describe("Phaser scene planning", () => {
     expect(finishing.construction?.stage).toBe("finishing");
     expect(finishing.anims.some((a) => a.anim === "craneArm")).toBe(false);
     expect(finishing.images.some((i) => i.tag?.startsWith("cone:"))).toBe(false);
+    expect(finishing.images.some((i) => i.tag === "scaffold-art")).toBe(true);
     const done = at(46_000);
     expect(done.construction).toBeUndefined();
     expect(done.images.find((i) => i.tag === "building")?.alpha).toBe(1);
