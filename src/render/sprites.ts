@@ -342,8 +342,8 @@ export const HUD_SHEET: PropSheet = {
 export const HUD_FONT = {
   file: "hud-font-k1.png",
   xml: "hud-font-k1.xml",
-  width: 320,
-  height: 390,
+  width: 400,
+  height: 494,
   face: "hud-ink",
 };
 

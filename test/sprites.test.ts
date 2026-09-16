@@ -274,8 +274,42 @@ print(f"{sr/n:.1f} {sg/n:.1f} {sb/n:.1f} {lime/n:.3f} {clr/cn:.1f} {clg/cn:.1f} 
       .trim()
       .split(/\s+/)
       .map(Number);
-    expect(limeFrac, `wild trees still neon (${mr},${mg},${mb})`).toBeLessThan(0.10);
-    expect(mg - mr, "wild canopy still much greener than civic plants").toBeLessThan(28);
-    expect(Math.abs(mg - cg), "wild vs civic foliage still in different families").toBeLessThan(40);
+    expect(limeFrac, `wild trees still neon (${mr},${mg},${mb})`).toBeLessThan(0.05);
+    expect(mg - mr, "wild canopy still much greener than civic plants").toBeLessThan(20);
+    expect(Math.abs(mg - cg), "wild vs civic foliage still in different families").toBeLessThan(28);
+    expect(mr, "wild canopy still too dark/chartreuse versus civic plants").toBeGreaterThan(90);
+  });
+
+  it("ships a baseline-aligned HUD bitmap font so labels cannot double on SwiftShader", () => {
+    const script = `
+import xml.etree.ElementTree as ET
+from PIL import Image
+xml = ET.parse("assets/city-sprites/hud-font-k1.xml")
+info = xml.find("info")
+chars = {int(c.attrib["id"]): c.attrib for c in xml.find("chars")}
+sheet = Image.open("assets/city-sprites/hud-font-k1.png")
+print(info.attrib["face"])
+print(info.attrib["size"])
+print(sheet.size[0], sheet.size[1])
+print(chars[65]["yoffset"], chars[97]["yoffset"], chars[103]["height"])
+print(int(8722 in chars))
+`;
+    const [face, size, dims, offsets, hasMinus] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n");
+    const [sw, sh] = dims.split(/\s+/).map(Number);
+    const [aY, ay, gh] = offsets.split(/\s+/).map(Number);
+    expect(face).toBe("hud-ink");
+    expect(Number(size)).toBe(32);
+    expect(sw).toBe(HUD_FONT.width);
+    expect(sh).toBe(HUD_FONT.height);
+    expect(aY, "capital yoffset should sit below the line top").toBeGreaterThanOrEqual(0);
+    expect(aY).toBeLessThan(16);
+    expect(ay, "lowercase should sit lower than capitals").toBeGreaterThan(aY);
+    expect(gh, "g must keep its descender").toBeGreaterThan(ay);
+    expect(Number(hasMinus), "minus sign used by zoom-out is missing from the atlas").toBe(1);
+    expect(existsSync(join("assets", "city-sprites", HUD_FONT.file))).toBe(true);
   });
 });

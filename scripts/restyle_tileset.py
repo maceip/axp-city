@@ -859,15 +859,40 @@ def crush_ground_vibe(path: Path = OUT / "v5-ground-tiles-kit-k1.png") -> None:
     print("crushed ground vibe", ", ".join({**GROUND_VIBE_BOXES, **GROUND_WATER_BOXES}), "→", path)
 
 
+CIVIC_FOLIAGE = (118, 132, 86)
+
+
+def crush_canopy_to_civic(im: Image.Image) -> Image.Image:
+    """Lift leftover dark-chartreuse canopy onto the civic plant olive."""
+    out = im.copy()
+    px = out.load()
+    for yy in range(out.height):
+        for xx in range(out.width):
+            r, g, b, a = px[xx, yy]
+            if a < 16:
+                continue
+            foliage = g > r + 6 and g > b and g > 55
+            if not foliage:
+                continue
+            t = 0.72 if g > r + 18 else 0.58
+            px[xx, yy] = (
+                int(r * (1 - t) + CIVIC_FOLIAGE[0] * t),
+                int(g * (1 - t) + CIVIC_FOLIAGE[1] * t),
+                int(b * (1 - t) + CIVIC_FOLIAGE[2] * t),
+                a,
+            )
+    return out
+
+
 def crush_wild_vibe() -> None:
     """Restyle raw wild-tree / bush sheets onto the catalog olive (boxes unchanged)."""
     for name in ("v8-wild-trees-k1.png", "v8-wild-bushes-k1.png"):
         path = OUT / name
         if not path.exists():
             continue
-        im = crush_rgba_pixels(open_rgba(path))
+        im = crush_canopy_to_civic(crush_rgba_pixels(open_rgba(path)))
         if "bush" in name:
-            im = crush_rgba_pixels(im)
+            im = crush_canopy_to_civic(crush_rgba_pixels(im))
         im.save(path)
         print("crushed wild vibe", path)
 

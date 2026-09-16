@@ -130,7 +130,9 @@ export class HudScene extends Phaser.Scene {
   private toastBg!: Phaser.GameObjects.Image;
   private toastTimer?: Phaser.Time.TimerEvent;
   private tag!: Phaser.GameObjects.BitmapText;
+  private tagPlate!: Phaser.GameObjects.Image;
   private hint!: Phaser.GameObjects.BitmapText;
+  private hintPlate!: Phaser.GameObjects.Image;
   private dpad!: Phaser.GameObjects.Container;
   private tools!: Phaser.GameObjects.Container;
   private kitRail!: Phaser.GameObjects.Image;
@@ -281,6 +283,8 @@ export class HudScene extends Phaser.Scene {
     home.container.setPosition(52, 52);
     this.dpad.add(home.container);
 
+    this.hintPlate = this.hudPanel("toast", 760, 26);
+    this.hintPlate.setName("hint-plate");
     this.hint = ink(this, 0, 0, "FIELD NOTES · drag · scroll/pinch · WASD · / search · C census · F follow · Esc", {
       fontSize: "11px",
       color: "#efe6c8",
@@ -315,6 +319,7 @@ export class HudScene extends Phaser.Scene {
 
     this.toastBg = this.hudPanel("toast", 360, 48).setOrigin(0.5, 1).setVisible(false).setDepth(49);
     this.toastText = ink(this, 0, 0, "", { fontSize: "13px" }).setOrigin(0.5, 1).setVisible(false).setDepth(50);
+    this.tagPlate = this.hudPanel("toast", 180, 26).setVisible(false).setDepth(59);
     this.tag = ink(this, 0, 0, "", { fontSize: "12px" }).setVisible(false).setDepth(60);
 
     this.input.on("wheel", (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
@@ -347,7 +352,7 @@ export class HudScene extends Phaser.Scene {
     const frame = height >= 40 && width <= 50 ? "btn-sq" : width >= 110 ? "btn-wide" : "btn";
     const img = this.hudPanel(frame, width, height);
     const bg = this.add.graphics();
-    const label = ink(this, width / 2, height / 2, text, { fontSize: height >= 40 ? "18px" : "13px" }).setOrigin(0.5);
+    const label = ink(this, width / 2, height / 2, text, { fontSize: height >= 40 ? "18px" : "14px" }).setOrigin(0.5);
     const paint = (hover: boolean) => {
       img.setTint(hover ? 0xf0e0a0 : 0xffffff);
       bg.clear();
@@ -395,7 +400,9 @@ export class HudScene extends Phaser.Scene {
     // A phone's bottom-sheet card covers the d-pad; it returns when the card closes.
     this.dpad.setVisible(!(small && this.card.visible));
     const toolbar = ["census", "capture", "svg", "motion", "follow"];
-    this.hint.setOrigin(0, 1).setPosition(190, H - 60).setVisible(!small && !this.censusOpen && W >= 1100);
+    const hintOn = !small && !this.censusOpen && W >= 1100;
+    this.hint.setOrigin(0, 1).setPosition(198, H - 58).setVisible(hintOn);
+    this.hintPlate.setOrigin(0, 1).setPosition(186, H - 54).setDisplaySize(Math.min(780, W - 420), 26).setVisible(hintOn);
     if (small) {
       this.kitRail.setVisible(false);
       this.compass.setPosition(W - 60, 92);
@@ -647,6 +654,7 @@ export class HudScene extends Phaser.Scene {
     if (small) {
       this.dpad.setVisible(false);
       this.hint.setVisible(false);
+      this.hintPlate.setVisible(false);
     }
     this.card.setDepth(40);
   }
@@ -739,7 +747,7 @@ export class HudScene extends Phaser.Scene {
       16,
       10,
       `LOT CENSUS · ${rows.length} of ${this.snapshot.plan.placements.length} repositories${this.censusFilter ? ` matching “${this.censusFilter}”` : ""} · sorted by ${this.censusSort.key} ${this.censusSort.descending ? "↓" : "↑"} · scroll or ↑↓ to browse, Enter to inspect`,
-      { fontSize: "11px", color: GOLD },
+      { fontSize: "11px", color: GOLD, wordWrap: { width: Math.max(220, (this.census.width || 380) - 56) } },
     );
     this.census.add(title);
     this.censusHeader.push(title);
@@ -820,10 +828,14 @@ export class HudScene extends Phaser.Scene {
 
   showTag(repo: string, x: number, y: number): void {
     this.tag.setText(repo).setVisible(true);
-    this.tag.setPosition(Math.min(this.scale.width - this.tag.width - 8, Math.max(8, x + 15)), Math.max(8, y - 35));
+    const tx = Math.min(this.scale.width - this.tag.width - 16, Math.max(8, x + 15));
+    const ty = Math.max(8, y - 35);
+    this.tag.setPosition(tx, ty);
+    this.tagPlate.setVisible(true).setPosition(tx - 8, ty - 5).setDisplaySize(this.tag.width + 16, 24);
   }
   hideTag(): void {
     this.tag.setVisible(false);
+    this.tagPlate.setVisible(false);
   }
 
   /** True when the pointer is over a HUD element (so the city ignores the gesture). */
@@ -832,6 +844,10 @@ export class HudScene extends Phaser.Scene {
    * shown. Buttons nested in the d-pad, card and census containers are included
    * so browser tests and the accessibility mirror can target the same element.
    */
+  labelText(name: string): string | null {
+    return this.buttons.get(name)?.label.text ?? null;
+  }
+
   locate(name: string): { x: number; y: number; width: number; height: number } | null {
     const object = this.buttons.get(name)?.container ?? (this.children.getByName(name) as Phaser.GameObjects.Container | null);
     if (!object) return null;
@@ -859,7 +875,7 @@ function contains(frame: { x: number; y: number; width: number; height: number }
 function cellValue(row: CensusRow, key: string): string | number {
   switch (key) {
     case "repo":
-      return row.repo + (row.constructing ? " 🏗" : "") + (row.partial ? " ~" : "");
+      return row.repo + (row.constructing ? " *" : "") + (row.partial ? " ~" : "");
     case "band":
       return row.band;
     default:

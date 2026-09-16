@@ -302,6 +302,10 @@ export class CityScene extends Phaser.Scene {
         if (!this.hudReady) return null;
         return this.hud.locate(name);
       },
+      hudLabel: (name: string) => {
+        if (!this.hudReady) return null;
+        return this.hud.labelText(name);
+      },
     };
   }
 

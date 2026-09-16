@@ -5,6 +5,8 @@ saves screenshots. The hosted Playwright service is preferred; see conftest.
 """
 from pathlib import Path
 
+from PIL import Image
+
 from conftest import CityServer, ready, repo_metrics
 
 SHOTS = Path(__file__).parent / "screenshots"
@@ -24,6 +26,46 @@ def hud(page, name):
 def click_hud(page, name):
     p = hud(page, name)
     page.mouse.click(p["x"], p["y"])
+
+
+def cream_ink_width(path: Path) -> int:
+    """Width of cream HUD lettering. SwiftShader fillText grows this past the word."""
+    image = Image.open(path).convert("RGB")
+    xs = []
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b = image.getpixel((x, y))
+            if r > 200 and g > 190 and b > 150:
+                xs.append(x)
+    return max(xs) - min(xs) + 1 if xs else 0
+
+
+def clip_hud(page, name, dest: Path) -> Path:
+    point = hud(page, name)
+    page.screenshot(
+        path=str(dest),
+        clip={
+            "x": max(0, point["x"] - point["width"] / 2),
+            "y": max(0, point["y"] - point["height"] / 2),
+            "width": point["width"],
+            "height": point["height"],
+        },
+    )
+    return dest
+
+
+def assert_kit_label(page, name: str, expected: str) -> None:
+    text = page.evaluate("name => window.__AXP.hudLabel(name)", name)
+    assert text == expected, f"HUD {name} game text is {text!r}, expected {expected!r}"
+    dest = clip_hud(page, name, SHOTS / f"tileset-hud-label-{name}.png")
+    ink = cream_ink_width(dest)
+    scale = 14 / 32
+    expected_w = len(expected) * 19 * scale
+    doubled_w = (len(expected) + 2) * 19 * scale
+    assert ink > expected_w * 0.65, f"{name} label ink too thin ({ink}px) for {expected!r}"
+    assert abs(ink - expected_w) < abs(ink - doubled_w), (
+        f"{name} stamp still reads doubled: ink {ink}px expected ~{expected_w:.0f}px doubled ~{doubled_w:.0f}px"
+    )
 
 
 def diverse_metrics():
@@ -91,6 +133,14 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         for name in ("compass", "minimap", "zoom-in", "zoom-out", "home", "census", "capture", "svg", "motion", "follow", "status", "dpad", "move-east"):
             point = hud(page, name)
             assert point["width"] > 8 and point["height"] > 8
+        for name, label in (
+            ("census", "CENSUS"),
+            ("capture", "CAPTURE"),
+            ("svg", "SVG MAP"),
+            ("motion", "MOTION ON"),
+            ("follow", "FOLLOW"),
+        ):
+            assert_kit_label(page, name, label)
 
         click_hud(page, "census")
         page.wait_for_function("window.__AXP.diagnostics().censusOpen === true")
