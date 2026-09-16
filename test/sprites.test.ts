@@ -17,7 +17,9 @@ import {
   HUD_FONT,
   HUD_FRAMES,
   HUD_SHEET,
+  ODD_HOME_WIDTH,
   ODD_STAMP_WIDTH,
+  oddDisplayWidth,
   MATERIAL_LOOSE,
   MATERIAL_PALLETS,
   PLANNING_TABLES,
@@ -258,6 +260,11 @@ describe("civic and HUD kits", () => {
     expect(BIKE_STAMP_WIDTH).toBeGreaterThanOrEqual(180);
     expect(ODD_STAMP_WIDTH["odd-2"], "fence stamp still flyover-thin").toBeGreaterThanOrEqual(200);
     expect(ODD_STAMP_WIDTH["odd-4"], "gate stamp still flyover-thin").toBeGreaterThanOrEqual(190);
+    expect(ODD_HOME_WIDTH["odd-2"], "fence still swallows home zoom").toBeLessThan(150);
+    expect(ODD_HOME_WIDTH["odd-4"], "gates still swallow home zoom").toBeLessThan(140);
+    expect(ODD_HOME_WIDTH["odd-2"]).toBeLessThan(ODD_STAMP_WIDTH["odd-2"]);
+    expect(oddDisplayWidth("odd-2", 1)).toBe(ODD_HOME_WIDTH["odd-2"]);
+    expect(oddDisplayWidth("odd-2", 0.69)).toBe(ODD_STAMP_WIDTH["odd-2"]);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);
     expect(Object.keys(CONSTRUCTION_STAGES)).toEqual(["grading", "framing", "cladding", "finishing"]);
@@ -373,7 +380,7 @@ n4,g4,d4,k4,c4,f4 = stats((919, 8, 108, 122))
 n6,g6,d6,k6,c6,f6 = stats((1208, 319, 159, 157))
 nh,gh,dh,kh,ch,fh = stats((436, 8, 144, 125))
 nl,gl,dl,kl,cl,fl = stats((765, 4, 70, 172), "L")
-print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f} {n6} {g6} {k6} {nh} {gh} {dh} {gl}")
+print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f} {n6} {g6} {k6} {nh} {gh} {dh} {ch} {gl}")
 `;
     const [
       n2,
@@ -395,6 +402,7 @@ print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f}
       nh,
       glassH,
       darkH,
+      creamH,
       catalogGlass,
     ] = execFileSync("python3", ["-c", script], {
       encoding: "utf8",
@@ -416,9 +424,10 @@ print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f}
     expect(dark4, "odd-4 lost timber posts").toBeGreaterThan(200);
     expect(n6, "odd-6 depot emptied").toBeGreaterThan(2500);
     expect(khaki6, "odd-6 lost its parking+gate depot pad").toBeGreaterThan(4000);
-    expect(nh, "city-hall cottage emptied").toBeGreaterThan(2000);
+    expect(nh, "city-hall kiosk emptied").toBeGreaterThan(2000);
     expect(glassH / nh, "city-hall still reads as a catalog glass hub").toBeLessThan(0.12);
-    expect(darkH, "city-hall lost its dark hip roof").toBeGreaterThan(1500);
+    expect(creamH, "city-hall is still a cottage, not a civic kiosk pad").toBeGreaterThan(2000);
+    expect(darkH, "city-hall lost its timber posts / slate board").toBeGreaterThan(400);
     expect(catalogGlass, "lot catalog glass tower missing — comparison invalid").toBeGreaterThan(800);
     expect(glass2 + glass3, "inland odds still carry catalog glass").toBeLessThan(catalogGlass * 0.1);
     expect(cream2, "fence and parking should stay different silhouettes").toBeGreaterThan(khaki3 * 0.05);

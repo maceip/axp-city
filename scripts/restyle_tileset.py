@@ -552,6 +552,31 @@ def compose_readable_fence(fence: Image.Image, w: int, h: int) -> Image.Image:
     return cell
 
 
+def compose_civic_kiosk(gates: list[Image.Image], w: int, h: int) -> Image.Image:
+    """Unused civic notice board on a cream pad — not a house, not a parking lot."""
+    cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(cell)
+    cx = w / 2
+    d.polygon(
+        [(cx, h * 0.48), (w - 6, h * 0.74), (cx, h - 4), (6, h * 0.74)],
+        fill=CREAM_YARD,
+    )
+    left, right = int(w * 0.30), int(w * 0.64)
+    d.rectangle([left, 10, left + 9, int(h * 0.62)], fill=TIMBER)
+    d.rectangle([right, 10, right + 9, int(h * 0.62)], fill=TIMBER)
+    d.rectangle([left + 2, 12, left + 7, int(h * 0.58)], fill=SLATE_POST)
+    d.rectangle([right + 2, 12, right + 7, int(h * 0.58)], fill=SLATE_POST)
+    d.rectangle([int(w * 0.22), 12, int(w * 0.78), int(h * 0.44)], fill=(72, 78, 70, 255))
+    d.rectangle([int(w * 0.24), 16, int(w * 0.76), int(h * 0.40)], fill=(88, 96, 86, 255))
+    d.rectangle([int(w * 0.24), 16, int(w * 0.76), 20], fill=(246, 221, 145, 255))
+    for y in (int(h * 0.24), int(h * 0.29), int(h * 0.34)):
+        d.line([(int(w * 0.30), y), (int(w * 0.70), y)], fill=(232, 224, 198, 210), width=2)
+    if gates:
+        face = thicken_outline(scale_to(gates[0], int(w * 0.62), int(h * 0.18)), 1)
+        cell.alpha_composite(face, ((w - face.width) // 2, 22))
+    return cell
+
+
 def compose_readable_gates(gates: list[Image.Image], w: int, h: int) -> Image.Image:
     """Cream iso plinth + stacked timber gates. Readable mass at flyover."""
     cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
@@ -599,13 +624,6 @@ def extract_civic_distinct_odds() -> dict[str, Image.Image]:
     if len(gates) < 3:
         raise SystemExit(f"not enough attached gates: {len(gates)}")
 
-    cottage = trim(keyed.crop((8, 480, 130, 595)))
-    if not cottage.getbbox() or cottage.height < 70:
-        raise SystemExit("dark-roof cottage missing from attached sheet")
-    if looks_like_bank(cottage):
-        raise SystemExit("cottage crop grabbed the $ bank")
-    cottage = restyle_civic_cottage(cottage)
-
     boxes = CATALOG_ODD_BOXES
     out: dict[str, Image.Image] = {}
 
@@ -627,7 +645,7 @@ def extract_civic_distinct_odds() -> dict[str, Image.Image]:
     out["odd-6"] = depot
 
     w, h = boxes["city-hall"][2], boxes["city-hall"][3]
-    out["city-hall"] = _fit_cell(cottage, w, h)
+    out["city-hall"] = compose_civic_kiosk(gates, w, h)
     return out
 
 
@@ -642,7 +660,7 @@ def stamp_civic_distinct_odds(path: Path = OUT / "civic-kit-k1.png") -> None:
         kit.paste(cell, (x, y))
         print("stamped", name, "civic-distinct", cell.size, "→", (x, y, w, h))
     kit.save(path)
-    print("replaced catalog-clone odds with civic-distinct parking/fence/gates/cottage")
+    print("replaced catalog-clone odds with civic-distinct parking/fence/gates/kiosk")
 
 
 def stamp_catalog_odds(path: Path = OUT / "civic-kit-k1.png") -> None:

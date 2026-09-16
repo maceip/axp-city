@@ -123,9 +123,9 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
   stamped larger than any repo lot),   inland unused civics from the attached
   construction sheet (cream-infilled timber fence, parking pad, stacked timber
-  gates on a cream plinth, parking+gate depot, dark-roof cottage — not ChatGPT
-  lot-catalog houses and not Jane church/villa geometry; fence/gates stamp
-  larger so they read at flyover), attached construction stages (pad→posts→roof→shell,
+  gates on a cream plinth, parking+gate depot, civic notice kiosk — not ChatGPT
+  lot-catalog houses and not Jane church/villa/cottage geometry; fence/gates
+  grow at flyover and stay lot-adjacent at home zoom), attached construction stages (pad→posts→roof→shell,
   never the finished bank), amenity parking, gates, `$` bank, isometric plants
   from the v5 ground kit, and full-size restyled road/bike tiles that read at
   overview zoom (not the leftover 4px diamonds).

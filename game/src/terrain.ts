@@ -14,9 +14,9 @@ import {
   CIVIC_SPRITES,
   BIKE_STAMP_WIDTH,
   HUD_FONT,
-  ODD_STAMP_WIDTH,
   OFFICE_STAMP_WIDTH,
   ROAD_STAMP_WIDTH,
+  oddDisplayWidth,
 } from "../../src/render/sprites.js";
 import { imagePool, type ObjectPool } from "./pool.js";
 import { ensureFrame } from "./stamps.js";
@@ -451,18 +451,21 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       marker.kind === "plant" && marker.id.startsWith("park-plant-")
         ? 88
         : marker.kind === "odd"
-          ? (ODD_STAMP_WIDTH[marker.sprite] ?? 160)
+          ? oddDisplayWidth(marker.sprite, scene.cameras.main.zoom)
           : civicWidth[marker.kind] ?? 100;
     const a = project(marker.x, marker.y);
     const depth =
       marker.kind === "bike" ? a.sy - 8 : marker.kind === "road" ? a.sy - 12 : a.sy + (marker.kind === "office" ? 8 : 0);
-    objects.push(
-      scene.add
-        .image(a.sx, a.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, box))
-        .setOrigin(0.5, 1)
-        .setDisplaySize(width, width * (box.h / box.w))
-        .setDepth(depth),
-    );
+    const stamp = scene.add
+      .image(a.sx, a.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, box))
+      .setOrigin(0.5, 1)
+      .setDisplaySize(width, width * (box.h / box.w))
+      .setDepth(depth);
+    if (marker.kind === "odd") {
+      stamp.setData("oddSprite", marker.sprite);
+      stamp.setData("oddBox", box);
+    }
+    objects.push(stamp);
     if (marker.kind === "office") {
       placeName(a.sx, a.sy + 18, "CITY OFFICE", 0x45614e, 13);
       dressOfficeCourtyard(scene, objects, a.sx, a.sy, depth);
