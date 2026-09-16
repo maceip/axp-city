@@ -154,6 +154,9 @@ export class CityScene extends Phaser.Scene {
     this.events.once("shutdown", () => {
       renderer.off("losewebgl", onLost);
       renderer.off("restorewebgl", onRestored);
+      // The restarted scene publishes a fresh handle; a stale one must not answer.
+      const w = window as unknown as { __AXP?: unknown };
+      if ((w.__AXP as { scene?: unknown } | undefined)?.scene === this) delete w.__AXP;
       this.connection.close();
       this.mirror?.destroy();
       this.actors.destroy();
@@ -169,6 +172,7 @@ export class CityScene extends Phaser.Scene {
   private exposeDiagnostics(): void {
     (window as unknown as { __AXP: unknown }).__AXP = {
       game: this.game,
+      scene: this,
       diagnostics: () => ({
         version: Phaser.VERSION,
         renderer: this.game.renderer.type,
@@ -212,6 +216,10 @@ export class CityScene extends Phaser.Scene {
       },
       select: (repo: string | undefined) => this.select(repo, true),
       setReducedMotion: (on: boolean) => this.setReducedMotion(on),
+      resetFrameStats: () => {
+        this.frameTimes = [];
+      },
+      driver: () => this.describeDriver(),
       capture: () => this.capture(),
       screenPoint: (repo: string) => {
         const p = this.city.plan.placements.find((p) => p.lot.fullName === repo);
@@ -222,12 +230,20 @@ export class CityScene extends Phaser.Scene {
       },
       hudPoint: (name: string) => {
         if (!this.hudReady) return null;
-        const object = this.hud.children.getByName(name) as Phaser.GameObjects.Container | null;
-        if (!object) return null;
-        const b = object.getBounds();
-        return { x: b.centerX, y: b.centerY, width: b.width, height: b.height };
+        return this.hud.locate(name);
       },
     };
+  }
+
+  /** Actual GL driver so performance reports can tell software rendering from a GPU. */
+  private describeDriver(): { renderer: string; vendor: string; software: boolean; api: string } {
+    const gl = (this.game.renderer as unknown as { gl?: WebGLRenderingContext }).gl;
+    if (!gl) return { renderer: "Canvas 2D", vendor: "browser", software: true, api: "canvas" };
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const renderer = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    const vendor = String(info ? gl.getParameter(info.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR));
+    const software = /swiftshader|llvmpipe|softpipe|software|mesa offscreen/i.test(renderer);
+    return { renderer, vendor, software, api: gl instanceof WebGL2RenderingContext ? "webgl2" : "webgl" };
   }
 
   private frameStats(): { median: number; p95: number; samples: number } {
@@ -439,17 +455,19 @@ export class CityScene extends Phaser.Scene {
 
   // ---- Selection, following, camera -------------------------------------
   /** The single selection path: scene highlight, follow state, HUD card, MASS bar and mirror all follow it. */
-  select(repo: string | undefined, frame: boolean): void {
+  /** Returns false when `repo` names nothing in the city. */
+  select(repo: string | undefined, frame: boolean): boolean {
     const place = repo ? findPlacement(this.city.plan, repo) : undefined;
     if (repo && !place) {
       if (this.hudReady) this.hud.toast(`No repository matches “${repo}”.`);
-      return;
+      return false;
     }
     this.stopFollowing();
     this.selected = place?.lot.fullName;
     if (this.hudReady) this.hud.setSelection(place);
     this.drawSelection();
     if (place && frame) this.frameLot(place);
+    return true;
   }
 
   private toggleFollow(): void {
@@ -540,7 +558,12 @@ export class CityScene extends Phaser.Scene {
     };
     input.onkeydown = (event) => {
       if (event.key === "Enter") {
-        this.select(input.value, true);
+        const found = this.select(input.value, true);
+        // A successful jump consumes the query so the census is not left filtered.
+        if (found) {
+          input.value = "";
+          if (this.hudReady) this.hud.setCensusFilter("");
+        }
         input.blur();
       } else if (event.key === "Escape") {
         input.value = "";

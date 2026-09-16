@@ -25,6 +25,9 @@ export class ObjectPool<T extends Phaser.GameObjects.GameObject> {
   }
   release(object: T): void {
     this.live--;
+    // Scene shutdown destroys the display list before owners release; a
+    // destroyed object has no scene and must not be parked or touched.
+    if (!object.scene) return;
     this.reset(object);
     object.setActive(false);
     (object as unknown as { setVisible(v: boolean): void }).setVisible(false);
@@ -35,7 +38,7 @@ export class ObjectPool<T extends Phaser.GameObjects.GameObject> {
     return this.free.length;
   }
   destroy(): void {
-    for (const object of this.free) object.destroy();
+    for (const object of this.free) if (object.scene) object.destroy();
     this.free = [];
   }
 }

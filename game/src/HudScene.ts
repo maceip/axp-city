@@ -45,6 +45,22 @@ interface Button {
 }
 
 /**
+ * HUD containers draw their contents from their local origin towards +x/+y,
+ * but Phaser gives containers a centred origin and adds `displayOrigin`
+ * (half the size) to the local point before testing a hit area. A hit
+ * rectangle that matches the drawn plate therefore starts at (w/2, h/2).
+ */
+function plateHit(width: number, height: number): Phaser.Geom.Rectangle {
+  return new Phaser.Geom.Rectangle(width / 2, height / 2, width, height);
+}
+
+/** Screen rectangle of a container's plate; `Container.getBounds()` ignores Graphics children. */
+function frameOf(container: Phaser.GameObjects.Container): { x: number; y: number; width: number; height: number } {
+  const m = container.getWorldTransformMatrix();
+  return { x: m.tx, y: m.ty, width: container.width * m.scaleX, height: container.height * m.scaleY };
+}
+
+/**
  * The HUD is a Phaser scene layered over the city and reads the same snapshot
  * the city draws. Only the repository search field is a native <input>, so
  * mobile keyboards and screen readers get real text entry; `a11y.ts` mirrors
@@ -126,9 +142,11 @@ export class HudScene extends Phaser.Scene {
     this.district = this.add.text(14, 28, "Central Park", { fontFamily: FONT, fontSize: "19px", color: INK, fontStyle: "bold" });
     this.coords = this.add.text(14, 55, "0 · 0", { fontFamily: FONT, fontSize: "11px", color: MUTED });
     this.plate.add([plateBg, title, this.district, this.coords]);
+    this.plate.setSize(250, 78).setName("plate");
 
     // Connection and freshness are separate readings.
     const status = this.add.container(0, 16);
+    status.setSize(320, 62);
     const statusBg = this.add.graphics();
     statusBg.fillStyle(PLATE, PLATE_ALPHA).fillRoundedRect(0, 0, 320, 62, 8);
     this.statusDot = this.add.graphics();
@@ -151,7 +169,8 @@ export class HudScene extends Phaser.Scene {
     const e = this.add.text(40, 24, "E", { fontFamily: FONT, fontSize: "9px", color: MUTED });
     const s = this.add.text(12, 42, "S", { fontFamily: FONT, fontSize: "9px", color: MUTED });
     this.compass.add([ring, n, w, e, s]);
-    this.compass.setSize(52, 52).setInteractive({ useHandCursor: true, hitArea: new Phaser.Geom.Circle(26, 26, 26), hitAreaCallback: Phaser.Geom.Circle.Contains });
+    // Circle centre is offset by the display origin like plateHit() rectangles.
+    this.compass.setSize(52, 52).setInteractive({ useHandCursor: true, hitArea: new Phaser.Geom.Circle(52, 52, 26), hitAreaCallback: Phaser.Geom.Circle.Contains });
     this.compass.on("pointerup", () => this.actions.home());
     this.compass.setName("compass");
 
@@ -161,6 +180,7 @@ export class HudScene extends Phaser.Scene {
     this.massLabel = this.add.text(12, 8, "MASS —", { fontFamily: FONT, fontSize: "10px", color: GOLD, letterSpacing: 1 });
     this.massBar = this.add.graphics();
     this.massContainer.add([massBg, this.massLabel, this.massBar]);
+    this.massContainer.setSize(186, 44).setName("mass");
     this.drawMass(undefined);
 
     this.zoomText = this.add.text(0, 0, "100%", { fontFamily: FONT, fontSize: "12px", color: INK }).setOrigin(0.5);
@@ -176,7 +196,7 @@ export class HudScene extends Phaser.Scene {
     this.minimap.add([mapBg, this.minimapPlan, this.minimapView, mapLabel]);
     this.minimap.setSize(this.minimapSize.w, this.minimapSize.h);
     this.minimap.setInteractive({
-      hitArea: new Phaser.Geom.Rectangle(0, 0, this.minimapSize.w, this.minimapSize.h),
+      hitArea: plateHit(this.minimapSize.w, this.minimapSize.h),
       hitAreaCallback: Phaser.Geom.Rectangle.Contains,
       useHandCursor: true,
     });
@@ -194,7 +214,7 @@ export class HudScene extends Phaser.Scene {
     });
     this.minimap.setName("minimap");
 
-    this.dpad = this.add.container(0, 0);
+    this.dpad = this.add.container(0, 0).setSize(150, 150).setName("dpad");
     const pad = this.add.graphics();
     pad.fillStyle(PLATE, PLATE_ALPHA).fillRoundedRect(0, 0, 150, 150, 12);
     this.dpad.add(pad);
@@ -228,7 +248,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0.5, 1);
     this.button("census", "Census", 92, 36, () => this.toggleCensus());
     this.button("capture", "Capture PNG", 120, 36, () => this.actions.capture());
-    this.button("svg", "SVG", 56, 36, () => window.open("/api/city/export.svg", "_blank", "noopener"));
+    this.button("svg", "SVG", 56, 36, () => window.open(document.querySelector<HTMLMetaElement>('meta[name="city-svg"]')?.content || "/api/city/export.svg", "_blank", "noopener"));
     this.button("motion", "Motion: on", 116, 36, () => {
       this.motion = this.actions.toggleMotion();
       this.buttons.get("motion")!.label.setText(this.motion ? "Motion: on" : "Motion: off");
@@ -263,7 +283,7 @@ export class HudScene extends Phaser.Scene {
       .setDepth(60);
 
     this.input.on("wheel", (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-      if (this.censusOpen && this.census.getBounds().contains(p.x, p.y)) {
+      if (this.censusOpen && contains(frameOf(this.census), p.x, p.y)) {
         this.censusScroll = Math.max(0, this.censusScroll + Math.sign(dy) * 2);
         this.renderCensus();
       }
@@ -289,7 +309,7 @@ export class HudScene extends Phaser.Scene {
     paint(false);
     container.add([bg, label]);
     container.setSize(width, height);
-    container.setInteractive({ hitArea: new Phaser.Geom.Rectangle(0, 0, width, height), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
+    container.setInteractive({ hitArea: plateHit(width, height), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
     container.on("pointerover", () => paint(true));
     container.on("pointerout", () => paint(false));
     container.on("pointerup", () => onClick());
@@ -314,7 +334,8 @@ export class HudScene extends Phaser.Scene {
       this.minimapSize = { w: mapW, h: mapH };
       (this.minimap.list[0] as Phaser.GameObjects.Graphics).clear().fillStyle(PLATE, PLATE_ALPHA).fillRoundedRect(-6, -6, mapW + 12, mapH + 30, 8);
       (this.minimap.list[3] as Phaser.GameObjects.Text).setPosition(mapW / 2, mapH + 8);
-      (this.minimap.input!.hitArea as Phaser.Geom.Rectangle).setSize(mapW, mapH);
+      this.minimap.setSize(mapW, mapH);
+      (this.minimap.input!.hitArea as Phaser.Geom.Rectangle).setTo(mapW / 2, mapH / 2, mapW, mapH);
       this.drawMinimapPlan();
     }
     this.minimap.setPosition(W - mapW - 22, H - mapH - 46);
@@ -324,6 +345,8 @@ export class HudScene extends Phaser.Scene {
     this.buttons.get("zoom-in")!.container.setPosition(W - mapW - 22 + 108, zoomY);
     this.dpad.setPosition(16, H - 166);
     this.dpad.setScale(small ? 0.85 : 1);
+    // A phone's bottom-sheet card covers the d-pad; it returns when the card closes.
+    this.dpad.setVisible(!(small && this.card.visible));
     const toolbar = ["census", "capture", "svg", "motion", "follow"];
     let x = small ? 16 : 190;
     const y = small ? H - 216 : H - 52;
@@ -525,7 +548,7 @@ export class HudScene extends Phaser.Scene {
     const height = (this.card.getData("height") as number) ?? 200;
     const x = small ? 12 : W - width - 16;
     const y = small ? Math.max(90, H - height - 12) : 150;
-    this.card.setPosition(x, y);
+    this.card.setPosition(x, y).setSize(width, height);
     this.cardBg.clear();
     this.cardBg.fillStyle(PLATE, 0.95).fillRoundedRect(0, 0, width, height, 10);
     this.cardBg.lineStyle(2, 0xf6dd91, 0.7).strokeRoundedRect(0, 0, width, height, 10);
@@ -534,7 +557,7 @@ export class HudScene extends Phaser.Scene {
     if (small) {
       this.dpad.setVisible(false);
       this.hint.setVisible(false);
-    } else this.dpad.setVisible(true);
+    }
     this.card.setDepth(40);
   }
 
@@ -575,7 +598,7 @@ export class HudScene extends Phaser.Scene {
     const W = this.scale.width,
       H = this.scale.height;
     const height = Math.min(H * 0.5, 420);
-    this.census.setPosition(0, H - height);
+    this.census.setPosition(0, H - height).setSize(W, height);
     this.censusBg.clear();
     this.censusBg.fillStyle(PLATE, 0.96).fillRect(0, 0, W, height);
     this.censusBg.lineStyle(3, 0xf6dd91, 0.8).lineBetween(0, 0, W, 0);
@@ -698,13 +721,33 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** True when the pointer is over a HUD element (so the city ignores the gesture). */
+  /**
+   * Screen rectangle of a named HUD control, or null when it is not currently
+   * shown. Buttons nested in the d-pad, card and census containers are included
+   * so browser tests and the accessibility mirror can target the same element.
+   */
+  locate(name: string): { x: number; y: number; width: number; height: number } | null {
+    const object = this.buttons.get(name)?.container ?? (this.children.getByName(name) as Phaser.GameObjects.Container | null);
+    if (!object) return null;
+    for (let node: Phaser.GameObjects.GameObject | null = object; node; node = (node as Phaser.GameObjects.Container).parentContainer ?? null) {
+      if (!(node as Phaser.GameObjects.Container).visible) return null;
+    }
+    const f = frameOf(object);
+    if (f.width <= 0 || f.height <= 0) return null;
+    return { x: f.x + f.width / 2, y: f.y + f.height / 2, width: f.width, height: f.height };
+  }
+
   consumes(x: number, y: number): boolean {
     const hits: Phaser.GameObjects.Container[] = [this.plate, this.tools, this.compass, this.massContainer, this.minimap, this.dpad];
     for (const name of ["zoom-in", "zoom-out", "census", "capture", "svg", "motion", "follow"]) hits.push(this.buttons.get(name)!.container);
     if (this.card.visible) hits.push(this.card);
     if (this.censusOpen) hits.push(this.census);
-    return hits.some((c) => c.visible && c.getBounds().contains(x, y));
+    return hits.some((c) => c.visible && contains(frameOf(c), x, y));
   }
+}
+
+function contains(frame: { x: number; y: number; width: number; height: number }, x: number, y: number): boolean {
+  return x >= frame.x && x <= frame.x + frame.width && y >= frame.y && y <= frame.y + frame.height;
 }
 
 function cellValue(row: CensusRow, key: string): string | number {
