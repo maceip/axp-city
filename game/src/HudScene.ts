@@ -117,7 +117,7 @@ export class HudScene extends Phaser.Scene {
   motion = true;
 
   constructor() {
-    super({ key: SceneKeys.Hud, active: false, input: { keyboard: false } });
+    super({ key: SceneKeys.Hud, active: false });
   }
 
   init(data: { actions: HudActions; snapshot: CitySnapshot }): void {
@@ -157,6 +157,7 @@ export class HudScene extends Phaser.Scene {
     this.toastTimer = undefined;
     this.lastView = undefined;
     this.cameras.main.setRoundPixels(true);
+    if (this.input.keyboard) this.input.keyboard.enabled = false;
     this.plate = this.add.container(16, 16);
     const plateBg = this.hudPanel("plate", 250, 78);
     const title = this.add.text(14, 10, "AXP CITY", { fontFamily: FONT, fontSize: "12px", color: GOLD, letterSpacing: 2 });
