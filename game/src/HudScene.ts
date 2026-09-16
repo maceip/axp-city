@@ -757,6 +757,9 @@ export class HudScene extends Phaser.Scene {
     const { rowH, font, head, headerY } = this.censusMetrics();
     const visibleRows = Math.max(1, Math.floor((H - headerY - 28) / rowH));
     this.censusScroll = Math.min(this.censusScroll, Math.max(0, rows.length - visibleRows));
+    const titleBand = this.add.rectangle(12, 10, width - 24, 56, 0x2a2e26, 0.72).setOrigin(0, 0);
+    this.census.add(titleBand);
+    this.censusMarks.push(titleBand);
     const title = ink(this, 18, 14, "LOT CENSUS", { fontSize: "15px", color: GOLD });
     const filter = this.censusFilter ? ` matching “${this.censusFilter}”` : "";
     const meta = ink(
