@@ -16,11 +16,16 @@ function yardOrigin(x: number, y: number) {
 import {
   ANIM_SHEETS,
   BUILDING_SHEETS,
+  CIVIC_PLANTS,
+  CIVIC_SHEET,
+  CIVIC_SPRITES,
+  CONSTRUCTION_STAGES,
   CREW_CARRY,
   CREW_WALK,
   DRONE_QUADS,
   GROUND_SHEET,
   GROUND_TILES,
+  HUD_SHEET,
   LOT_TILE_DIRT,
   LOT_TILE_GRASS,
   MATERIAL_LOOSE,
@@ -65,6 +70,8 @@ export interface ImageStamp {
   repo?: string;
   pixelated?: boolean;
   alpha?: number;
+  /** Multiply tint (0xffffff = none). Parser `facadeTint` for repo buildings. */
+  tint?: number;
   /** Same-origin URL for artwork that is not part of the bundled sprite kit. */
   url?: string;
 }
@@ -612,6 +619,33 @@ function yardOps(
     droneOps(p.x, p.y, lot, images, anims, ellipses, depth);
   }
   decorOps(yx, yy, lot, images, depth);
+  if (lot.dressingProp && lot.dressingProp !== "none") {
+    const at = slotFor(lot, lot.dressingProp) ?? { x: 1.55, y: 1.55 };
+    const anchor = project(yx + at.x, yy + at.y);
+    const plant = CIVIC_PLANTS[lot.buildingId % CIVIC_PLANTS.length];
+    const box =
+      lot.dressingProp === "lamp"
+        ? GROUND_TILES.lampPost
+        : lot.dressingProp === "planter"
+          ? GROUND_TILES.bushA
+          : lot.dressingProp === "bush"
+            ? GROUND_TILES.bushA
+            : plant;
+    const sheet = lot.dressingProp === "tree" ? CIVIC_SHEET : GROUND_SHEET;
+    images.push(
+      imageStamp(
+        sheet,
+        box,
+        anchor.sx,
+        anchor.sy,
+        lot.dressingProp === "lamp" ? 14 : 36,
+        false,
+        depth,
+        "decor",
+        { repo: lot.fullName, tag: `dressing:${lot.dressingProp}` },
+      ),
+    );
+  }
 }
 
 function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
@@ -635,6 +669,7 @@ function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
       repo: lot.fullName,
       tag: "building",
       url: lot.artwork.url,
+      tint: lot.facadeTint,
     });
     return;
   }
@@ -652,7 +687,7 @@ function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
       !lot.recentActivity,
       depthAt(place.x, place.y, 6),
       "world",
-      { repo: lot.fullName, tag: "building" },
+      { repo: lot.fullName, tag: "building", tint: lot.facadeTint },
     ),
   );
 }
@@ -698,6 +733,8 @@ export function requiredSheets(): string[] {
     BUILDING_SHEETS.M.file,
     BUILDING_SHEETS.L.file,
     GROUND_SHEET.file,
+    CIVIC_SHEET.file,
+    HUD_SHEET.file,
     PROP_SHEETS.materials.file,
     PROP_SHEETS.planning.file,
     PROP_SHEETS.crew.file,
@@ -760,6 +797,23 @@ export function planLot(
         strokeAlpha: 0.25,
         depth: -99_995,
       });
+      const stageBox = CONSTRUCTION_STAGES[site.stage];
+      if (stageBox) {
+        const a = project(place.x + 1.0, place.y + LOT_D / 2);
+        result.images.push(
+          imageStamp(
+            CIVIC_SHEET,
+            stageBox,
+            a.sx,
+            a.sy,
+            buildingSize(place.lot).width * 0.92,
+            false,
+            a.sy + 2,
+            "world",
+            { repo: place.lot.fullName, tag: "scaffold-art" },
+          ),
+        );
+      }
       for (const [i, [cx, cy]] of [
         [0.35, 0.4],
         [3.4, 1.8],

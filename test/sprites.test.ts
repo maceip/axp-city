@@ -4,11 +4,15 @@ import { describe, expect, it } from "vitest";
 import {
   ANIM_SHEETS,
   BUILDING_SHEETS,
+  CIVIC_SHEET,
+  CIVIC_SPRITES,
   CREW_CARRY,
   CREW_WALK,
   DRONE_QUADS,
   GROUND_SHEET,
   GROUND_TILES,
+  HUD_FRAMES,
+  HUD_SHEET,
   MATERIAL_LOOSE,
   MATERIAL_PALLETS,
   PLANNING_TABLES,
@@ -169,5 +173,26 @@ describe("yard prop atlas", () => {
         (PROP_BOXES.brickPallet.y + PROP_BOXES.brickPallet.h) *
           (85 / PROP_BOXES.brickPallet.w),
     ).toBeCloseTo(200, 6);
+  });
+});
+
+describe("civic and HUD kits", () => {
+  it("ships restyled civic and HUD sheets with in-bounds frames", () => {
+    expect(existsSync(join("assets", "city-sprites", CIVIC_SHEET.file))).toBe(true);
+    expect(existsSync(join("assets", "city-sprites", HUD_SHEET.file))).toBe(true);
+    for (const [name, box] of Object.entries(CIVIC_SPRITES)) {
+      expect(box.w, name).toBeGreaterThan(0);
+      expect(box.h, name).toBeGreaterThan(0);
+      expect(box.x + box.w, name).toBeLessThanOrEqual(CIVIC_SHEET.width);
+      expect(box.y + box.h, name).toBeLessThanOrEqual(CIVIC_SHEET.height);
+    }
+    for (const [name, box] of Object.entries(HUD_FRAMES)) {
+      expect(box.x + box.w, name).toBeLessThanOrEqual(HUD_SHEET.width);
+      expect(box.y + box.h, name).toBeLessThanOrEqual(HUD_SHEET.height);
+    }
+    expect(CIVIC_SPRITES.office.w).toBeGreaterThan(200);
+    expect(CIVIC_SPRITES["plant-0"].h).toBeGreaterThan(60);
+    expect(HUD_FRAMES.plate.w).toBe(250);
+    expect(HUD_FRAMES.compass.w).toBe(100);
   });
 });

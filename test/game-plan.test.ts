@@ -211,5 +211,33 @@ describe("Phaser scene planning", () => {
     expect(unproject(p.sx, p.sy).x).toBeCloseTo(-201.5);
     expect(unproject(p.sx, p.sy).y).toBeCloseTo(340.2);
     expect(new Set(requiredSheets()).size).toBe(requiredSheets().length);
+    expect(requiredSheets()).toContain("civic-kit-k1.png");
+    expect(requiredSheets()).toContain("hud-kit-k1.png");
+  });
+  it("tints repo facades and stamps dressing plus construction art from the civic kit", () => {
+    const places = planCity(
+      parseCity(
+        [
+          metrics({ fullName: "acme/tint-a", stars: 12 }),
+          metrics({ fullName: "acme/tint-b", stars: 12 }),
+        ],
+        { now: FIXED_NOW },
+      ),
+    ).placements;
+    const a = planLot(places[0]).images.find((i) => i.tag === "building")!;
+    const b = planLot(places[1]).images.find((i) => i.tag === "building")!;
+    expect(a.tint).toBe(places[0].lot.facadeTint);
+    expect(b.tint).toBe(places[1].lot.facadeTint);
+    const dressed = places.find((p) => p.lot.dressingProp !== "none") ?? places[0];
+    if (dressed.lot.dressingProp !== "none") {
+      expect(planLot(dressed).images.some((i) => i.tag === `dressing:${dressed.lot.dressingProp}`)).toBe(true);
+    }
+    const site = planCity(
+      parseCity([metrics({ fullName: "acme/new", stars: 30000 })], { now: FIXED_NOW }),
+      { now: FIXED_NOW, addedAt: { "acme/new": FIXED_NOW } },
+    ).placements[0];
+    const grading = planLot(site, true, Date.parse(FIXED_NOW) + 2_000);
+    expect(grading.construction?.stage).toBe("grading");
+    expect(grading.images.some((i) => i.tag === "scaffold-art" && i.sheet === "civic-kit-k1.png")).toBe(true);
   });
 });

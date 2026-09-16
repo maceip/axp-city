@@ -1,7 +1,7 @@
 import { planLot, type ImageStamp, type AnimStamp } from "../game/plan.js";
 import type { CitySnapshot } from "../live/protocol.js";
 import { project, TILE_H, TILE_W } from "../render/iso.js";
-import { ANIM_SHEETS, GROUND_SHEET, PROP_SHEETS, BUILDING_SHEETS, WILD_SHEETS } from "../render/sprites.js";
+import { ANIM_SHEETS, GROUND_SHEET, PROP_SHEETS, BUILDING_SHEETS, WILD_SHEETS, CIVIC_SHEET, HUD_SHEET } from "../render/sprites.js";
 import { LOT_D, LOT_W, STRIDE_X, STRIDE_Y } from "../world/constants.js";
 import type { CityPlan, CityFeature, VacantPlot } from "../world/layout.js";
 
@@ -23,6 +23,8 @@ const FEATURE_FILL: Record<CityFeature["kind"], string> = {
   tram: "#8a8f96",
   plaza: "#c9b7a0",
   river: "#3d7bc7",
+  office: "#c9b56a",
+  bike: "#7eb8a4",
 };
 
 const VACANT_FILL: Record<VacantPlot["variant"], string> = {
@@ -57,6 +59,8 @@ function sheetSize(file: string): { width: number; height: number } {
     ...Object.values(PROP_SHEETS),
     ...Object.values(ANIM_SHEETS),
     ...Object.values(WILD_SHEETS),
+    CIVIC_SHEET,
+    HUD_SHEET,
   ];
   const match = all.find((sheet) => sheet.file === file);
   if (!match) throw new Error(`Unknown sprite sheet ${file}`);

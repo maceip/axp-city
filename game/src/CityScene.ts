@@ -215,6 +215,11 @@ export class CityScene extends Phaser.Scene {
         reducedMotion: this.reducedMotion,
         censusOpen: this.hudReady && this.hud.censusIsOpen,
         cardVisible: this.hudReady && this.hud.cardVisible,
+        office: this.city.plan.civics?.find((c) => c.kind === "office") ?? null,
+        civicCount: this.city.plan.civics?.length ?? 0,
+        uniqueFacades: new Set(
+          this.city.plan.placements.map((p) => `${p.lot.buildingId}:${p.lot.facadeTint}:${p.lot.dressingProp}`),
+        ).size,
         frameMs: this.frameStats(),
       }),
       snapshot: () => this.city,
@@ -307,7 +312,7 @@ export class CityScene extends Phaser.Scene {
 
   // ---- Data --------------------------------------------------------------
   private geometryKey(city: CitySnapshot): string {
-    return JSON.stringify([city.plan.bounds, city.plan.slotBounds, city.plan.features]);
+    return JSON.stringify([city.plan.bounds, city.plan.slotBounds, city.plan.features, city.plan.civics]);
   }
 
   private snapshot(value: CitySnapshot): void {
@@ -432,10 +437,16 @@ export class CityScene extends Phaser.Scene {
       image.setPosition(op.sx, op.sy).setOrigin(0.5, 1).setScale(op.scaleX, op.scaleY);
       image.setDepth(op.layer === "ground" ? -99_999 : op.depth);
       image.setAlpha(op.alpha ?? (op.dimmed ? 0.62 : 1));
+      if (op.tint && op.tint !== 0xffffff) image.setTint(op.tint);
+      else image.clearTint();
       image.setData("repo", place.lot.fullName);
       images.push(image);
     }
-    if (ops.construction && ops.construction.scaffold > 0) {
+    if (
+      ops.construction &&
+      ops.construction.scaffold > 0 &&
+      !ops.images.some((image) => image.tag === "scaffold-art")
+    ) {
       const site = ops.construction;
       const scaffold = this.shapes.acquire();
       const size = buildingSize(place.lot);

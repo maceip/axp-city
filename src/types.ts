@@ -67,6 +67,9 @@ export interface RepoMetrics {
 
 export type BuildingBand = "S" | "M" | "L";
 
+/** Stable per-repo yard dressing that is not a loading-zone prop. */
+export type DressingProp = "tree" | "bush" | "planter" | "lamp" | "none";
+
 /**
  * Yard / lot activity kind. PR state wins when both issues and PRs exist;
  * issue props are still added (combined yard). See `docs/PARSER.md`.
@@ -106,6 +109,13 @@ export interface CityLot {
   buildingBand: BuildingBand;
   /** Stable 1–50 id inside the band’s conceptual catalog. */
   buildingId: number;
+  /**
+   * Second hash channel: roof/wall tint so two lots that share a silhouette
+   * still read as different houses. Stable per fullName; not neighbour-relative.
+   */
+  facadeTint: number;
+  /** Extra plant/prop from the same hash; independent of loading-zone rules. */
+  dressingProp: DressingProp;
   yard: YardKind;
   recentActivity: boolean;
   showBlueprint: boolean;

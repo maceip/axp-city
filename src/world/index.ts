@@ -27,6 +27,8 @@ export {
   slotOrigin,
   type CityFeature,
   type CityPlan,
+  type CivicKind,
+  type CivicMarker,
   type FeatureKind,
   type LotPlacement,
   type PlanOptions,

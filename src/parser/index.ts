@@ -13,6 +13,8 @@ export {
   parseCity,
   parseLot,
   pickBuildingId,
+  pickFacade,
+  FACADE_TINTS,
   stableHash,
   type AuthorClassification,
 } from "./parseLot.js";

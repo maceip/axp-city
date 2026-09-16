@@ -11,6 +11,7 @@ export type GroundKind =
   | "lot"
   | "vacant"
   | "street"
+  | "bike"
   | "grass"
   | "dirt"
   | "water"
@@ -36,8 +37,11 @@ export function tileKind(ix: number, iy: number, plan: CityPlan): GroundKind {
     if (isRiverSlot(sx, sy)) return "river";
     const localX = ix - sx * STRIDE_X;
     const localY = iy - sy * STRIDE_Y;
-    if (localY >= LOT_D + SHOULDER || localX >= LOT_W + SHOULDER)
+    if (localY >= LOT_D + SHOULDER || localX >= LOT_W + SHOULDER) {
+      if (localY >= LOT_D + SHOULDER && localY < LOT_D + SHOULDER + 0.32)
+        return "bike";
       return "street";
+    }
     let occupied = occupiedCache.get(plan);
     if (!occupied) {
       occupied = new Set(plan.placements.map((p) => `${p.col},${p.row}`));
