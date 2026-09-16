@@ -43,4 +43,4 @@ Push webhooks and reconciliation reread the files, so changing a repository's ru
 
 ## Fixture mode
 
-In fixture mode the same validation path reads per-repository rule files from `<CITY_RULES_DIR>/repos/<owner>/<name>/building.json` and `loading-zone.json`, so the browser suite demonstrates catalog selection, bays, decor props, malformed fallback, and rule changes without GitHub.
+In fixture mode the same validation path reads per-repository rule files from `<CITY_RULES_DIR>/repos/<owner>/<name>/building.json` and `loading-zone.json`, so the browser suite demonstrates catalog selection, bays, decor props, malformed fallback, and rule changes without GitHub. Custom artwork goes through the same approval, size, hash and dimension checks there: the PNG is read from that folder (which stands for the repository's `.city/` directory, so `.city/building.png` maps onto `…/<name>/building.png`) instead of the Contents API, and approvals come from `<CITY_RULES_DIR>/approved-artwork.json`. In both modes the approvals file is re-read on every refresh, so approving artwork takes effect on the next delivery or reconciliation without a restart.

@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { CityRulesError, type ApprovedArtwork, type ArtworkRule } from "./cityFiles.js";
 import { repoName } from "./load.js";
+import { GITHUB_API_URL } from "../ingest/github.js";
 
 /** Hard cap for custom building PNGs. */
 export const ARTWORK_MAX_BYTES = 512 * 1024;
@@ -114,7 +115,7 @@ export async function resolveArtwork(
   }
   if (!bytes) {
     const response = await request(
-      `https://api.github.com/repos/${fullName}/contents/${rule.path}`,
+      `${GITHUB_API_URL}/repos/${fullName}/contents/${rule.path}`,
       {
         headers: {
           Accept: "application/vnd.github.raw+json",

@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs, parseRepoLine } from "./args.js";
 import { parseLot } from "../parser/parseLot.js";
 import { loadFixtureRepositoryRules, loadLocalRules, repoName } from "../rules/load.js";
-import { loadArtworkApprovals } from "../rules/artwork.js";
+import { loadArtworkApprovals, resolveArtwork } from "../rules/artwork.js";
 import {
   PrivateRepositoryError,
   resolveRepository,
@@ -15,7 +15,7 @@ import { tokenProviderFromEnv } from "../ingest/githubApp.js";
 import { GITHUB_API_URL } from "../ingest/github.js";
 import { consoleLogger, createWebhookServer } from "../webhooks/server.js";
 import { LOOPBACK_PROXIES } from "../webhooks/rateLimit.js";
-import type { RepoMetrics } from "../types.js";
+import type { CityLot, RepoMetrics } from "../types.js";
 
 export interface ServerConfig {
   dev: boolean;
@@ -113,7 +113,6 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
 
   const fixturePath = process.env.CITY_FIXTURE_PATH ?? args.snapshotPath;
   const defaults = await loadLocalRules(config.rulesDir);
-  const approvals = await loadArtworkApprovals(config.rulesDir);
   const provider = tokenProviderFromEnv();
   const artworkDir = join(config.dataDir, "artwork");
 
@@ -122,12 +121,14 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     previous?: RepoMetrics,
   ): Promise<ResolvedRepository> => {
     repoName(name);
+    // Operator approvals (`approved-artwork.json`) are re-read on every refresh in both
+    // modes, so approving artwork takes effect on the next delivery without a restart.
     if (!config.offline)
       return resolveRepository(name, {
         rulesDir: config.rulesDir,
         token: await provider.token(),
         previous,
-        approvals,
+        approvals: await loadArtworkApprovals(config.rulesDir),
         artworkCacheDir: artworkDir,
         defaults,
       });
@@ -142,14 +143,32 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     const metrics: RepoMetrics = { ...row, source: "fixture", isPrivate: row.isPrivate ?? false };
     const local = await loadLocalRules(config.rulesDir);
     const rules = await loadFixtureRepositoryRules(name, config.rulesDir, local);
-    return {
-      lot: {
-        ...parseLot(metrics, { rules: rules.rules }),
-        rulesSource: rules.source,
-        ...(rules.warning ? { rulesWarning: rules.warning } : {}),
-      },
-      metrics,
+    const lot: CityLot = {
+      ...parseLot(metrics, { rules: rules.rules }),
+      rulesSource: rules.source,
     };
+    const warnings = rules.warning ? [rules.warning] : [];
+    // Custom artwork follows the same approval, hash and dimension checks as live mode;
+    // the bytes come from the fixture's rule folder instead of the Contents API.
+    const artworkRule = rules.rules.building.artwork;
+    if (artworkRule) {
+      // The fixture folder stands for the repository's `.city/` directory, so a
+      // repository-relative path such as `.city/building.png` maps onto it.
+      const folder = join(config.rulesDir, "repos", name);
+      const fromFolder: typeof fetch = async () => {
+        try {
+          const bytes = await readFile(join(folder, artworkRule.path.replace(/^\.city\//, "")));
+          return new Response(new Uint8Array(bytes), { status: 200, headers: { "content-length": String(bytes.byteLength) } });
+        } catch {
+          return new Response(null, { status: 404 });
+        }
+      };
+      const resolved = await resolveArtwork(name, artworkRule, await loadArtworkApprovals(config.rulesDir), artworkDir, undefined, fromFolder);
+      if (resolved.artwork) lot.artwork = resolved.artwork;
+      if (resolved.warning) warnings.push(resolved.warning);
+    }
+    if (warnings.length) lot.rulesWarning = warnings.join("; ");
+    return { lot, metrics };
   };
 
   const vite = config.dev

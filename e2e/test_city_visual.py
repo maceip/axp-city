@@ -474,6 +474,69 @@ def test_rename_keeps_the_address_and_removal_keeps_neighbours(page, server):
     page.screenshot(path=str(SHOTS / "after-rename-removal.png"))
 
 
+def png_bytes(width, height, rgb):
+    """A solid-colour 8-bit RGB PNG, built without any imaging dependency."""
+    import struct
+    import zlib
+    raw = b"".join(b"\x00" + bytes(rgb) * width for _ in range(height))
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+
+def test_custom_artwork_rule_is_rendered_only_once_approved(page, server):
+    """Handoff item 10: the version-2 `artwork` rule in actual rendered output. A repository
+    asks for its own building PNG; until an operator approves that exact hash the catalog
+    building stays and the card says why; once approved the browser fetches the same-origin
+    copy and draws it; tampered bytes fall back again."""
+    import hashlib
+    repo = "acme/robots"
+    art = png_bytes(128, 192, (236, 72, 153))  # a flat magenta slab no catalog building looks like
+    sha = hashlib.sha256(art).hexdigest()
+    fetched = []
+    page.on("response", lambda r: fetched.append((r.url, r.status)) if "/assets/artwork/" in r.url else None)
+    page.keyboard.press("m")
+    page.wait_for_function("window.__AXP.diagnostics().reducedMotion && !window.__AXP.diagnostics().toastVisible", timeout=10000)
+    page.wait_for_timeout(400)
+    original = lot_pixels(page, repo)
+    folder = server.rules / "repos" / repo
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "building.png").write_bytes(art)  # the fixture folder stands for the repository's .city/
+    server.repo_rules(repo, building=dict(version=2, artwork=dict(path=".city/building.png", sha256=sha, width=128, height=192)))
+    # 1. Requested but not approved: catalog building, reason published.
+    assert server.webhook(repo, "art-1") == 202
+    page.wait_for_function("r => { const l = window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === r).lot; return l.rulesSource === 'repository' && !l.artwork && (l.rulesWarning || '').includes('not approved'); }", arg=repo, timeout=15000)
+    select(page, repo)
+    assert "not approved" in a11y(page, "#a11y-selection")
+    page.keyboard.press("Escape")
+    page.wait_for_function("!window.__AXP.diagnostics().cardVisible")
+    assert fetched == [], fetched  # nothing unapproved is ever served or fetched
+    # 2. Operator approval of that exact hash: fetched same-origin and drawn.
+    (server.rules / "approved-artwork.json").write_text(json.dumps(dict(version=1, approved=[dict(repo=repo, sha256=sha)])))
+    assert server.webhook(repo, "art-2") == 202
+    page.wait_for_function("([r, s]) => { const l = window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === r).lot; return l.artwork && l.artwork.sha256 === s && !l.rulesWarning; }", arg=[repo, sha], timeout=15000)
+    page.wait_for_function("([r, s]) => window.__AXP.diagnostics().assetsInflight === 0 && (window.__AXP.drawnRenderKey(r) || '').includes(s)", arg=[repo, sha], timeout=20000)
+    with_art = rendered_change(page, repo, original, "approved custom artwork replaces the catalog building")
+    assert any(url.endswith(f"/assets/artwork/{sha}.png") and status == 200 for url, status in fetched), fetched
+    page.screenshot(path=str(SHOTS / "rules-custom-artwork.png"))
+    # 3. The operator revokes the approval (no restart): back to the catalog building, reason published.
+    # Approved bytes are content-addressed, so tampering with the repository file while keeping the
+    # declared hash cannot change what is drawn; only the approval decides.
+    (server.rules / "approved-artwork.json").write_text(json.dumps(dict(version=1, approved=[])))
+    (folder / "building.png").write_bytes(png_bytes(128, 192, (20, 200, 120)))
+    assert server.webhook(repo, "art-3") == 202
+    page.wait_for_function("r => { const l = window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === r).lot; return !l.artwork && (l.rulesWarning || '').includes('not approved'); }", arg=repo, timeout=15000)
+    page.wait_for_function("([r, s]) => window.__AXP.diagnostics().assetsInflight === 0 && !(window.__AXP.drawnRenderKey(r) || '').includes(s)", arg=[repo, sha], timeout=20000)
+    page.wait_for_function("!window.__AXP.diagnostics().toastVisible", timeout=10000)
+    page.wait_for_timeout(400)
+    reverted = lot_pixels(page, repo)
+    assert pixel_distance(reverted, original) < pixel_distance(reverted, with_art), "revoked artwork was still drawn"
+    page.keyboard.press("m")
+    page.wait_for_function("!window.__AXP.diagnostics().reducedMotion")
+
+
 def test_repository_turning_private_is_withdrawn_from_every_public_path(browser, server):
     """Handoff item 9: a public-to-private transition withdraws the published records
     everywhere a visitor could still see them — two live browsers, the census and
