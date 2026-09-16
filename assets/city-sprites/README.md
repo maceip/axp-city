@@ -121,10 +121,11 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   `facadeTint` + `dressingProp` are a second hash so two lots that share a
   silhouette still read as different houses.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
-  stamped larger than any repo lot), inland unused civics from the attached
-  construction sheet (fence enclosure, parking pad, stacked gates, parking+gate
-  depot, dark-roof cottage — not ChatGPT lot-catalog houses and not Jane
-  church/villa geometry), attached construction stages (pad→posts→roof→shell,
+  stamped larger than any repo lot),   inland unused civics from the attached
+  construction sheet (cream-infilled timber fence, parking pad, stacked timber
+  gates on a cream plinth, parking+gate depot, dark-roof cottage — not ChatGPT
+  lot-catalog houses and not Jane church/villa geometry; fence/gates stamp
+  larger so they read at flyover), attached construction stages (pad→posts→roof→shell,
   never the finished bank), amenity parking, gates, `$` bank, isometric plants
   from the v5 ground kit, and full-size restyled road/bike tiles that read at
   overview zoom (not the leftover 4px diamonds).

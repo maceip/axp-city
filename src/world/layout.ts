@@ -401,6 +401,31 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       });
     }
   }
+  // Fence + stacked gates must actually appear inland (hashed rolls often skip them).
+  for (const sprite of ["odd-2", "odd-4"] as const) {
+    if (civics.some((c) => c.kind === "odd" && c.sprite === sprite)) continue;
+    const taken = new Set(
+      civics
+        .filter((c) => c.kind === "odd" || c.kind === "parking")
+        .map((c) => `${Math.round(c.x)},${Math.round(c.y)}`),
+    );
+    const inland = vacancies.filter((v) => {
+      if (isCorridorShoulderSlot(v.sx, v.sy)) return false;
+      const x = v.x + 1.1;
+      const y = v.y + 1.0;
+      if (taken.has(`${Math.round(x)},${Math.round(y)}`)) return false;
+      return !stampOverlapsTravel(x, y, features);
+    });
+    const v = inland.find((p) => p.variant === "plaza") ?? inland[0];
+    if (!v) continue;
+    civics.push({
+      kind: "odd",
+      id: `odd-ensure-${sprite}`,
+      x: v.x + 1.1,
+      y: v.y + 1.0,
+      sprite,
+    });
+  }
   for (const [dx, dy, sprite] of [
     [-3.4, -2.4, "plant-0"],
     [3.2, -2.3, "plant-1"],

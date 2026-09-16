@@ -489,6 +489,91 @@ def _fit_cell(spr: Image.Image, w: int, h: int) -> Image.Image:
     return cell
 
 
+CREAM_YARD = (232, 224, 198, 240)
+KHAKI_YARD = (168, 158, 118, 210)
+TIMBER = (108, 88, 58, 255)
+SLATE_POST = (52, 48, 40, 255)
+
+
+def recolor_rail(im: Image.Image) -> Image.Image:
+    """Hairline grey lattice → timber/slate posts."""
+    out = im.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            if luma < 90:
+                px[x, y] = SLATE_POST
+            else:
+                t = min(1.0, (luma - 90) / 140)
+                px[x, y] = (
+                    int(102 + t * 20),
+                    int(84 + t * 16),
+                    int(56 + t * 10),
+                    a,
+                )
+    return out
+
+
+def thicken_outline(im: Image.Image, radius: int = 3) -> Image.Image:
+    """Dilate alpha so 1px rails become posts that survive flyover."""
+    a = im.split()[-1]
+    fat = a.filter(ImageFilter.MaxFilter(radius * 2 + 1))
+    timber = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    tp = timber.load()
+    fp = fat.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            if fp[x, y] > 16:
+                tp[x, y] = TIMBER
+    return Image.alpha_composite(timber, recolor_rail(im))
+
+
+def compose_readable_fence(fence: Image.Image, w: int, h: int) -> Image.Image:
+    """Cream/khaki iso yard + thick timber posts. Not a lot house, not lime."""
+    cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(cell)
+    cx = w / 2
+    diamond = [(cx, 8), (w - 5, h * 0.54), (cx, h - 4), (5, h * 0.54)]
+    d.polygon(diamond, fill=CREAM_YARD)
+    inner = [(cx, 20), (w - 16, h * 0.54), (cx, h - 16), (16, h * 0.54)]
+    d.polygon(inner, fill=KHAKI_YARD)
+    for i in range(4):
+        d.line([diamond[i], diamond[(i + 1) % 4]], fill=SLATE_POST, width=11)
+        d.line([diamond[i], diamond[(i + 1) % 4]], fill=TIMBER, width=6)
+    for px, py in diamond:
+        d.ellipse([px - 7, py - 16, px + 7, py + 5], fill=SLATE_POST)
+        d.ellipse([px - 5, py - 20, px + 5, py - 2], fill=TIMBER)
+    lattice = thicken_outline(scale_to(trim(fence), w - 12, h - 12), 2)
+    cell.alpha_composite(lattice, ((w - lattice.width) // 2, h - lattice.height))
+    return cell
+
+
+def compose_readable_gates(gates: list[Image.Image], w: int, h: int) -> Image.Image:
+    """Cream iso plinth + stacked timber gates. Readable mass at flyover."""
+    cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(cell)
+    d.polygon(
+        [(w / 2, h * 0.34), (w - 3, h * 0.68), (w / 2, h - 3), (3, h * 0.68)],
+        fill=CREAM_YARD,
+    )
+    d.rectangle([5, 3, 16, h - 6], fill=TIMBER)
+    d.rectangle([w - 16, 3, w - 5, h - 6], fill=TIMBER)
+    d.rectangle([7, 5, 14, h - 8], fill=SLATE_POST)
+    d.rectangle([w - 14, 5, w - 7, h - 8], fill=SLATE_POST)
+    for y0 in (4, int(h * 0.22), int(h * 0.40)):
+        d.rectangle([8, y0 + 5, w - 8, y0 + 18], fill=SLATE_POST)
+        d.rectangle([10, y0 + 7, w - 10, y0 + 15], fill=TIMBER)
+    g0 = thicken_outline(scale_to(gates[1], w - 6, int(h * 0.44)), 2)
+    g1 = thicken_outline(scale_to(gates[4] if len(gates) > 4 else gates[0], w - 6, int(h * 0.44)), 2)
+    cell.alpha_composite(g0, ((w - g0.width) // 2, 2))
+    cell.alpha_composite(g1, ((w - g1.width) // 2, h - g1.height - 1))
+    return cell
+
+
 def extract_civic_distinct_odds() -> dict[str, Image.Image]:
     """KEEP civic footprints from the attached sheet — not lot-catalog houses."""
     if not ATTACHED.exists():
@@ -525,18 +610,13 @@ def extract_civic_distinct_odds() -> dict[str, Image.Image]:
     out: dict[str, Image.Image] = {}
 
     w, h = boxes["odd-2"][2], boxes["odd-2"][3]
-    out["odd-2"] = _fit_cell(fence, w, h)
+    out["odd-2"] = compose_readable_fence(fence, w, h)
 
     w, h = boxes["odd-3"][2], boxes["odd-3"][3]
     out["odd-3"] = _fit_cell(park, w, h)
 
     w, h = boxes["odd-4"][2], boxes["odd-4"][3]
-    monument = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    g0 = scale_to(gates[1], w, int(h * 0.48))
-    g1 = scale_to(gates[4] if len(gates) > 4 else gates[0], w, int(h * 0.48))
-    monument.alpha_composite(g0, ((w - g0.width) // 2, 2))
-    monument.alpha_composite(g1, ((w - g1.width) // 2, h - g1.height))
-    out["odd-4"] = monument
+    out["odd-4"] = compose_readable_gates(gates, w, h)
 
     w, h = boxes["odd-6"][2], boxes["odd-6"][3]
     depot = Image.new("RGBA", (w, h), (0, 0, 0, 0))

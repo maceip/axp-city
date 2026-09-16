@@ -84,6 +84,8 @@ describe("planCity", () => {
     for (const n of [8, 9, 24, 36]) {
       const plan = planCity(lots(n));
       expect(plan.civics.some((c) => c.kind === "odd"), `${n} lots lost unused buildings`).toBe(true);
+      expect(plan.civics.some((c) => c.sprite === "odd-2"), `${n} lots lost the fence enclosure`).toBe(true);
+      expect(plan.civics.some((c) => c.sprite === "odd-4"), `${n} lots lost the stacked gates`).toBe(true);
       const freeway = plan.features.find((f) => f.kind === "freeway")!;
       const bikes = plan.features.filter((f) => f.kind === "bike");
       for (const c of plan.civics.filter((m) => m.kind === "odd" || m.kind === "parking")) {

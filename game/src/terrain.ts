@@ -14,6 +14,7 @@ import {
   CIVIC_SPRITES,
   BIKE_STAMP_WIDTH,
   HUD_FONT,
+  ODD_STAMP_WIDTH,
   OFFICE_STAMP_WIDTH,
   ROAD_STAMP_WIDTH,
 } from "../../src/render/sprites.js";
@@ -449,7 +450,9 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const width =
       marker.kind === "plant" && marker.id.startsWith("park-plant-")
         ? 88
-        : civicWidth[marker.kind] ?? 100;
+        : marker.kind === "odd"
+          ? (ODD_STAMP_WIDTH[marker.sprite] ?? 160)
+          : civicWidth[marker.kind] ?? 100;
     const a = project(marker.x, marker.y);
     const depth =
       marker.kind === "bike" ? a.sy - 8 : marker.kind === "road" ? a.sy - 12 : a.sy + (marker.kind === "office" ? 8 : 0);

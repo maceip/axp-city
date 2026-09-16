@@ -155,6 +155,11 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert odds, f"odd civic sprites missing from diagnostics: {odds}"
         known_odds = {"odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"}
         assert set(odds) <= known_odds, f"unexpected inland odd sprites: {odds}"
+        assert "odd-2" in odds, f"fence enclosure missing from inland odds: {odds}"
+        assert "odd-4" in odds, f"stacked gates missing from inland odds: {odds}"
+        widths = info.get("oddStampWidths") or {}
+        assert widths.get("odd-2", 0) >= 200, f"fence stamp still flyover-thin: {widths}"
+        assert widths.get("odd-4", 0) >= 190, f"gate stamp still flyover-thin: {widths}"
         assert kinds.get("road", 0) >= 4, f"restyled roads not in the plan: {kinds}"
         assert kinds.get("bike", 0) >= 4, f"bike-lane stamps missing from the plan: {kinds}"
         assert kinds.get("gate", 0) >= 1

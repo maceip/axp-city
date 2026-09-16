@@ -303,6 +303,16 @@ export const CIVIC_SPRITES: Record<string, SpriteBox> = {
 /** On-screen width of the park-center HQ compound — larger than any repo lot. */
 export const OFFICE_STAMP_WIDTH = 480;
 
+/** Unused inland civics. Fence/gates stamp larger so hairlines still read at flyover. */
+export const ODD_STAMP_WIDTH: Record<string, number> = {
+  "odd-2": 228,
+  "odd-3": 138,
+  "odd-4": 210,
+  "odd-6": 160,
+  "city-hall": 140,
+  "bank-office": 120,
+};
+
 /** Street / bike-lane stamps — sized to read at overview and home zoom. */
 export const ROAD_STAMP_WIDTH = 176;
 export const BIKE_STAMP_WIDTH = 220;

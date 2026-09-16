@@ -16,7 +16,7 @@ import { CityConnection, type ConnectionState } from "./connection.js";
 import { downloadCapture, samplePixels } from "./export.js";
 import { HudScene } from "./HudScene.js";
 import { graphicsPool, imagePool, type ObjectPool } from "./pool.js";
-import { BIKE_STAMP_WIDTH, OFFICE_STAMP_WIDTH, ROAD_STAMP_WIDTH } from "../../src/render/sprites.js";
+import { BIKE_STAMP_WIDTH, ODD_STAMP_WIDTH, OFFICE_STAMP_WIDTH, ROAD_STAMP_WIDTH } from "../../src/render/sprites.js";
 import { diamondContains, drawDiamond, ensureFrame, stampEllipse } from "./stamps.js";
 import { TerrainCache, drawCivics } from "./terrain.js";
 
@@ -253,6 +253,7 @@ export class CityScene extends Phaser.Scene {
         officeStampWidth: OFFICE_STAMP_WIDTH,
         roadStampWidth: ROAD_STAMP_WIDTH,
         bikeStampWidth: BIKE_STAMP_WIDTH,
+        oddStampWidths: ODD_STAMP_WIDTH,
         civicCount: this.city.plan.civics?.length ?? 0,
         civicByKind: (this.city.plan.civics ?? []).reduce<Record<string, number>>((acc, civic) => {
           acc[civic.kind] = (acc[civic.kind] ?? 0) + 1;

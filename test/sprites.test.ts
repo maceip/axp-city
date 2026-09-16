@@ -17,6 +17,7 @@ import {
   HUD_FONT,
   HUD_FRAMES,
   HUD_SHEET,
+  ODD_STAMP_WIDTH,
   MATERIAL_LOOSE,
   MATERIAL_PALLETS,
   PLANNING_TABLES,
@@ -255,6 +256,8 @@ describe("civic and HUD kits", () => {
     expect(CIVIC_SPRITES["bike-0"].w).toBeGreaterThan(100);
     expect(ROAD_STAMP_WIDTH).toBeGreaterThanOrEqual(140);
     expect(BIKE_STAMP_WIDTH).toBeGreaterThanOrEqual(180);
+    expect(ODD_STAMP_WIDTH["odd-2"], "fence stamp still flyover-thin").toBeGreaterThanOrEqual(200);
+    expect(ODD_STAMP_WIDTH["odd-4"], "gate stamp still flyover-thin").toBeGreaterThanOrEqual(190);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);
     expect(Object.keys(CONSTRUCTION_STAGES)).toEqual(["grading", "framing", "cladding", "finishing"]);
@@ -344,7 +347,7 @@ def tall_steeples(box):
 def stats(box, src=None):
     p = lpx if src == "L" else px
     x0,y0,w,h = box
-    n=glass=dark=khaki=0
+    n=glass=dark=khaki=cream=0
     fill = w * h
     for y in range(y0, y0+h):
         for x in range(x0, x0+w):
@@ -360,27 +363,31 @@ def stats(box, src=None):
                 dark += 1
             if r > b + 10 and g > b + 6 and sat < 55 and 70 < luma < 190:
                 khaki += 1
-    return n, glass, dark, khaki, n / max(fill, 1)
+            if r > 200 and g > 190 and b > 155 and r > b + 8 and luma > 190:
+                cream += 1
+    return n, glass, dark, khaki, cream, n / max(fill, 1)
 
-s2 = tall_steeples((588, 8, 171, 202))
-n2,g2,d2,k2,f2 = stats((588, 8, 171, 202))
-n3,g3,d3,k3,f3 = stats((767, 8, 144, 139))
-n4,g4,d4,k4,f4 = stats((919, 8, 108, 122))
-n6,g6,d6,k6,f6 = stats((1208, 319, 159, 157))
-nh,gh,dh,kh,fh = stats((436, 8, 144, 125))
-nl,gl,dl,kl,fl = stats((765, 4, 70, 172), "L")
-print(f"{s2} {n2} {g2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {f4:.3f} {n6} {g6} {k6} {nh} {gh} {dh} {gl}")
+n2,g2,d2,k2,c2,f2 = stats((588, 8, 171, 202))
+n3,g3,d3,k3,c3,f3 = stats((767, 8, 144, 139))
+n4,g4,d4,k4,c4,f4 = stats((919, 8, 108, 122))
+n6,g6,d6,k6,c6,f6 = stats((1208, 319, 159, 157))
+nh,gh,dh,kh,ch,fh = stats((436, 8, 144, 125))
+nl,gl,dl,kl,cl,fl = stats((765, 4, 70, 172), "L")
+print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f} {n6} {g6} {k6} {nh} {gh} {dh} {gl}")
 `;
     const [
-      steeples,
       n2,
       glass2,
+      dark2,
+      cream2,
       fill2,
       n3,
       glass3,
       khaki3,
       n4,
       glass4,
+      dark4,
+      cream4,
       fill4,
       n6,
       glass6,
@@ -395,15 +402,18 @@ print(f"{s2} {n2} {g2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {f4:.3f} {n6} {g6} {k6}
       .trim()
       .split(/\s+/)
       .map(Number);
-    expect(steeples, "odd-2 still has Jane twin church steeples").toBeLessThan(2);
-    expect(n2, "odd-2 fence enclosure emptied").toBeGreaterThan(400);
+    expect(n2, "odd-2 fence enclosure emptied").toBeGreaterThan(4000);
     expect(glass2, "odd-2 still reads as a catalog glass tower").toBeLessThan(40);
-    expect(fill2, "odd-2 should stay a hollow fence, not a house mass").toBeLessThan(0.20);
+    expect(fill2, "odd-2 still a hairline fence with no flyover mass").toBeGreaterThan(0.35);
+    expect(cream2, "odd-2 lost its cream yard infill").toBeGreaterThan(800);
+    expect(dark2, "odd-2 lost timber/slate posts").toBeGreaterThan(400);
     expect(n3, "odd-3 parking pad emptied").toBeGreaterThan(2500);
     expect(glass3, "odd-3 still reads as a catalog slab").toBeLessThan(40);
     expect(khaki3, "odd-3 lost its civic parking pad").toBeGreaterThan(4000);
-    expect(n4, "odd-4 gate monument emptied").toBeGreaterThan(300);
-    expect(fill4, "odd-4 should stay stacked rails, not a house mass").toBeLessThan(0.30);
+    expect(n4, "odd-4 gate monument emptied").toBeGreaterThan(2000);
+    expect(fill4, "odd-4 still stacked hairline rails").toBeGreaterThan(0.35);
+    expect(cream4, "odd-4 lost its cream plinth").toBeGreaterThan(400);
+    expect(dark4, "odd-4 lost timber posts").toBeGreaterThan(200);
     expect(n6, "odd-6 depot emptied").toBeGreaterThan(2500);
     expect(khaki6, "odd-6 lost its parking+gate depot pad").toBeGreaterThan(4000);
     expect(nh, "city-hall cottage emptied").toBeGreaterThan(2000);
@@ -411,7 +421,7 @@ print(f"{s2} {n2} {g2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {f4:.3f} {n6} {g6} {k6}
     expect(darkH, "city-hall lost its dark hip roof").toBeGreaterThan(1500);
     expect(catalogGlass, "lot catalog glass tower missing — comparison invalid").toBeGreaterThan(800);
     expect(glass2 + glass3, "inland odds still carry catalog glass").toBeLessThan(catalogGlass * 0.1);
-    expect(fill2, "need more than one odd silhouette").toBeLessThan(fill4);
+    expect(cream2, "fence and parking should stay different silhouettes").toBeGreaterThan(khaki3 * 0.05);
   });
 
   it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {
