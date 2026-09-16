@@ -69,6 +69,8 @@ export class CityScene extends Phaser.Scene {
   private connectionState: ConnectionState = "connecting";
   private frameTimes: number[] = [];
   private restoreSelected?: string;
+  private restoreCamera?: { scrollX: number; scrollY: number; zoom: number };
+  private restoreHold = 0;
   reducedMotion = false;
 
   constructor() {
@@ -90,6 +92,7 @@ export class CityScene extends Phaser.Scene {
     this.lastRefresh = -Infinity;
     this.lastCamera = "";
     this.frameTimes = [];
+    this.restoreHold = 0;
     this.connectionState = "connecting";
     this.city = this.registry.get("snapshot");
     this.reducedMotion = this.registry.get("reducedMotion") ?? matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -127,8 +130,8 @@ export class CityScene extends Phaser.Scene {
     const restore = this.registry.get("restore") as { scrollX: number; scrollY: number; zoom: number; selected?: string } | undefined;
     if (restore) {
       this.registry.remove("restore");
-      this.cameras.main.setZoom(restore.zoom);
-      this.cameras.main.setScroll(restore.scrollX, restore.scrollY);
+      this.restoreCamera = { scrollX: restore.scrollX, scrollY: restore.scrollY, zoom: restore.zoom };
+      this.applyRestoreCamera();
       this.restoreSelected = restore.selected;
     } else {
       this.home();
@@ -144,6 +147,9 @@ export class CityScene extends Phaser.Scene {
       if (this.restoreSelected) {
         this.select(this.restoreSelected, false);
         this.restoreSelected = undefined;
+      }
+      if (this.restoreCamera) {
+        this.applyRestoreCamera();
         this.hud.toast("Graphics context restored.");
       }
     });
@@ -499,6 +505,14 @@ export class CityScene extends Phaser.Scene {
       wanted.add(name);
       const previous = this.lots.get(name);
       if (previous && previous.place !== place) previous.signature = "";
+      if (
+        previous &&
+        (previous.place.lot.buildingId !== place.lot.buildingId ||
+          JSON.stringify(previous.place.lot.layout) !== JSON.stringify(place.lot.layout) ||
+          JSON.stringify(previous.place.lot.extraProps) !== JSON.stringify(place.lot.extraProps) ||
+          previous.place.lot.artwork?.sha256 !== place.lot.artwork?.sha256)
+      )
+        previous.signature = "";
       if (previous && previous.signature && !previous.place.addedAt && !previous.incomplete) continue;
       this.buildLot(place, previous);
     }
@@ -575,6 +589,14 @@ export class CityScene extends Phaser.Scene {
     const center = project(3.5, 2);
     this.cameras.main.setZoom(innerWidth < 700 ? 0.9 : 1);
     this.cameras.main.centerOn(center.sx, center.sy);
+    this.lastRefresh = -Infinity;
+  }
+
+  private applyRestoreCamera(): void {
+    const r = this.restoreCamera;
+    if (!r) return;
+    this.cameras.main.setZoom(r.zoom);
+    this.cameras.main.setScroll(r.scrollX, r.scrollY);
     this.lastRefresh = -Infinity;
   }
 
@@ -713,7 +735,10 @@ export class CityScene extends Phaser.Scene {
       this.zoomAt(Math.exp(-dy * 0.0015), p.x, p.y);
     });
     const kb = this.input.keyboard;
-    if (kb) this.keys = kb.addKeys("W,A,S,D,UP,LEFT,DOWN,RIGHT") as typeof this.keys;
+    if (kb) {
+      kb.resetKeys();
+      this.keys = kb.addKeys("W,A,S,D,UP,LEFT,DOWN,RIGHT") as typeof this.keys;
+    }
     // Window-level shortcuts so the HUD scene (no keyboard plugin) cannot
     // swallow C/census, number-key jumps, or Escape.
     const onKey = (event: KeyboardEvent) => {
@@ -828,5 +853,13 @@ export class CityScene extends Phaser.Scene {
     } else this.actors.update();
     if (this.followActor) this.drawSelection();
     this.air(time);
+    if (this.restoreCamera) {
+      this.applyRestoreCamera();
+      this.restoreHold = (this.restoreHold ?? 0) + 1;
+      if (this.restoreHold > 8) {
+        this.restoreCamera = undefined;
+        this.restoreHold = 0;
+      }
+    }
   }
 }

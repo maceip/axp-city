@@ -113,6 +113,7 @@ export class HudScene extends Phaser.Scene {
   private dpad!: Phaser.GameObjects.Container;
   private tools!: Phaser.GameObjects.Container;
   private listeners = new Set<(event: string, detail?: unknown) => void>();
+  private constructionStamp?: string;
   private lastView?: Rect;
   motion = true;
 
@@ -156,6 +157,7 @@ export class HudScene extends Phaser.Scene {
     this.selected = undefined;
     this.toastTimer = undefined;
     this.lastView = undefined;
+    this.constructionStamp = undefined;
     this.cameras.main.setRoundPixels(true);
     if (this.input.keyboard) this.input.keyboard.enabled = false;
     this.plate = this.add.container(16, 16);
@@ -310,6 +312,16 @@ export class HudScene extends Phaser.Scene {
       this.scale.off("resize");
       this.listeners.clear();
     });
+  }
+
+  update(): void {
+    if (!this.selected) {
+      this.constructionStamp = undefined;
+      return;
+    }
+    const site = constructionState(this.selected, this.now());
+    const stamp = `${site.stage}:${Math.round(site.progress * 50)}`;
+    if (stamp !== this.constructionStamp) this.setSelection(this.selected);
   }
 
   private button(name: string, text: string, width: number, height: number, onClick: () => void): Button {
@@ -536,6 +548,7 @@ export class HudScene extends Phaser.Scene {
     }
     const lot = place.lot;
     const site = constructionState(place, this.now());
+    this.constructionStamp = `${site.stage}:${Math.round(site.progress * 50)}`;
     const lines: Array<[string, string, string?]> = [
       [`${place.district.toUpperCase()} · ${lot.buildingBand} BUILDING · SLOT ${place.col},${place.row}`, GOLD, "10px"],
       [lot.name, INK, "20px"],
