@@ -27,6 +27,8 @@ interface LotView {
   place: LotPlacement;
   /** Some sheet was still loading; rebuild when it arrives. */
   incomplete: boolean;
+  /** Construction stage the current objects were built for. */
+  stage: string;
 }
 
 const boundsCache = new WeakMap<LotPlacement, Rect>();
@@ -64,6 +66,7 @@ export class CityScene extends Phaser.Scene {
   private lastInputTime = performance.now();
   private drag?: { id: number; x: number; y: number; startX: number; startY: number; moved: boolean };
   private pinch?: { distance: number; x: number; y: number };
+  private generation = 0;
   private clockOffset = 0;
   private connectionState: ConnectionState = "connecting";
   private frameTimes: number[] = [];
@@ -89,6 +92,9 @@ export class CityScene extends Phaser.Scene {
     this.lastCamera = "";
     this.frameTimes = [];
     this.connectionState = "connecting";
+    // Counts scene runs so observers can tell a restarted scene from the one they were watching.
+    this.generation = (this.registry.get("generation") ?? 0) + 1;
+    this.registry.set("generation", this.generation);
     this.city = this.registry.get("snapshot");
     this.reducedMotion = this.registry.get("reducedMotion") ?? matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.assets = new AssetLoader(this);
@@ -99,9 +105,10 @@ export class CityScene extends Phaser.Scene {
     this.shapes = graphicsPool(this, 400);
     this.highlight = this.add.graphics().setDepth(100_000);
     this.atmosphere = this.add.graphics().setDepth(1_000_000).setScrollFactor(0);
-    this.assets.onReady(() => {
+    this.assets.onReady((key) => {
       for (const view of this.lots.values()) if (view.incomplete) view.signature = "";
       this.lastRefresh = -Infinity;
+      if (this.assets.isFailed(key) && this.hudReady) this.hud.toast(`Sprite sheet ${key} could not be loaded; affected lots are drawn without it.`);
     });
 
     const actions = {
@@ -190,6 +197,7 @@ export class CityScene extends Phaser.Scene {
       scene: this,
       diagnostics: () => ({
         version: Phaser.VERSION,
+        generation: this.generation,
         renderer: this.game.renderer.type,
         rendererName: this.game.renderer.type === Phaser.WEBGL ? "webgl" : "canvas",
         revision: this.city.revision,
@@ -204,6 +212,7 @@ export class CityScene extends Phaser.Scene {
         actors: this.actors.count,
         drawnActors: this.actors.drawn,
         assetsInflight: this.assets.inflight,
+        assetsFailed: this.assets.failures,
         zoom: this.cameras.main.zoom,
         scrollX: this.cameras.main.scrollX,
         scrollY: this.cameras.main.scrollY,
@@ -229,6 +238,11 @@ export class CityScene extends Phaser.Scene {
       construction: (repo: string) => {
         const view = this.lots.get(repo);
         return view ? planLot(view.place, true, this.now()).construction ?? null : null;
+      },
+      // What is on screen for a lot, as opposed to what the plan says at this instant.
+      drawn: (repo: string) => {
+        const view = this.lots.get(repo);
+        return view ? { stage: view.stage, incomplete: view.incomplete, objects: view.images.length + view.shapes.length } : null;
       },
       select: (repo: string | undefined) => this.select(repo, true),
       setReducedMotion: (on: boolean) => this.setReducedMotion(on),
@@ -454,8 +468,8 @@ export class CityScene extends Phaser.Scene {
       shapes.push(scaffold);
     }
     this.actors.setLotActors(place.lot.fullName, ops.anims);
-    for (const anim of ops.anims) if (!this.assets.ready(anim.anim)) incomplete = true;
-    this.lots.set(place.lot.fullName, { images, shapes, signature, bounds, place, incomplete });
+    for (const anim of ops.anims) if (!this.assets.ready(anim.anim) && !this.assets.isFailed(anim.anim)) incomplete = true;
+    this.lots.set(place.lot.fullName, { images, shapes, signature, bounds, place, incomplete, stage: ops.construction?.stage ?? "complete" });
     if (this.selected === place.lot.fullName && this.hudReady) this.hud.setSelection(place);
   }
 

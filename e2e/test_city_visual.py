@@ -279,19 +279,23 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
     first_pos = server.get("/api/city")["plan"]["placements"][0]
     page.wait_for_timeout(600)
     original = lot_pixels(page, "acme/forge")
+    default_building = page.evaluate("window.__AXP.snapshot().plan.placements[0].lot.buildingId")
+    chosen = 7  # an S-band silhouette; the L-band hash for acme/forge picks from 35–50
+    assert default_building != chosen
     server.metrics[0].update(stars=42000, openPrs=0, openIssues=9)
     server.save()
     # The repository's own .city rules (version 2): catalog building, three bays, decor props.
-    server.repo_rules("acme/forge", building=dict(version=1, buildingId=42), loading_zone=dict(version=2, props=dict(issues=["materials", "lamp", "bench"]), layout=dict(bays=3, slots=[])))
+    server.repo_rules("acme/forge", building=dict(version=1, buildingId=chosen), loading_zone=dict(version=2, props=dict(issues=["materials", "lamp", "bench"]), layout=dict(bays=3, slots=[])))
     assert server.webhook("acme/forge") == 202  # persisted, then processed by the worker
     for tab in [page, other]:
-        tab.wait_for_function("window.__AXP.snapshot().plan.placements[0].lot.buildingId === 42")
+        tab.wait_for_function("window.__AXP.snapshot().plan.placements[0].lot.rulesSource === 'repository'")
         lot = tab.evaluate("window.__AXP.snapshot().plan.placements[0].lot")
-        assert lot["stars"] == 42000 and lot["openIssues"] == 9 and lot["showMaterials"] and not lot["showBlueprint"]
-        assert lot["extraProps"] == ["lamp", "bench"] and lot["layout"]["bays"] == 3 and lot["rulesSource"] == "repository"
+        assert lot["buildingId"] == chosen != default_building, (tab is page, lot)
+        assert lot["stars"] == 42000 and lot["openIssues"] == 9 and lot["showMaterials"] and not lot["showBlueprint"], (tab is page, lot)
+        assert lot["extraProps"] == ["lamp", "bench"] and lot["layout"]["bays"] == 3 and lot["rulesSource"] == "repository", (tab is page, lot)
     # The rule change is visible in the drawn lot in both browsers, not only in the data.
     page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
-    with_rules = rendered_change(page, "acme/forge", original, "catalog building 42 + three bays + decor props")
+    with_rules = rendered_change(page, "acme/forge", original, f"catalog building {chosen} (was {default_building}) + three bays + decor props")
     other.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
     assert pixel_distance(lot_pixels(other, "acme/forge"), with_rules) < pixel_distance(lot_pixels(other, "acme/forge"), original)
     select(page)
@@ -302,7 +306,8 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
     # A malformed rule file never breaks the lot: validated defaults apply and the card says why.
     server.repo_rules("acme/forge", loading_zone='{"version": 2, "props": {"issues": ["volcano"]}}')
     assert server.webhook("acme/forge", "bad-rules") == 202
-    page.wait_for_function("window.__AXP.snapshot().plan.placements[0].lot.buildingId === 42 && !window.__AXP.snapshot().plan.placements[0].lot.layout")
+    page.wait_for_function("window.__AXP.snapshot().plan.placements[0].lot.rulesWarning && !window.__AXP.snapshot().plan.placements[0].lot.layout")
+    assert page.evaluate("window.__AXP.snapshot().plan.placements[0].lot.buildingId") == chosen  # the valid building.json still applies
     lot = page.evaluate("window.__AXP.snapshot().plan.placements[0].lot")
     assert "loading-zone.json" in lot["rulesWarning"] and lot.get("extraProps", []) == []
     # Falling back to default yard rules redraws the yard (bays and decor gone) while the building stays.
@@ -338,17 +343,37 @@ def test_new_lot_construction_progresses_through_stages_without_reload(page, ser
     assert server.enroll("acme/newcomer") in (200, 201)
     page.wait_for_function("window.__AXP.diagnostics().totalLots === 9")
     select(page, "acme/newcomer")
+    # Hold traffic and crews still so the samples measure the site itself, not passing cars.
+    page.keyboard.press("m")
+    page.wait_for_function("window.__AXP.diagnostics().reducedMotion")
     seen = []
     drawn = {}
+    noise = {}
     deadline = time.time() + 55
     while time.time() < deadline:
         site = page.evaluate("window.__AXP.construction('acme/newcomer')")
         stage = site["stage"] if site else "complete"
         if not seen or seen[-1] != stage:
             seen.append(stage)
-            page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
+            # Sample mid-stage (scaffold half raised, cladding half opaque) rather than at the
+            # instant a stage begins, when it still looks like the end of the previous one...
+            if stage != "complete":
+                page.wait_for_function(
+                    "s => { const c = window.__AXP.construction('acme/newcomer'); return !c || c.stage !== s || c.stageProgress >= 0.5; }",
+                    arg=stage,
+                    timeout=30000,
+                )
+            # ...and only once the objects on screen were built for this stage with every sheet
+            # loaded, not merely once the plan says so.
+            page.wait_for_function(
+                "s => { const d = window.__AXP.drawn('acme/newcomer'); return d && d.stage === s && !d.incomplete && window.__AXP.diagnostics().assetsInflight === 0; }",
+                arg=stage,
+                timeout=10000,
+            )
             page.wait_for_timeout(250)
             drawn[stage] = lot_pixels(page, "acme/newcomer")
+            page.wait_for_timeout(300)
+            noise[stage] = pixel_distance(drawn[stage], lot_pixels(page, "acme/newcomer"))  # crew/drone animation only
             page.screenshot(path=str(SHOTS / f"construction-{len(seen)}-{stage}.png"))
             if stage == "framing":
                 assert any(a["anim"] == "craneArm" for a in page.evaluate("window.__AXP.lotActors('acme/newcomer')"))
@@ -360,11 +385,18 @@ def test_new_lot_construction_progresses_through_stages_without_reload(page, ser
     assert seen[:-1] == [s for s in ["grading", "framing", "cladding", "finishing"] if s in seen], seen
     assert "framing" in seen and "cladding" in seen
     # Each stage the visitor saw was drawn differently: the transition is visible, not just a field.
+    # With motion held, a finished lot is a still frame; in-stage "noise" is the scaffold and
+    # cladding genuinely progressing, so adjacent stages are compared against a fixed floor.
+    assert noise["complete"] < 0.5, noise
     for earlier, later in zip(seen, seen[1:]):
-        assert pixel_distance(drawn[earlier], drawn[later]) > 6, (earlier, later, pixel_distance(drawn[earlier], drawn[later]))
+        change = pixel_distance(drawn[earlier], drawn[later])
+        assert change > 2.0, (earlier, later, change, noise[earlier], noise[later])
     assert pixel_distance(drawn[seen[0]], drawn["complete"]) > 12, "finished building looks like the graded site"
-    assert "UNDER CONSTRUCTION" not in a11y(page, "#a11y-selection")
+    # The card re-renders on its own while the site progresses, and once more when it completes.
+    page.wait_for_function("!document.querySelector('#a11y-selection').innerText.includes('UNDER CONSTRUCTION')", timeout=3000)
     assert server.get("/api/city")["plan"]["placements"][-1]["constructing"] is False
+    page.keyboard.press("m")
+    page.wait_for_function("!window.__AXP.diagnostics().reducedMotion")
 
 
 def test_rename_keeps_the_address_and_removal_keeps_neighbours(page, server):

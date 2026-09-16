@@ -106,6 +106,9 @@ export class HudScene extends Phaser.Scene {
   private censusVisible: CensusRow[] = [];
   private toastText!: Phaser.GameObjects.Text;
   private toastTimer?: Phaser.Time.TimerEvent;
+  /** Re-renders the inspect card while its lot is under construction. */
+  private cardTimer?: Phaser.Time.TimerEvent;
+  private announcedStage?: string;
   private tag!: Phaser.GameObjects.Text;
   private hint!: Phaser.GameObjects.Text;
   private dpad!: Phaser.GameObjects.Container;
@@ -144,6 +147,8 @@ export class HudScene extends Phaser.Scene {
     this.censusVisible = [];
     this.selected = undefined;
     this.toastTimer = undefined;
+    this.cardTimer = undefined;
+    this.announcedStage = undefined;
     this.lastView = undefined;
     this.cameras.main.setRoundPixels(true);
     this.plate = this.add.container(16, 16);
@@ -504,7 +509,9 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** One selection for the whole client: card, MASS bar, minimap marker and mirror. */
-  setSelection(place: LotPlacement | undefined): void {
+  setSelection(place: LotPlacement | undefined, announce = true): void {
+    this.cardTimer?.remove();
+    this.cardTimer = undefined;
     this.selected = place;
     this.drawMass(place);
     this.drawMinimapPlan();
@@ -513,6 +520,7 @@ export class HudScene extends Phaser.Scene {
     if (!place) {
       this.card.setVisible(false);
       this.layout();
+      this.announcedStage = undefined;
       this.emit("selection", undefined);
       return;
     }
@@ -544,7 +552,16 @@ export class HudScene extends Phaser.Scene {
     this.card.setData("height", y + 52);
     this.card.setVisible(true);
     this.layoutCard();
-    this.emit("selection", { place, lines: lines.map((l) => l[0]) });
+    if (site.stage !== "complete")
+      // Stage and percentage move with time, not only with data; keep the card current.
+      this.cardTimer = this.time.delayedCall(1000, () => {
+        if (this.selected === place) this.setSelection(place, false);
+      });
+    // The live-region mirror hears selections and stage changes, not every percent.
+    if (announce || this.announcedStage !== site.stage) {
+      this.announcedStage = site.stage;
+      this.emit("selection", { place, lines: lines.map((l) => l[0]) });
+    }
   }
 
   private cardWidth(): number {

@@ -47,11 +47,23 @@ export class AssetLoader {
         this.defineAnimation(key);
       for (const listener of this.listeners) listener(key);
     });
-    scene.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
-      this.pending.delete(file.key);
-      this.failed.add(file.key);
-      for (const listener of this.listeners) listener(file.key);
+    scene.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => this.fail(file.key));
+    // Phaser reports network failures through FILE_LOAD_ERROR but only logs
+    // decode/processing failures (a blocked blob:, a corrupt PNG). Anything still
+    // pending without a texture once the queue drains has failed.
+    scene.load.on(Phaser.Loader.Events.COMPLETE, () => {
+      for (const key of [...this.pending]) if (!scene.textures.exists(key)) this.fail(key);
     });
+  }
+  private fail(key: string): void {
+    if (!this.pending.delete(key)) return;
+    this.failed.add(key);
+    console.warn(`[axp-city] sprite sheet ${key} could not be loaded; lots that need it are drawn without it`);
+    for (const listener of this.listeners) listener(key);
+  }
+  /** Keys that could not be fetched or decoded in this run. */
+  get failures(): string[] {
+    return [...this.failed];
   }
   onReady(listener: (key: string) => void): () => void {
     this.listeners.add(listener);

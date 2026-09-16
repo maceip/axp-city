@@ -94,7 +94,9 @@ def test_offline_package_opens_the_saved_city_without_network(browser, server, t
     blocked = []
 
     def route(route_, request):
-        if request.url.startswith(package_url):
+        # blob:/data: URLs are how the loader hands already-fetched bytes to an Image; they
+        # are not network access. WebKit routes them through interception, Chromium does not.
+        if request.url.startswith(package_url) or request.url.startswith(("blob:", "data:")):
             route_.continue_()
         else:
             blocked.append(request.url)
@@ -111,10 +113,13 @@ def test_offline_package_opens_the_saved_city_without_network(browser, server, t
         assert state["revision"] == saved["revision"]
         page.evaluate("window.__AXP.select('acme/forge')")
         page.wait_for_function("window.__AXP.diagnostics().cardVisible")
-        page.wait_for_timeout(1200)
+        # Every on-demand asset the selection needs resolves from the package itself.
+        page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=20000)
+        page.wait_for_timeout(600)
         page.screenshot(path=str(SHOTS / "offline-package.png"))
         assert not [b for b in blocked if server.url in b], blocked
-        assert page.evaluate("window.__AXP.diagnostics().assetsInflight") == 0
+        assert not [b for b in blocked if "/assets/" in b or "/api/" in b], blocked
+        assert page.evaluate("window.__AXP.diagnostics().assetsFailed") == []
         page.goto(package_url + "/city.svg")
         assert page.evaluate("document.querySelectorAll('g.lot').length") == 8
     finally:
