@@ -1,8 +1,14 @@
+import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server } from "node:http";
+import { extname, join, normalize, resolve } from "node:path";
+import { createCityStore, type CityStore } from "../live/cityStore.js";
+import { renderCityHtml } from "../render/html.js";
+import { planSnapshot } from "../render/city.js";
+import { planCity } from "../world/layout.js";
+import { authorizeAdmin, authorizeWebhook } from "./auth.js";
 import { normalizeDelivery } from "./normalize.js";
 import { createRateLimiter } from "./rateLimit.js";
 import { createEventStore, type EventStore } from "./store.js";
-import { signatureMatches } from "./verify.js";
 import type { CityEvent, DeliveryResult } from "./types.js";
 
 export const MAX_BODY_BYTES = 1_000_000;
@@ -15,11 +21,18 @@ export interface WebhookOptions {
   /** Flood protection for deliveries. Defaults: 120 per IP per minute. */
   rateLimitMax?: number;
   rateLimitWindowMs?: number;
+  /** Shared city map persistence. Defaults next to the event log. */
+  cityMapPath?: string;
+  /** Bearer token for POST /api/city/lots. Empty denies all mutations. */
+  adminToken?: string;
+  /** Sprite PNG root, served at /assets/sprites/. */
+  spritesRoot?: string;
 }
 
 export interface WebhookServer {
   server: Server;
   store: EventStore;
+  city: CityStore;
   port: number;
 }
 
@@ -36,11 +49,13 @@ export async function handleDelivery(
 ): Promise<DeliveryResult> {
   const secret = options.secret;
   const signature = headers["x-hub-signature-256"];
-  const signed = signatureMatches(rawBody, secret, signature);
-  // Unsigned deliveries are only ever allowed in local dev with no secret
-  // configured — `--allow-unsigned` is inert when a secret is set.
-  const unsignedOk = options.allowUnsigned === true && secret === "";
-  if (!signed && !unsignedOk) return { status: 401, body: "bad signature" };
+  const signed = authorizeWebhook(
+    rawBody,
+    secret,
+    signature,
+    options.allowUnsigned === true,
+  );
+  if (!signed.ok) return { status: 401, body: signed.body };
   if (!deliveryId) return { status: 400, body: "missing delivery id" };
 
   let payload: Record<string, unknown>;
@@ -143,6 +158,9 @@ function statusPage(store: EventStore): string {
 <tbody>${rows || '<tr><td colspan="5">No events yet — configure a webhook.</td></tr>'}</tbody></table>
 <h2>Endpoints</h2>
 <ul>
+<li><code>GET /city</code> — live shared map</li>
+<li><code>GET /api/city</code> — canonical lot placements</li>
+<li><code>GET /api/city/stream</code> — SSE for new plots</li>
 <li><code>POST /webhooks/github</code> — GitHub deliveries (signed)</li>
 <li><code>GET /events?limit=50</code> — newest-first JSON backlog</li>
 <li><code>GET /events/stream</code> — live SSE feed</li>
@@ -173,18 +191,21 @@ export function createWebhookServer(
   options: WebhookOptions,
   port: number,
 ): WebhookServer {
-  const store = createEventStore(options.logPath ?? "data/city-events.jsonl");
+  const logPath = options.logPath ?? "data/city-events.jsonl";
+  const store = createEventStore(logPath);
+  const city = createCityStore(options.cityMapPath ?? join(logPath, "..", "city-map.json"));
   const broadcast = createBroadcaster();
   const limiter = createRateLimiter({
     max: options.rateLimitMax ?? 120,
     windowMs: options.rateLimitWindowMs ?? 60_000,
   });
+  const spritesRoot = options.spritesRoot ? resolve(options.spritesRoot) : "";
+  const adminToken = options.adminToken ?? "";
 
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
       if (req.method === "POST" && url.pathname === "/webhooks/github") {
-        // Flood gate before buffering a single byte of body.
         const client = req.socket.remoteAddress ?? "unknown";
         const decision = limiter.check(client);
         if (!decision.allowed) {
@@ -210,14 +231,104 @@ export function createWebhookServer(
           options,
           store,
         );
-        if (result.event) broadcast.broadcast(result.event);
+        if (result.event) {
+          broadcast.broadcast(result.event);
+          await city.ensure(result.event.repo);
+        }
         res.writeHead(result.status, { "content-type": "text/plain" });
         res.end(result.body);
         return;
       }
-      if (req.method === "GET" && url.pathname === "/") {
+      if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/status")) {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         res.end(statusPage(store));
+        return;
+      }
+      if (req.method === "GET" && (url.pathname === "/city" || url.pathname === "/city.html")) {
+        const html = renderCityHtml(city.lots(), new Date().toISOString(), {
+          addedAt: city.addedAt(),
+        });
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(html);
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/city") {
+        const plan = planCity(city.lots(), { addedAt: city.addedAt() });
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(planSnapshot(plan)));
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/city/stream") {
+        res.writeHead(200, {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+          connection: "keep-alive",
+        });
+        res.write(": connected\n\n");
+        const send = (event: unknown): void => {
+          const typed = event as { type?: string };
+          res.write(`event: ${typed.type ?? "message"}\n`);
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        };
+        const remove = city.onMutation(send);
+        req.on("close", remove);
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/city/lots") {
+        const auth = authorizeAdmin(
+          req.headers as Record<string, string | string[] | undefined>,
+          adminToken,
+        );
+        if (!auth.ok) {
+          res.writeHead(auth.status, { "content-type": "text/plain" });
+          res.end(auth.body);
+          return;
+        }
+        let raw: Buffer;
+        try {
+          raw = await readBody(req, 4096);
+        } catch {
+          res.writeHead(413, { "content-type": "text/plain" });
+          res.end("body too large");
+          return;
+        }
+        let repo = "";
+        try {
+          const body = JSON.parse(raw.toString("utf8")) as { repo?: string };
+          repo = typeof body.repo === "string" ? body.repo.trim() : "";
+        } catch {
+          res.writeHead(400, { "content-type": "text/plain" });
+          res.end("invalid json");
+          return;
+        }
+        if (!/^[^/]+\/[^/]+$/.test(repo)) {
+          res.writeHead(400, { "content-type": "text/plain" });
+          res.end("invalid repo");
+          return;
+        }
+        const mutation = await city.ensure(repo);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(mutation ?? { type: "exists", repo }));
+        return;
+      }
+      if (
+        spritesRoot &&
+        req.method === "GET" &&
+        (url.pathname === "/assets/sprites" || url.pathname.startsWith("/assets/sprites/"))
+      ) {
+        const rel = url.pathname.slice("/assets/sprites".length) || "/";
+        const file = normalize(join(spritesRoot, rel));
+        if (!file.startsWith(spritesRoot) || !existsSync(file) || !statSync(file).isFile()) {
+          res.writeHead(404, { "content-type": "text/plain" });
+          res.end("not found");
+          return;
+        }
+        const types: Record<string, string> = {
+          ".png": "image/png",
+          ".svg": "image/svg+xml",
+        };
+        res.writeHead(200, { "content-type": types[extname(file)] ?? "application/octet-stream" });
+        createReadStream(file).pipe(res);
         return;
       }
       if (req.method === "GET" && url.pathname === "/events") {
@@ -245,15 +356,12 @@ export function createWebhookServer(
       }
       if (req.method === "GET" && url.pathname === "/healthz") {
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ ok: true, stored: store.size }));
+        res.end(JSON.stringify({ ok: true, stored: store.size, lots: city.lots().length }));
         return;
       }
       res.writeHead(404, { "content-type": "text/plain" });
       res.end("not found");
     } catch {
-      // Last resort: never leak internals, and never throw out of a handler
-      // (a throw here would take down the process). If the response already
-      // started there is nothing safe left to write.
       if (!res.headersSent) {
         res.writeHead(500, { "content-type": "text/plain" });
         res.end("internal error");
@@ -263,7 +371,7 @@ export function createWebhookServer(
     }
   });
 
-  return { server, store, port };
+  return { server, store, city, port };
 }
 
 function headerValue(value: string | string[] | undefined): string | undefined {

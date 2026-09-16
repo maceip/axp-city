@@ -41,6 +41,9 @@ export function normalizeDelivery(
       return normalizePullRequest(base, payload);
     case "issues":
       return normalizeIssue(base, payload);
+    case "repository":
+      if (payload.action === "created") return { ...base, signal: "repo_created" };
+      return null;
     default:
       return null;
   }

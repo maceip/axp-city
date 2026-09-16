@@ -1,2 +1,2 @@
-export { placeLots, renderCitySvg } from "./city.js";
+export { placeLots, planSnapshot, renderCitySvg, renderPlannedCity } from "./city.js";
 export { renderCityHtml } from "./html.js";

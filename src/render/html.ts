@@ -1,6 +1,8 @@
 import type { CityLot } from "../types.js";
 import { HIGH_PR_COUNT, RECENT_ACTIVITY_DAYS } from "../parser/thresholds.js";
-import { renderCitySvg } from "./city.js";
+import { planCity, type PlanOptions } from "../world/index.js";
+import { mapClientScript } from "./clientScript.js";
+import { planSnapshot, renderPlannedCity } from "./city.js";
 
 function escapeHtml(value: string): string {
   return value
@@ -14,268 +16,25 @@ function yardLabel(yard: CityLot["yard"]): string {
   return yard.replaceAll("_", " ");
 }
 
-function propsList(lot: CityLot): string[] {
-  return [
-    lot.showBlueprint ? "blueprint" : "",
-    lot.showDraftingTable ? "table" : "",
-    lot.showMaterials ? "materials" : "",
-    lot.showCrew ? "crew" : "",
-    lot.showDrone ? "drone" : "",
-  ].filter(Boolean);
-}
-
-/** Compact per-lot data for the click-to-inspect card. `</` neutralized. */
-function lotsJson(lots: CityLot[]): string {
-  const data = lots.map((lot) => ({
-    repo: lot.fullName,
-    url: lot.url,
-    stars: lot.stars,
-    issues: lot.openIssues,
-    prs: lot.openPrs,
-    band: lot.buildingBand,
-    id: lot.buildingId,
-    yard: lot.yard.replaceAll("_", " "),
-    props: propsList(lot),
-  }));
-  return JSON.stringify(data).replaceAll("</", "<\\/");
-}
-
-const mapScript = `(function () {
-  var svg = document.getElementById("axp-map");
-  var card = document.getElementById("lot-card");
-  var tag = document.getElementById("hover-tag");
-  if (!svg || !card || !tag) return;
-  var lots = [];
-  try { lots = JSON.parse(document.getElementById("axp-lots").textContent || "[]"); } catch (e) { lots = []; }
-  var byRepo = {};
-  lots.forEach(function (lot) { byRepo[lot.repo] = lot; });
-
-  var base = svg.viewBox.baseVal;
-  var home = { x: base.x, y: base.y, w: base.width, h: base.height };
-  var view = { x: home.x, y: home.y, w: home.w, h: home.h };
-  var world = null;
-  try {
-    var parts = (svg.getAttribute("data-world") || "").split(/\\s+/).map(Number);
-    if (parts.length === 4 && parts.every(isFinite)) {
-      world = { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
-    }
-  } catch (e) { world = null; }
-  function clampView() {
-    if (!world || !(view.w > 0) || !(home.w > 0) || !(home.h > 0)) return;
-    var maxW = Math.min(world.w, world.h * home.w / home.h);
-    view.w = Math.min(Math.max(view.w, home.w / 12), maxW);
-    view.h = view.w * home.h / home.w;
-    if (view.w >= world.w) view.x = world.x + (world.w - view.w) / 2;
-    else view.x = Math.min(Math.max(view.x, world.x), world.x + world.w - view.w);
-    if (view.h >= world.h) view.y = world.y + (world.h - view.h) / 2;
-    else view.y = Math.min(Math.max(view.y, world.y), world.y + world.h - view.h);
-  }
-  function apply() {
-    clampView();
-    svg.setAttribute("viewBox", view.x + " " + view.y + " " + view.w + " " + view.h);
-  }
-  function zoomTo(w) {
-    view.w = Math.min(Math.max(w, home.w / 12), home.w * 1.5);
-    view.h = view.w * home.h / home.w;
-  }
-  function esc(s) {
-    return String(s).replace(/[&<>"]/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
-    });
-  }
-  function hideCard() {
-    card.hidden = true;
-    card.innerHTML = "";
-    var prev = svg.querySelector(".lot-hit.selected");
-    if (prev) prev.classList.remove("selected");
-  }
-  var hoverRepo = null;
-  function hideTag() {
-    hoverRepo = null;
-    tag.hidden = true;
-    tag.innerHTML = "";
-  }
-  function showTag(repo, clientX, clientY) {
-    var lot = byRepo[repo];
-    var stage = svg.parentElement;
-    if (!lot || !stage) { hideTag(); return; }
-    var stageBox = stage.getBoundingClientRect();
-    if (hoverRepo !== repo) {
-      hoverRepo = repo;
-      tag.innerHTML =
-        '<div class="tag-pop">' +
-        '<div class="tag-name">' + esc(lot.repo) + "</div>" +
-        '<div class="tag-sub">' + esc(lot.band) + String(lot.id).padStart(2, "0") + " · " + esc(lot.yard) + "</div>" +
-        "</div>";
-      tag.hidden = false;
-    }
-    var x = clientX - stageBox.left;
-    var y = clientY - stageBox.top;
-    var left = x + 18;
-    var top = y - tag.offsetHeight / 2;
-    left = Math.min(Math.max(left, 12), stageBox.width - tag.offsetWidth - 12);
-    top = Math.min(Math.max(top, 12), stageBox.height - tag.offsetHeight - 12);
-    tag.style.left = left + "px";
-    tag.style.top = top + "px";
-  }
-  function showCard(repo, hit) {
-    var lot = byRepo[repo];
-    if (!lot) return;
-    svg.querySelectorAll(".lot-hit.selected").forEach(function (el) { el.classList.remove("selected"); });
-    if (hit) hit.classList.add("selected");
-    var props = lot.props.length ? lot.props.join(", ") : "—";
-    card.innerHTML =
-      '<button class="close" aria-label="Close">×</button>' +
-      '<h3><a href="' + esc(lot.url) + '">' + esc(lot.repo) + "</a></h3>" +
-      "<p>" + lot.stars.toLocaleString() + " stars · " + lot.issues + " issues · " + lot.prs + " PRs</p>" +
-      "<p>Building " + esc(lot.band) + String(lot.id).padStart(2, "0") + " · " + esc(lot.yard) + "</p>" +
-      "<p>Props: " + esc(props) + "</p>";
-    card.hidden = false;
-    card.querySelector(".close").addEventListener("click", hideCard);
-  }
-  var glide = null;
-  function stopGlide() { if (glide) { cancelAnimationFrame(glide); glide = null; } }
-  function flyTo(cx, cy) {
-    stopGlide();
-    var x0 = view.x, y0 = view.y;
-    var tx = cx - view.w / 2, ty = cy - view.h / 2;
-    var t0 = null;
-    function step(t) {
-      if (t0 === null) t0 = t;
-      var k = Math.min(1, (t - t0) / 450);
-      var e = 1 - Math.pow(1 - k, 3);
-      view.x = x0 + (tx - x0) * e;
-      view.y = y0 + (ty - y0) * e;
-      apply();
-      if (k < 1) glide = requestAnimationFrame(step);
-      else glide = null;
-    }
-    glide = requestAnimationFrame(step);
-  }
-  function centerOn(hit) {
-    try {
-      var box = hit.getBBox();
-      flyTo(box.x + box.width / 2, box.y + box.height / 2);
-    } catch (e) { /* getBBox unavailable — selection still shows */ }
-  }
-  function zoomCenter(f) {
-    var cx = view.x + view.w / 2, cy = view.y + view.h / 2;
-    zoomTo(view.w * f);
-    view.x = cx - view.w / 2;
-    view.y = cy - view.h / 2;
-  }
-
-  // Cursor mapping under the default meet fit (uniform scale, centered).
-  // Pan uses raw screen deltas over that scale: deltas anchored in the
-  // moving view oscillate (apply, zero, apply…), silently dropping half of
-  // a fast drag. Screen deltas cannot do that. toUser stays for the wheel
-  // anchor, which is absolute per event and has no such hazard.
-  function meetScale() {
-    var r = svg.getBoundingClientRect();
-    if (!r.width || !r.height || !view.w || !view.h) return 0;
-    return Math.min(r.width / view.w, r.height / view.h);
-  }
-  function toUser(e) {
-    var r = svg.getBoundingClientRect();
-    var s = meetScale();
-    if (!s) return null;
-    var ox = r.left + (r.width - view.w * s) / 2;
-    var oy = r.top + (r.height - view.h * s) / 2;
-    return { x: view.x + (e.clientX - ox) / s, y: view.y + (e.clientY - oy) / s };
-  }
-  // Drag tracking listens on window, not the svg: moves keep flowing when
-  // the cursor leaves the map mid-drag, with no pointer capture involved
-  // (capture retargets the click that follows a drag and breaks selection).
-  var dragging = false, lx = 0, ly = 0, moved = false;
-  svg.addEventListener("pointerdown", function (e) {
-    stopGlide();
-    hideTag();
-    dragging = true; moved = false; lx = e.clientX; ly = e.clientY;
-    svg.style.cursor = "grabbing";
-  });
-  svg.addEventListener("pointermove", function (e) {
-    if (dragging) { hideTag(); return; }
-    var hit = e.target && e.target.closest ? e.target.closest(".lot-hit") : null;
-    if (!hit) { hideTag(); return; }
-    showTag(hit.getAttribute("data-repo"), e.clientX, e.clientY);
-  });
-  svg.addEventListener("pointerleave", hideTag);
-  window.addEventListener("pointermove", function (e) {
-    if (!dragging) return;
-    if (!moved && Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 3) {
-      moved = true;
-    }
-    var s = meetScale();
-    if (s) {
-      view.x -= (e.clientX - lx) / s;
-      view.y -= (e.clientY - ly) / s;
-    }
-    lx = e.clientX; ly = e.clientY;
-    apply();
-  });
-  function endDrag() {
-    dragging = false;
-    svg.style.cursor = "grab";
-  }
-  window.addEventListener("pointerup", endDrag);
-  window.addEventListener("pointercancel", endDrag);
-  svg.addEventListener("click", function (e) {
-    if (moved) return;
-    var hit = e.target && e.target.closest ? e.target.closest(".lot-hit") : null;
-    if (!hit) { hideCard(); return; }
-    showCard(hit.getAttribute("data-repo"), hit);
-    centerOn(hit);
-  });
-  svg.addEventListener("wheel", function (e) {
-    e.preventDefault();
-    stopGlide();
-    var u = toUser(e);
-    var mx, my;
-    if (u) { mx = u.x; my = u.y; }
-    else {
-      var r = svg.getBoundingClientRect();
-      mx = view.x + (e.clientX - r.left) * (view.w / r.width);
-      my = view.y + (e.clientY - r.top) * (view.h / r.height);
-    }
-    var before = view.w;
-    zoomTo(view.w * (e.deltaY > 0 ? 1.15 : 1 / 1.15));
-    var k = view.w / before;
-    view.x = mx - (mx - view.x) * k;
-    view.y = my - (my - view.y) * k;
-    apply();
-  }, { passive: false });
-  svg.addEventListener("dblclick", function () {
-    stopGlide();
-    view = { x: home.x, y: home.y, w: home.w, h: home.h };
-    apply();
-    hideCard();
-    hideTag();
-  });
-  document.addEventListener("keydown", function (e) {
-    var step = view.w / 8;
-    var handled = true;
-    if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") { stopGlide(); view.x -= step; }
-    else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") { stopGlide(); view.x += step; }
-    else if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") { stopGlide(); view.y -= step; }
-    else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") { stopGlide(); view.y += step; }
-    else if (e.key === "+" || e.key === "=") { stopGlide(); zoomCenter(1 / 1.25); }
-    else if (e.key === "-" || e.key === "_") { stopGlide(); zoomCenter(1.25); }
-    else if (e.key === "Escape") { hideCard(); hideTag(); }
-    else handled = false;
-    if (handled) { e.preventDefault(); apply(); }
-  });
-})();`;
-
 function rows(lots: CityLot[]): string {
   return lots
     .map((lot) => {
-      const props = propsList(lot).join(", ");
+      const props = [
+        lot.showBlueprint ? "blueprint" : "",
+        lot.showDraftingTable ? "table" : "",
+        lot.showMaterials ? "materials" : "",
+        lot.showCrew ? "crew" : "",
+        lot.showDrone ? "drone" : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
       return `<tr>
         <td><a href="${escapeHtml(lot.url)}">${escapeHtml(lot.fullName)}</a></td>
         <td>${lot.stars.toLocaleString()}</td>
         <td>${lot.openIssues}</td>
         <td>${lot.openPrs}</td>
         <td><span class="band">${lot.buildingBand}</span> ${String(lot.buildingId).padStart(2, "0")}</td>
+        <td>${escapeHtml(lot.occupantClass)}</td>
         <td><span class="yard yard-${lot.yard}">${escapeHtml(yardLabel(lot.yard))}</span></td>
         <td>${escapeHtml(props || "—")}</td>
       </tr>`;
@@ -283,48 +42,34 @@ function rows(lots: CityLot[]): string {
     .join("\n");
 }
 
-export function renderCityHtml(lots: CityLot[], generatedAt: string): string {
-  const svg = renderCitySvg(lots, generatedAt).replace(/^<\?xml[^>]*>\s*/, "");
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>AXP City</title>
-  <style>
+const hudCss = `
     :root {
-      --ink: #1f2933;
-      --muted: #5b6773;
-      --line: rgba(31,41,51,0.1);
-      --paper: #f7f4ef;
-      --card: #ffffff;
+      --ink: #e8e4d9;
+      --muted: #9aa3ad;
+      --line: rgba(255,210,63,0.35);
+      --paper: #1a1d1b;
+      --card: #141716;
+      --gold: #ffd23f;
+      --hud: rgba(12,14,13,0.86);
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; }
-    header {
-      padding: 14px 20px 6px;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: end;
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--paper); color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      height: 100%;
     }
-    h1 { margin: 0; font-size: 24px; letter-spacing: -0.03em; }
-    .lede { margin: 4px 0 0; color: var(--muted); max-width: 68ch; line-height: 1.4; font-size: 14px; }
-    .meta { color: var(--muted); font-size: 13px; }
+    body { min-height: 100dvh; overflow: hidden; }
     .stage {
-      margin: 8px 16px 24px;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 16px;
+      position: fixed; inset: 0;
+      background: #0e1110;
       overflow: hidden;
-      box-shadow: 0 10px 30px rgba(40,50,60,0.06);
-      position: relative;
+      touch-action: none;
     }
-    .stage svg { display: block; width: 100%; height: min(88vh, 980px); touch-action: none; cursor: grab; }
+    .stage svg { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
     .lot-hit { cursor: pointer; }
-    .lot-hit:hover path { stroke: #2457c5; stroke-width: 2; }
-    .lot-hit.selected path { stroke: #2457c5; stroke-width: 2.5; }
+    .lot-hit:hover path { stroke: var(--gold); stroke-width: 2; }
+    .lot-hit.selected path { stroke: var(--gold); stroke-width: 2.5; }
     .hovertag {
       position: absolute; left: 0; top: 0; z-index: 6;
       pointer-events: none;
@@ -332,7 +77,7 @@ export function renderCityHtml(lots: CityLot[], generatedAt: string): string {
     }
     .hovertag[hidden] { display: none; }
     .tag-pop {
-      background: #ffd23f;
+      background: var(--gold);
       border: 3px solid #111;
       border-radius: 10px;
       box-shadow: 5px 5px 0 #111;
@@ -341,23 +86,13 @@ export function renderCityHtml(lots: CityLot[], generatedAt: string): string {
       animation: tag-pop .28s cubic-bezier(.2, 1.5, .35, 1);
     }
     .tag-name {
-      font-style: italic;
-      font-weight: 800;
-      font-size: 15px;
-      line-height: 1.05;
-      letter-spacing: .01em;
-      text-transform: uppercase;
-      color: #111;
-      white-space: nowrap;
+      font-style: italic; font-weight: 800; font-size: 15px;
+      line-height: 1.05; letter-spacing: .01em;
+      text-transform: uppercase; color: #111; white-space: nowrap;
     }
     .tag-sub {
-      margin-top: 3px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .04em;
-      text-transform: uppercase;
-      color: #111;
-      white-space: nowrap;
+      margin-top: 3px; font-size: 11px; font-weight: 700;
+      letter-spacing: .04em; text-transform: uppercase; color: #111; white-space: nowrap;
     }
     @keyframes tag-pop {
       0% { transform: scale(.2) rotate(8deg); }
@@ -368,94 +103,236 @@ export function renderCityHtml(lots: CityLot[], generatedAt: string): string {
       .tag-pop { animation: none; }
     }
     .wild-bush image { image-rendering: pixelated; }
-    .maphint {
-      position: absolute; left: 12px; bottom: 10px; margin: 0;
-      background: rgba(255,255,255,0.92); border: 1px solid var(--line);
-      border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--muted);
-      pointer-events: none;
+    .hud {
+      position: absolute; inset: 0; pointer-events: none; z-index: 8;
+      color: var(--ink);
     }
+    .hud button,
+    .hud canvas,
+    .hud .hud-plate,
+    .hud .hud-compass-wrap,
+    .hud .hud-mass,
+    .hud .hud-log-btn {
+      pointer-events: auto;
+    }
+    .hud-top, .hud-bottom, .hud-left, .hud-right {
+      position: absolute;
+    }
+    .hud-top {
+      top: max(10px, env(safe-area-inset-top));
+      left: 12px; right: 12px;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+    }
+    .hud-plate {
+      background: var(--hud);
+      border: 3px solid var(--gold);
+      box-shadow: 4px 4px 0 #000;
+      padding: 8px 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .hud-title { font-size: 13px; color: var(--gold); margin: 0; }
+    .hud-district { font-size: 18px; font-weight: 800; margin: 2px 0 0; }
+    .hud-clock { font-size: 11px; color: var(--muted); }
+    .hud-compass-wrap {
+      width: 64px; height: 64px;
+      border: 3px solid var(--gold);
+      background: var(--hud);
+      box-shadow: 4px 4px 0 #000;
+      display: grid; place-items: center;
+      position: relative;
+    }
+    .hud-compass {
+      width: 0; height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 22px solid #e85d04;
+      transform-origin: 50% 70%;
+    }
+    .hud-compass-wrap span {
+      position: absolute; bottom: 4px; font-size: 10px; color: var(--gold);
+    }
+    .hud-right {
+      top: 88px; right: 12px;
+      display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+    }
+    #hud-mini {
+      width: 140px; height: 100px;
+      border: 3px solid var(--gold);
+      background: #0b0d0c;
+      box-shadow: 4px 4px 0 #000;
+      image-rendering: pixelated;
+    }
+    .hud-mass {
+      width: 140px; background: var(--hud);
+      border: 3px solid var(--gold); padding: 6px 8px;
+      box-shadow: 4px 4px 0 #000;
+    }
+    .hud-mass label { font-size: 10px; color: var(--gold); }
+    .hud-mass-bar { height: 8px; background: #2a2f2c; margin-top: 4px; }
+    #hud-mass-fill { display: block; height: 100%; width: 0; background: var(--gold); }
+    .hud-bottom {
+      left: 12px; right: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      display: flex; justify-content: space-between; align-items: flex-end; gap: 12px;
+    }
+    .dpad {
+      display: grid;
+      grid-template-columns: 48px 48px 48px;
+      grid-template-rows: 48px 48px 48px;
+      gap: 4px;
+    }
+    .dpad button, .zoomers button, .hud-log-btn {
+      background: var(--hud);
+      color: var(--gold);
+      border: 3px solid var(--gold);
+      box-shadow: 3px 3px 0 #000;
+      font-family: inherit;
+      font-weight: 800;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .dpad button:active, .zoomers button:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #000; }
+    #pad-w { grid-column: 2; grid-row: 1; }
+    #pad-a { grid-column: 1; grid-row: 2; }
+    #pad-s { grid-column: 2; grid-row: 2; }
+    #pad-d { grid-column: 3; grid-row: 2; }
+    .zoomers { display: flex; flex-direction: column; gap: 6px; }
+    .zoomers button, .hud-log-btn { width: 48px; height: 48px; }
+    .hud-hint {
+      pointer-events: none;
+      background: var(--hud);
+      border: 2px solid var(--line);
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--muted);
+      max-width: 42ch;
+    }
+    #hud-toast {
+      position: absolute; top: 96px; left: 50%; transform: translateX(-50%);
+      background: var(--gold); color: #111; border: 3px solid #111;
+      padding: 8px 14px; font-weight: 800; letter-spacing: 0.08em;
+      box-shadow: 4px 4px 0 #000;
+    }
+    #hud-toast[hidden] { display: none; }
     .lotcard {
-      position: absolute; right: 12px; top: 12px; width: 260px;
-      background: rgba(255,255,255,0.97); border: 1px solid var(--line);
-      border-radius: 12px; padding: 12px 14px; font-size: 13px;
-      box-shadow: 0 8px 24px rgba(40,50,60,0.12);
+      position: absolute; right: 12px; top: 210px; width: min(280px, calc(100vw - 24px));
+      background: var(--hud); border: 3px solid var(--gold);
+      box-shadow: 5px 5px 0 #000; padding: 12px 14px; font-size: 13px; z-index: 9;
     }
     .lotcard[hidden] { display: none; }
-    .lotcard h3 { margin: 0 0 2px; font-size: 14px; }
+    .lotcard h3 { margin: 0 0 6px; font-size: 15px; }
+    .lotcard a { color: var(--gold); }
     .lotcard p { margin: 4px 0; color: var(--muted); }
+    .lotcard .rpg-kicker { color: var(--gold); font-size: 10px; letter-spacing: 0.14em; margin: 0 0 4px; }
+    .lotcard .rpg-stat { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+    .lotcard .rpg-build { color: #e85d04; font-weight: 800; }
     .lotcard .close {
       position: absolute; right: 8px; top: 6px; border: 0; background: none;
-      font-size: 16px; cursor: pointer; color: var(--muted);
+      font-size: 16px; cursor: pointer; color: var(--gold);
     }
-    .panel { padding: 0 24px 40px; }
-    h2 { font-size: 16px; margin: 24px 0 10px; }
-    .legend {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 10px;
+    .census {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      max-height: 46vh; overflow: auto;
+      background: var(--hud); border-top: 3px solid var(--gold);
+      padding: 12px 16px 24px; z-index: 10;
+      display: none;
     }
-    .legend article {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 10px 12px;
+    .census.open { display: block; }
+    .census h2 { margin: 0 0 8px; font-size: 13px; color: var(--gold); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid rgba(255,210,63,0.12); font-size: 12px; }
+    th { color: var(--muted); }
+    a { color: var(--gold); text-decoration: none; }
+    .legend { display: none; }
+    @media (min-width: 900px) {
+      .hud-hint { display: block; }
     }
-    .legend h3 { margin: 0 0 4px; font-size: 13px; }
-    .legend p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
-    table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; }
-    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
-    th { color: var(--muted); font-weight: 600; background: #f3f1ec; }
-    a { color: #2457c5; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .band { font-weight: 700; }
-    .yard { text-transform: capitalize; }
-    .yard-fully_dormant { color: #7a6a4f; }
-    .yard-issues_quiet, .yard-issues_active { color: #2b5f9e; }
-    .yard-prs_quiet, .yard-prs_active { color: #8a4b20; }
-    .yard-idle_active { color: #2f6d46; }
     @media (max-width: 720px) {
-      header, .panel { padding-left: 14px; padding-right: 14px; }
-      h1 { font-size: 22px; }
+      .hud-hint { display: none; }
+      #hud-mini { width: 110px; height: 80px; }
+      .dpad { grid-template-columns: 56px 56px 56px; grid-template-rows: 56px 56px 56px; }
+      .dpad button, .zoomers button, .hud-log-btn { width: 56px; height: 56px; }
+      .lotcard { top: auto; bottom: 96px; }
     }
-  </style>
+`;
+
+export function renderCityHtml(
+  lots: CityLot[],
+  generatedAt: string,
+  options: PlanOptions = {},
+): string {
+  const plan = planCity(lots, options);
+  const svg = renderPlannedCity(plan, generatedAt).replace(/^<\?xml[^>]*>\s*/, "");
+  const snapshot = planSnapshot(plan);
+  const planJson = JSON.stringify(snapshot).replaceAll("</", "<\\/");
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <title>AXP City</title>
+  <style>${hudCss}</style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>AXP City</h1>
-      <p class="lede">Each GitHub repository is two adjacent plots — a building pad sized by stars, and a receiving yard whose props come from open issues, open PRs, and recent activity. Nothing here is hardcoded per repo name.</p>
-    </div>
-    <p class="meta">${lots.length} lots · activity window ${RECENT_ACTIVITY_DAYS} days · drone if PRs ≥ ${HIGH_PR_COUNT} or bot authors · ${escapeHtml(generatedAt)}</p>
-  </header>
   <div class="stage">${svg}
-    <p class="maphint">drag to pan · scroll to zoom · hover a lot for its tag · click a lot to inspect · WASD/arrows move · double-click to reset</p>
+    <div class="hud" aria-label="City HUD">
+      <div class="hud-top">
+        <div class="hud-plate">
+          <p class="hud-title">AXP CITY</p>
+          <p class="hud-district" id="hud-district">CENTRAL PARK</p>
+          <p class="hud-clock">${lots.length} lots · ${escapeHtml(generatedAt)}</p>
+        </div>
+        <div class="hud-compass-wrap" title="Compass"><div class="hud-compass" id="hud-compass"></div><span>N</span></div>
+      </div>
+      <div class="hud-right">
+        <canvas id="hud-mini" width="140" height="100" aria-label="Minimap"></canvas>
+        <div class="hud-mass"><label>MASS</label><div class="hud-mass-bar"><span id="hud-mass-fill"></span></div></div>
+      </div>
+      <div id="hud-toast" hidden>NEW PLOT</div>
+      <div class="hud-bottom">
+        <div class="dpad" aria-label="Move">
+          <button type="button" id="pad-w">W</button>
+          <button type="button" id="pad-a">A</button>
+          <button type="button" id="pad-s">S</button>
+          <button type="button" id="pad-d">D</button>
+        </div>
+        <p class="hud-hint" id="hud-hint">WASD / arrows move · scroll zoom · drag pan</p>
+        <div class="zoomers">
+          <button type="button" id="hud-zoom-in" aria-label="Zoom in">+</button>
+          <button type="button" id="hud-zoom-out" aria-label="Zoom out">−</button>
+          <button type="button" class="hud-log-btn" id="hud-log-toggle" aria-label="Census">☰</button>
+        </div>
+      </div>
+    </div>
     <div class="hovertag" id="hover-tag" aria-hidden="true" hidden></div>
     <div class="lotcard" id="lot-card" hidden></div>
-  </div>
-  <script type="application/json" id="axp-lots">${lotsJson(lots)}</script>
-  <script>${mapScript}</script>
-  <div class="panel">
-    <h2>Lot legend</h2>
-    <div class="legend">
-      <article><h3>Fully dormant</h3><p>No recent push/commits, no open issues or PRs. Empty dirt yard, quiet building.</p></article>
-      <article><h3>Open issues · quiet</h3><p>Open issues, stale activity. Drafting table + blue blueprint. No ground crew.</p></article>
-      <article><h3>Open issues · active</h3><p>Open issues and a recent push or default-branch commits. Blueprints plus biped crew.</p></article>
-      <article><h3>Open PRs · quiet</h3><p>Open PRs, stale activity. Raw materials in the yard, empty sidewalk. PRs beat issues.</p></article>
-      <article><h3>Open PRs · active</h3><p>Open PRs plus recent activity. Materials and movers. Drones when PR pressure is high or a bot is present.</p></article>
-      <article><h3>Building bands</h3><p>S &lt; 5k stars (IDs 01–17) · M 5k–20k (18–34) · L ≥ 20k (35–50). Combined yards keep a small blueprint when issues and PRs coexist.</p></article>
+    <div class="census" id="census">
+      <h2>Lot census · activity window ${RECENT_ACTIVITY_DAYS} days · drone if PRs ≥ ${HIGH_PR_COUNT} or bot authors</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Repo</th><th>Stars</th><th>Issues</th><th>PRs</th><th>Building</th><th>Crew</th><th>Yard</th><th>Props</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows(lots)}
+        </tbody>
+      </table>
     </div>
-    <h2>Parsed lots</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Repo</th><th>Stars</th><th>Issues</th><th>PRs</th><th>Building</th><th>Yard</th><th>Props</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows(lots)}
-      </tbody>
-    </table>
   </div>
+  <script type="application/json" id="axp-lots">${JSON.stringify(snapshot.lots).replaceAll("</", "<\\/")}</script>
+  <script type="application/json" id="axp-city-plan">${planJson}</script>
+  <script>${mapClientScript()}</script>
+  <script>
+    (function () {
+      var btn = document.getElementById("hud-log-toggle");
+      var panel = document.getElementById("census");
+      if (!btn || !panel) return;
+      btn.addEventListener("click", function () { panel.classList.toggle("open"); });
+    })();
+  </script>
 </body>
 </html>
 `;

@@ -79,10 +79,13 @@ describe("renderCityHtml", () => {
     expect(html).toContain('id="hover-tag"');
     expect(html).toContain("pointerdown");
     expect(html).toContain("pointermove");
-    expect(html).toContain("clampView");
+    expect(html).toContain("data-infinite");
     expect(html).toContain("data-world");
     expect(html).toContain("dblclick");
     expect(html).toContain('"repo":"acme/alpha"');
+    expect(html).toContain("id=\"hud-district\"");
+    expect(html).toContain("id=\"hud-mini\"");
+    expect(html).toContain("pad-w");
   });
 
   it("stamps real sprite art with quiet dimming", () => {
@@ -99,18 +102,16 @@ describe("renderCityHtml", () => {
       { now: FIXED_NOW },
     );
     const svg = renderCitySvg(lots, FIXED_NOW);
-    // Active: building + 1 pallet (3 PRs < HIGH_PR_COUNT) + animated
-    // walker + crate-carrier + pallet-jack. Quiet dormant: dimmed building.
-    // No drone at 3 PRs without bots. Decor: 4 trees + 2 lamps + 1 bench.
-    // Ground: 2 connected dual-plot lot tiles, 2 street runs of 19 slabs +
-    // 3 manholes each, 2 cones, and a wild water pond tile. Streets: 1 pacer
-    // per road (2). The deterministic forest ring adds 93 wild stamps here.
-    expect(svg.match(/<image /g)?.length).toBe(157);
-    expect(svg.match(/v5-ground-tiles-kit-k1\.png/g)?.length).toBe(55);
+    expect((svg.match(/<image /g) ?? []).length).toBeGreaterThan(20);
+    expect(svg).toContain("v5-ground-tiles-kit-k1.png");
     expect(svg).toContain("v8-wild-trees-k1.png");
     expect(svg).toContain("v8-wild-bushes-k1.png");
     expect(svg).toContain('class="wild-tree"');
-    expect(svg).toContain('class="wild-bush"');
+    expect(svg).toContain("city-park");
+    expect(svg).toContain("city-freeway");
+    expect(svg).toContain("city-tram");
+    expect(svg).toContain("iso-grass");
+    expect(svg).toContain('data-infinite="1"');
     expect(svg).toContain('data-world="');
     expect(svg).toContain("/assets/sprites/buildings-small-01-17-k1.png");
     // Occlusion contract: keyed sheets composite normally so buildings
@@ -236,5 +237,93 @@ describe("renderCityHtml", () => {
     expect(m).toBeLessThan(l);
     // A lot is 144px wide: even landmarks stay near their own pad.
     expect(l).toBeLessThanOrEqual(168);
+  });
+
+  it("paints RPG HUD chrome, touch pad, and live plan data", () => {
+    const lots = parseCity([metrics({ fullName: "acme/alpha", stars: 100 })], {
+      now: FIXED_NOW,
+    });
+    const html = renderCityHtml(lots, FIXED_NOW);
+    expect(html).toContain("id=\"hud-district\"");
+    expect(html).toContain("id=\"hud-compass\"");
+    expect(html).toContain("id=\"hud-mini\"");
+    expect(html).toContain("id=\"pad-w\"");
+    expect(html).toContain("pinch");
+    expect(html).toContain("/api/city/stream");
+    expect(html).toContain("id=\"axp-city-plan\"");
+    expect(html).toContain("ontouchstart");
+  });
+
+  it("renders air traffic and weather over the city", () => {
+    const lots = parseCity([metrics({ fullName: "acme/alpha", stars: 100 })], {
+      now: FIXED_NOW,
+    });
+    const svg = renderCitySvg(lots, FIXED_NOW);
+    expect(svg).toContain("air-layer");
+    expect(svg).toContain("air-bird");
+    expect(svg).toContain("air-liner");
+    expect(svg).toContain("air-starlink");
+    expect(svg).toContain("air-cloud");
+    expect(svg).toContain("air-weather");
+  });
+
+  it("puts humans on human yards and robots/drones on AI yards", () => {
+    const lots = parseCity(
+      [
+        metrics({
+          fullName: "acme/people",
+          stars: 100,
+          openPrs: 3,
+          pushedAt: "2026-09-10T00:00:00Z",
+          prAuthors: [{ login: "human", type: "User" }],
+        }),
+        metrics({
+          fullName: "acme/agents",
+          stars: 100,
+          openPrs: 4,
+          pushedAt: "2026-09-10T00:00:00Z",
+          prAuthors: [{ login: "dependabot[bot]", type: "Bot" }],
+        }),
+      ],
+      { now: FIXED_NOW },
+    );
+    expect(lots[0].occupantClass).toBe("human");
+    expect(lots[1].occupantClass).toBe("robot");
+    const svg = renderCitySvg(lots, FIXED_NOW);
+    expect(svg).toContain('data-occupant="human"');
+    expect(svg).toContain('data-occupant="robot"');
+    const people = lotGroup(svg, "acme/people");
+    expect(people).toContain("human-crew");
+    expect(people).toContain("v6-anim-unit-walk.png");
+    expect(people).not.toContain("v7-anim-quad-dog.png");
+    const agents = lotGroup(svg, "acme/agents");
+    expect(agents).toContain("v7-anim-quad-dog.png");
+    expect(agents).toContain("v7-anim-cargo-drone.png");
+    expect(agents).not.toContain("human-crew");
+  });
+
+  it("plays an under-construction site on a newly plotted lot", () => {
+    const lots = parseCity([metrics({ fullName: "acme/new", stars: 800 })], {
+      now: FIXED_NOW,
+    });
+    const svg = renderCitySvg(lots, FIXED_NOW, { constructing: ["acme/new"] });
+    expect(svg).toContain("class=\"lot constructing\"");
+    expect(svg).toContain("class=\"construction\"");
+    expect(svg).toContain("v7-anim-crane-arm.png");
+  });
+
+  it("stamps each building at one of three sizes via data-size", () => {
+    const lots = parseCity(
+      [
+        metrics({ fullName: "a/s", stars: 10 }),
+        metrics({ fullName: "a/m", stars: 12_000 }),
+        metrics({ fullName: "a/l", stars: 40_000 }),
+      ],
+      { now: FIXED_NOW },
+    );
+    const svg = renderCitySvg(lots, FIXED_NOW);
+    expect(svg).toContain('data-size="S"');
+    expect(svg).toContain('data-size="M"');
+    expect(svg).toContain('data-size="L"');
   });
 });

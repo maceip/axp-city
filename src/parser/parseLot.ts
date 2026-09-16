@@ -1,6 +1,7 @@
 import type {
   BuildingBand,
   CityLot,
+  OccupantClass,
   ParseOptions,
   RepoMetrics,
   YardKind,
@@ -123,6 +124,7 @@ export function parseLot(
   }
 
   const showDrone = hasPrs && (metrics.openPrs >= HIGH_PR_COUNT || botDetected);
+  const occupantClass = occupantFor(recentActivity, botDetected, showCrew, showDrone);
 
   return {
     fullName: metrics.fullName,
@@ -139,6 +141,7 @@ export function parseLot(
     showCrew,
     showDrone,
     botDetected,
+    occupantClass,
     stars: metrics.stars,
     forks: metrics.forks,
     openIssues: metrics.openIssues,
@@ -146,6 +149,21 @@ export function parseLot(
     sizeKb: metrics.sizeKb,
     primaryLanguage: metrics.primaryLanguage,
   };
+}
+
+/**
+ * Humans work recent human yards. Robots/drones work bot-authored yards.
+ * Stale high-PR human yards keep a parked drone but no sidewalk crew.
+ */
+export function occupantFor(
+  recentActivity: boolean,
+  botDetected: boolean,
+  _showCrew: boolean,
+  showDrone: boolean,
+): OccupantClass {
+  if (botDetected && (recentActivity || showDrone)) return "robot";
+  if (recentActivity) return "human";
+  return "none";
 }
 
 /** Avoid two lots in the same scene sharing a silhouette when the band allows it. */

@@ -96,6 +96,14 @@ describe("normalizeDelivery", () => {
     expect(normalizeDelivery("pull_request", prPayload("labeled"), "d", NOW)).toBeNull();
     expect(normalizeDelivery("star", { repository: { full_name: "a/b" } }, "d", NOW)).toBeNull();
     expect(normalizeDelivery("push", { sender: {} }, "d", NOW)).toBeNull();
+    expect(
+      normalizeDelivery(
+        "repository",
+        { action: "created", repository: { full_name: "acme/fresh" } },
+        "d7",
+        NOW,
+      ),
+    ).toMatchObject({ signal: "repo_created", repo: "acme/fresh" });
   });
 });
 

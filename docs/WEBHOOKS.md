@@ -7,8 +7,11 @@ the city visualizes into `CityEvent`s. Those feed the live lot animations
 ```
 GitHub → POST /webhooks/github → verify HMAC → normalize → data/city-events.jsonl
                                                               ↓
-                              city page ← GET /events?limit=50   ← backlog
-                                        ← GET /events/stream    ← live (SSE)
+                         city page  GET /city
+                         placements GET /api/city
+                         new plots  GET /api/city/stream     ← live (SSE)
+                         events     GET /events?limit=50
+                                    GET /events/stream
 ```
 
 No new dependencies — `node:http` + `node:crypto` only.
@@ -26,6 +29,9 @@ The secret must match the webhook's secret token on GitHub exactly. It is
 read from the environment so it never appears in process listings. Unsigned
 deliveries get 401; `--allow-unsigned` only works when no secret is set, so
 it cannot accidentally disable verification in public.
+
+City mutations (`POST /api/city/lots`) use a separate `CITY_ADMIN_TOKEN`
+bearer. See [`AUTH.md`](AUTH.md) and [`CITY.md`](CITY.md).
 
 ## GitHub setup
 

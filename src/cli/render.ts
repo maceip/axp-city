@@ -2,7 +2,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "./args.js";
 import { parseCity } from "../parser/index.js";
-import { renderCityHtml } from "../render/index.js";
+import { planSnapshot, renderCityHtml } from "../render/index.js";
+import { planCity } from "../world/index.js";
 import type { RepoMetrics } from "../types.js";
 
 export async function runRender(argv = process.argv.slice(2)): Promise<string> {
@@ -11,10 +12,13 @@ export async function runRender(argv = process.argv.slice(2)): Promise<string> {
   const metrics = JSON.parse(await readFile(metricsPath, "utf8")) as RepoMetrics[];
   const lots = parseCity(metrics);
   const generatedAt = new Date().toISOString();
+  const plan = planCity(lots);
   await mkdir(args.outDir, { recursive: true });
   const lotsPath = join(args.outDir, "lots.json");
+  const planPath = join(args.outDir, "city-plan.json");
   const htmlPath = join(args.outDir, "city.html");
   await writeFile(lotsPath, `${JSON.stringify(lots, null, 2)}\n`, "utf8");
+  await writeFile(planPath, `${JSON.stringify(planSnapshot(plan), null, 2)}\n`, "utf8");
   await writeFile(htmlPath, renderCityHtml(lots, generatedAt), "utf8");
   console.log(`[render] ${lots.length} lots → ${htmlPath}`);
   for (const lot of lots) {

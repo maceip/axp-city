@@ -17,6 +17,7 @@ export {
   parseCity,
   parseLot,
   pickBuildingId,
+  occupantFor,
   stableHash,
   uniquifyBuildingIds,
 } from "./parseLot.js";
