@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import ready
+from conftest import ready, repo_metrics
 
 SHOTS = Path(__file__).parent / "screenshots"
 SHOTS.mkdir(exist_ok=True)
@@ -243,6 +243,101 @@ def test_sustained_travel_bounds_memory_textures_and_loading(browser, large_serv
     heaps = [r["heapBytes"] for r in rows if r["heapBytes"] is not None]
     if heaps:
         half = len(heaps) // 2
+        assert heaps[-1] <= 1.35 * max(heaps[1:half + 1]) + 16 * 2**20, [round(h / 2**20, 1) for h in heaps]
+
+
+SOAK_SECONDS = int(os.environ.get("CITY_SOAK_SECONDS", "60"))
+SOAK_CYCLE_S = 5.0
+SOAK_TRAVEL = ["d", "s", "a", "w"]
+
+
+def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, server, backend):
+    """Handoff items 3/5/6 and audit finding E: sustained use of one scene.
+
+    One page lives through ``CITY_SOAK_SECONDS`` (60 s in CI; run locally with
+    300+ for the figures in docs/PERFORMANCE.md) of the whole product at once:
+    a metrics update arrives through a webhook every cycle, a new repository is
+    enrolled every fourth cycle (so several construction sites overlap), and the
+    camera travels, zooms, selects lots and opens the census the entire time.
+    The stream must stay connected, every update must land in the client,
+    nothing may throw, and objects, actors, terrain textures, sheets and (in
+    Chromium) the heap must plateau instead of tracking elapsed time."""
+    page = browser.new_page(viewport=dict(width=1400, height=900))
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    ready(page, server.url)
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=60000)
+    page.wait_for_timeout(1500)
+    start = diag(page)
+    samples = [dict(t=0.0, cycle=0, **start)]
+    updates = enrolled = 0
+    began = time.time()
+    cycle = 0
+    while time.time() - began < SOAK_SECONDS:
+        cycle += 1
+        repo = server.metrics[cycle % 8]
+        repo["stars"] = repo.get("stars", 0) + 137
+        repo["openPrs"] = (repo.get("openPrs", 0) + 1) % 30
+        server.save()
+        assert server.webhook(repo["fullName"], f"soak-{cycle}") == 202
+        updates += 1
+        if cycle % 4 == 1:
+            name = f"soak/lot{enrolled}"
+            server.metrics.append(repo_metrics(name, stars=3000 + enrolled * 900, openPrs=2, recentDefaultCommits=1, recentAuthors=["ada"]))
+            server.save()
+            assert server.enroll(name) in (200, 201)
+            enrolled += 1
+        key = SOAK_TRAVEL[cycle % 4]
+        page.keyboard.down(key)
+        page.wait_for_timeout(1200)
+        page.keyboard.up(key)
+        page.keyboard.press("+" if cycle % 2 else "-")
+        page.evaluate("i => { const p = window.__AXP.snapshot().plan.placements; window.__AXP.select(p[i % p.length].lot.fullName) }", cycle)
+        if cycle % 3 == 0:
+            page.keyboard.press("c")
+            page.wait_for_timeout(400)
+            page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        page.wait_for_function("n => window.__AXP.diagnostics().totalLots === n", arg=8 + enrolled, timeout=20000)
+        page.wait_for_function("s => window.__AXP.snapshot().plan.placements.some(p => p.lot.stars === s)", arg=repo["stars"], timeout=20000)
+        remaining = SOAK_CYCLE_S - ((time.time() - began) % SOAK_CYCLE_S)
+        page.wait_for_timeout(int(max(0.2, remaining) * 1000))
+        samples.append(dict(t=round(time.time() - began, 1), cycle=cycle, **diag(page)))
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=30000)
+    page.screenshot(path=str(SHOTS / "soak-end.png"))
+    sites = []
+    for i in range(enrolled):  # frame each enrolled lot and read what is actually drawn for it
+        page.evaluate("r => window.__AXP.select(r)", f"soak/lot{i}")
+        page.wait_for_function("r => window.__AXP.drawn(r) !== null", arg=f"soak/lot{i}", timeout=20000)
+        sites.append(dict(repo=f"soak/lot{i}", **page.evaluate("r => window.__AXP.drawn(r)", f"soak/lot{i}")))
+
+    keep = ["t", "cycle", "revision", "totalLots", "objects", "activeObjects", "actors", "drawnActors", "cachedChunks", "textures", "sheetsRequested", "assetsInflight", "assetsFailed", "heapBytes", "connection", "zoom"]
+    rows = [{k: s.get(k) for k in keep} for s in samples]
+    report = dict(backend=backend.describe(), driver=page.evaluate("window.__AXP.driver()"), seconds=SOAK_SECONDS, cycles=cycle, updates=updates, enrolled=enrolled,
+                  pageErrors=errors, sites=sites, samples=rows, measuredAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    (SHOTS / "soak.json").write_text(json.dumps(report, indent=2))
+    print(json.dumps(report, indent=2))
+    page.close()
+
+    assert cycle >= 4, "soak too short to observe anything"
+    assert errors == [], errors
+    assert all(r["connection"] == "connected" for r in rows), [r["connection"] for r in rows]
+    assert rows[-1]["revision"] >= rows[0]["revision"] + updates + enrolled, (rows[0]["revision"], rows[-1]["revision"], updates, enrolled)
+    assert rows[-1]["totalLots"] == 8 + enrolled
+    assert len(sites) == enrolled and all(site["stage"] and site["objects"] > 0 for site in sites), sites
+    for r in rows:
+        assert r["objects"] <= POOL_CAPACITY + 64, (r["cycle"], r["objects"])
+        assert r["cachedChunks"] <= TERRAIN_CACHE + 8, (r["cycle"], r["cachedChunks"])
+        assert r["assetsFailed"] == [], r["assetsFailed"]
+    half = len(rows) // 2
+    warm = rows[1:half + 1]
+    # Plateaus: the second half may not out-grow the first beyond what the new lots explain.
+    assert rows[-1]["actors"] <= 1.5 * max(r["actors"] for r in warm) + 12 * enrolled, ([r["actors"] for r in rows], enrolled)
+    assert rows[-1]["textures"] <= max(r["textures"] for r in warm) + TERRAIN_CACHE + 20, [r["textures"] for r in rows]
+    sheets = [r["sheetsRequested"] for r in rows]
+    assert sheets == sorted(sheets) and sheets[-1] <= 40, sheets
+    heaps = [r["heapBytes"] for r in rows if r["heapBytes"] is not None]
+    if heaps:
         assert heaps[-1] <= 1.35 * max(heaps[1:half + 1]) + 16 * 2**20, [round(h / 2**20, 1) for h in heaps]
 
 
