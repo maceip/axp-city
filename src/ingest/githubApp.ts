@@ -1,4 +1,5 @@
 import { createSign } from "node:crypto";
+import { GITHUB_API_URL } from "./github.js";
 
 /**
  * GitHub App installation credentials. An installation token is scoped to the
@@ -62,7 +63,7 @@ export function createAppTokenProvider(
   let inflight: Promise<string> | undefined;
   async function mint(): Promise<string> {
     const response = await request(
-      `https://api.github.com/app/installations/${config.installationId}/access_tokens`,
+      `${GITHUB_API_URL}/app/installations/${config.installationId}/access_tokens`,
       {
         method: "POST",
         headers: {

@@ -11,6 +11,7 @@ import {
 } from "../live/repository.js";
 import { createReconciler, httpAlerter } from "../live/reconcile.js";
 import { tokenProviderFromEnv } from "../ingest/githubApp.js";
+import { GITHUB_API_URL } from "../ingest/github.js";
 import { consoleLogger, createWebhookServer } from "../webhooks/server.js";
 import { LOOPBACK_PROXIES } from "../webhooks/rateLimit.js";
 import type { RepoMetrics } from "../types.js";
@@ -217,6 +218,7 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     ...config,
     ...runtime.effectiveConfig,
     databasePath: runtime.city.path,
+    githubApiUrl: config.offline ? null : GITHUB_API_URL,
     buildRevision,
   };
   log("info", `AXP City · Phaser 4 · ${config.offline ? "OFFLINE FIXTURES" : "LIVE"} · http://${config.host}:${config.port}/city`);

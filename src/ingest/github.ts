@@ -10,8 +10,10 @@ import {
   type RestRepo,
 } from "./normalize.js";
 
-const GRAPHQL_URL = "https://api.github.com/graphql";
-const REST_URL = "https://api.github.com";
+/** GitHub's own variable name (as in Actions); lets an operator point at GitHub Enterprise or a test double. */
+export const GITHUB_API_URL = (process.env.GITHUB_API_URL || "https://api.github.com").replace(/\/+$/, "");
+const GRAPHQL_URL = `${GITHUB_API_URL}/graphql`;
+const REST_URL = GITHUB_API_URL;
 const USER_AGENT = "axp-city-ingest";
 
 export interface FetchOptions {
