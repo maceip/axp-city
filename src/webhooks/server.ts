@@ -617,6 +617,7 @@ export function createWebhookServer(
   }
 
   function serveFile(
+    req: IncomingMessage,
     res: ServerResponse,
     root: string,
     rel: string,
@@ -631,7 +632,8 @@ export function createWebhookServer(
       "cache-control": cache,
       "x-content-type-options": "nosniff",
     });
-    createReadStream(file).pipe(res);
+    if (req.method === "HEAD") res.end();
+    else createReadStream(file).pipe(res);
     return true;
   }
 
@@ -847,12 +849,12 @@ export function createWebhookServer(
       }
       if (
         spritesRoot &&
-        req.method === "GET" &&
+        (req.method === "GET" || req.method === "HEAD") &&
         (path === "/assets/sprites" || path.startsWith("/assets/sprites/"))
       ) {
         const rel = path.slice("/assets/sprites".length) || "/";
         if (
-          serveFile(res, spritesRoot, rel, {
+          serveFile(req, res, spritesRoot, rel, {
             ".png": "image/png",
             ".svg": "image/svg+xml",
           })
@@ -861,10 +863,10 @@ export function createWebhookServer(
         text(res, 404, "not found");
         return;
       }
-      if (artworkRoot && req.method === "GET" && path.startsWith("/assets/artwork/")) {
+      if (artworkRoot && (req.method === "GET" || req.method === "HEAD") && path.startsWith("/assets/artwork/")) {
         const rel = path.slice("/assets/artwork/".length);
         // Only verified, approved artwork is ever written to this directory.
-        if (/^[0-9a-f]{64}\.png$/.test(rel) && serveFile(res, artworkRoot, rel, { ".png": "image/png" }))
+        if (/^[0-9a-f]{64}\.png$/.test(rel) && serveFile(req, res, artworkRoot, rel, { ".png": "image/png" }))
           return;
         text(res, 404, "not found");
         return;

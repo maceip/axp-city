@@ -2,6 +2,7 @@
 import base64
 import http.server
 import json
+import time
 import socket
 import struct
 import subprocess
@@ -43,6 +44,7 @@ def test_phaser_image_capture_downloads_the_composited_city(page):
 
 
 def test_svg_export_matches_the_shared_plan_and_renders(page, server):
+    sha = approve_artwork(server, "acme/forge", "svg-art")
     snapshot = server.get("/api/city")
     with urllib.request.urlopen(server.url + "/api/city/export.svg", timeout=10) as response:
         assert response.headers["content-type"].startswith("image/svg+xml")
@@ -57,7 +59,9 @@ def test_svg_export_matches_the_shared_plan_and_renders(page, server):
     assert crews["acme/robots"] == "robot" and crews["acme/forge"] == "human"
     # Every referenced sheet resolves on the same origin.
     hrefs = {img.attrib["href"] for img in root.iter(f"{SVG_NS}image")}
-    assert hrefs and all(h.startswith("/assets/sprites/") for h in hrefs)
+    assert hrefs and all(h.startswith(("/assets/sprites/", "/assets/artwork/")) for h in hrefs)
+    forge = next(g for g in lots if g.attrib["data-repo"] == "acme/forge")
+    assert f"/assets/artwork/{sha}.png" in {img.attrib["href"] for img in forge.iter(f"{SVG_NS}image")}, "approved artwork is drawn from the shared plan"
     for href in hrefs:
         request = urllib.request.Request(server.url + href, method="HEAD")
         with urllib.request.urlopen(request, timeout=10) as response:
@@ -71,7 +75,29 @@ def test_svg_export_matches_the_shared_plan_and_renders(page, server):
     page.screenshot(path=str(SHOTS / "export-svg-rendered.png"), timeout=60000)
 
 
+def approve_artwork(server, repo, delivery):
+    """Give ``repo`` an approved custom building so exports have non-catalog artwork to carry."""
+    import hashlib
+    from test_city_visual import png_bytes
+    art = png_bytes(96, 160, (240, 160, 40))
+    sha = hashlib.sha256(art).hexdigest()
+    folder = server.rules / "repos" / repo
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "building.png").write_bytes(art)
+    server.repo_rules(repo, building=dict(version=2, artwork=dict(path=".city/building.png", sha256=sha, width=96, height=160)))
+    (server.rules / "approved-artwork.json").write_text(json.dumps(dict(version=1, approved=[dict(repo=repo, sha256=sha)])))
+    assert server.webhook(repo, delivery) == 202
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        lot = next(p["lot"] for p in server.get("/api/city")["plan"]["placements"] if p["lot"]["fullName"] == repo)
+        if lot.get("artwork", {}).get("sha256") == sha:
+            return sha
+        time.sleep(0.25)
+    raise AssertionError(f"{repo} never received its approved artwork")
+
+
 def test_offline_package_opens_the_saved_city_without_network(browser, server, tmp_path):
+    sha = approve_artwork(server, "acme/forge", "export-art")
     out = tmp_path / "offline"
     result = subprocess.run(["node", "dist/server/cli/export.js", "--from", server.url, "--out", str(out)], cwd=REPO, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -82,6 +108,11 @@ def test_offline_package_opens_the_saved_city_without_network(browser, server, t
     assert 'name="city-offline"' in html and 'src="./assets/' in html and 'src="/assets/' not in html
     sprites = list((out / "assets" / "sprites").glob("*.png"))
     assert len(sprites) >= 12
+    # The approved artwork is part of the package, addressed relatively, and the still uses it too.
+    forge = next(p["lot"] for p in saved["plan"]["placements"] if p["lot"]["fullName"] == "acme/forge")
+    assert forge["artwork"]["url"] == f"./assets/artwork/{sha}.png"
+    assert (out / "assets" / "artwork" / f"{sha}.png").exists()
+    assert f'href="./assets/artwork/{sha}.png"' in (out / "city.svg").read_text()
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -115,6 +146,7 @@ def test_offline_package_opens_the_saved_city_without_network(browser, server, t
         page.wait_for_function("window.__AXP.diagnostics().cardVisible")
         # Every on-demand asset the selection needs resolves from the package itself.
         page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=20000)
+        page.wait_for_function("s => (window.__AXP.drawnRenderKey('acme/forge') || '').includes(s)", arg=sha, timeout=20000)
         page.wait_for_timeout(600)
         page.screenshot(path=str(SHOTS / "offline-package.png"))
         assert not [b for b in blocked if server.url in b], blocked
