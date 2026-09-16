@@ -80,6 +80,7 @@ export class HudScene extends Phaser.Scene {
   private coords!: Phaser.GameObjects.Text;
   private statusDot!: Phaser.GameObjects.Graphics;
   private statusText!: Phaser.GameObjects.Text;
+  private statusBg!: Phaser.GameObjects.Image;
   private freshText!: Phaser.GameObjects.Text;
   private countText!: Phaser.GameObjects.Text;
   private compass!: Phaser.GameObjects.Container;
@@ -181,8 +182,9 @@ export class HudScene extends Phaser.Scene {
     const status = this.add.container(0, 16);
     status.setSize(320, 62);
     const statusBg = this.hudPanel("status", 320, 62);
+    this.statusBg = statusBg;
     this.statusDot = this.add.graphics();
-    this.statusText = this.add.text(30, 10, "Connecting", { fontFamily: FONT, fontSize: "13px", color: INK });
+    this.statusText = this.add.text(30, 10, "Connecting", { fontFamily: FONT, fontSize: "13px", color: INK, wordWrap: { width: 276 } });
     this.freshText = this.add.text(14, 30, "GitHub data: —", { fontFamily: FONT, fontSize: "11px", color: MUTED });
     this.countText = this.add.text(14, 45, "", { fontFamily: FONT, fontSize: "11px", color: MUTED });
     status.add([statusBg, this.statusDot, this.statusText, this.freshText, this.countText]);
@@ -479,6 +481,13 @@ export class HudScene extends Phaser.Scene {
       "offline-package": "Saved city package",
     };
     this.statusText.setText(labels[this.connection]);
+    // A long detail (an upgraded server refusing this bundle, a storage message) wraps; the
+    // rest of the plate moves down so nothing is clipped.
+    const extra = Math.max(0, this.statusText.height - 18);
+    this.freshText.setY(30 + extra);
+    this.countText.setY(45 + extra);
+    this.statusBg.setDisplaySize(320, 62 + extra);
+    this.tools.setSize(320, 62 + extra);
     const colour =
       this.connection === "connected" ? (mode === "offline" ? 0xe0b34a : 0x7ee081) : this.connection === "offline-package" ? 0xb9c4b3 : 0xe07a5f;
     this.statusDot.clear().fillStyle(colour, 1).fillCircle(18, 17, 5);

@@ -113,3 +113,46 @@ def test_resize_and_orientation_relayout_the_hud(page):
             assert point and 0 <= point["x"] <= width and 0 <= point["y"] <= height, (name, width, height, point)
         assert page.evaluate("document.documentElement.scrollWidth") == width
     page.screenshot(path=str(SHOTS / "resize-narrow.png"))
+
+
+def test_open_client_meets_a_newer_server_schema_and_holds_its_last_city(browser, server):
+    """Finding D: an already-open page whose server is upgraded to a newer snapshot schema
+    keeps the last good city on screen, says exactly what happened, and stops retrying
+    (a reload is the only fix). A fresh load of the same data gets the boot-card error."""
+    import json
+    context = browser.new_context(viewport=dict(width=1400, height=900))
+    page = context.new_page()
+    try:
+        ready(page, server.url)
+        snapshot = server.get("/api/city")
+        lots = page.evaluate("window.__AXP.snapshot().plan.placements.length")
+        assert lots == len(snapshot["plan"]["placements"]) > 0
+        newer = dict(snapshot, schema=dict(snapshot["schema"], snapshot=snapshot["schema"]["snapshot"] + 1))
+        body = "event: snapshot\ndata: " + json.dumps(newer) + "\n\n"
+        # From here on the "server" answers the stream with the newer schema, as an upgraded
+        # deployment would for a page that was open across the deploy.
+        context.route("**/api/city/stream", lambda route: route.fulfill(status=200, content_type="text/event-stream", body=body))
+        context.set_offline(True)
+        page.wait_for_function("window.__AXP.diagnostics().connection === 'reconnecting'")
+        context.set_offline(False)
+        page.wait_for_function("window.__AXP.diagnostics().connection === 'unavailable'", timeout=15000)
+        status = page.locator("#a11y-status").inner_text()
+        assert "newer than this client" in status and "Reload" in status, status
+        # The last good city is still there and usable, and the state does not flicker back
+        # through reconnect attempts that can only fail the same way.
+        assert page.evaluate("window.__AXP.diagnostics().visibleLots") > 0
+        assert page.evaluate("window.__AXP.snapshot().plan.placements.length") == lots
+        page.wait_for_timeout(4000)
+        assert page.evaluate("window.__AXP.diagnostics().connection") == "unavailable"
+        page.keyboard.press("c")
+        page.wait_for_function("window.__AXP.diagnostics().censusOpen")
+        page.wait_for_timeout(600)  # let the census slide in for the screenshot
+        page.screenshot(path=str(SHOTS / "schema-newer-open-client.png"))
+        # A fresh load against the newer schema is refused on the boot card rather than drawn wrong.
+        context.route("**/api/city", lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(newer)))
+        fresh = context.new_page()
+        fresh.goto(server.url + "/city", wait_until="domcontentloaded")
+        fresh.locator("#retry").wait_for(state="visible", timeout=30000)
+        assert "newer than this client" in fresh.locator("#boot-message").inner_text()
+    finally:
+        context.close()

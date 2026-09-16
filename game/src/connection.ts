@@ -28,12 +28,19 @@ export function offlinePackageUrl(): string | null {
   return meta?.content || null;
 }
 
+/** The server now speaks a newer snapshot schema than this bundle: only a reload helps. */
+export class SchemaTooNewError extends Error {
+  constructor(readonly serverSchema: number) {
+    super(`City schema ${serverSchema} is newer than this client (${SNAPSHOT_SCHEMA}). Reload to update.`);
+    this.name = "SchemaTooNewError";
+  }
+}
+
 export function validateSnapshot(value: unknown): CitySnapshot {
   const v = value as Partial<CitySnapshot> | null;
   if (!v || v.version !== 1 || !Array.isArray(v.plan?.placements))
     throw new Error("Unsupported city data");
-  if (v.schema && v.schema.snapshot > SNAPSHOT_SCHEMA)
-    throw new Error(`City schema ${v.schema.snapshot} is newer than this client (${SNAPSHOT_SCHEMA}). Reload to update.`);
+  if (v.schema && v.schema.snapshot > SNAPSHOT_SCHEMA) throw new SchemaTooNewError(v.schema.snapshot);
   for (const p of v.plan!.placements)
     if (!p?.lot?.fullName || typeof p.x !== "number" || typeof p.y !== "number")
       throw new Error("City data contains an invalid lot");
@@ -46,11 +53,13 @@ export class CityConnection {
   private stream?: EventSource;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private attempts = 0;
+  /** Set once the server outgrew this bundle; the client then holds its last city and stops retrying. */
+  private fatal?: string;
   readonly offlinePackage = offlinePackageUrl();
   private offline = () => {
     this.stream?.close();
     this.stream = undefined;
-    this.handlers.connection("reconnecting", "Browser is offline");
+    if (!this.fatal) this.handlers.connection("reconnecting", "Browser is offline");
   };
   private online = () => this.connect();
   constructor(private readonly handlers: ConnectionHandlers) {}
@@ -63,6 +72,10 @@ export class CityConnection {
   }
 
   connect(): void {
+    if (this.fatal) {
+      this.handlers.connection("unavailable", this.fatal);
+      return;
+    }
     this.close();
     if (this.offlinePackage) {
       this.handlers.connection("offline-package", "Saved city package");
@@ -82,7 +95,17 @@ export class CityConnection {
         this.attempts = 0;
         this.handlers.connection("connected");
       } catch (error) {
-        this.handlers.connection("unavailable", error instanceof Error ? error.message : "City data unavailable");
+        const detail = error instanceof Error ? error.message : "City data unavailable";
+        if (error instanceof SchemaTooNewError) {
+          // An upgraded server behind an already-open page: keep the last good city on
+          // screen, say exactly what happened, and do not flicker through reconnect attempts
+          // that can only fail the same way.
+          this.fatal = detail;
+          clearTimeout(this.retryTimer);
+          stream.close();
+          this.stream = undefined;
+        }
+        this.handlers.connection("unavailable", detail);
       }
     });
     for (const type of MUTATION_TYPES)
@@ -110,6 +133,7 @@ export class CityConnection {
 
   /** A gap in revisions: drop the stream and take a fresh snapshot. */
   resync(): void {
+    if (this.fatal) return;
     this.handlers.connection("resynchronizing");
     this.attempts++;
     this.connect();
