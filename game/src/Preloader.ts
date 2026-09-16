@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { requiredSheets } from "../../src/game/plan.js";
+import { CITY_ANIMATIONS, requiredSheets } from "../../src/game/plan.js";
 import { ANIM_SHEETS } from "../../src/render/sprites.js";
 import { SceneKeys } from "./Boot.js";
 import { CityConnection } from "./connection.js";
@@ -17,22 +17,25 @@ export class Preloader extends Phaser.Scene {
       this.failures.push(file.key),
     );
     const animations = new Set(
-      Object.values(ANIM_SHEETS).map((sheet) => sheet.file),
+      CITY_ANIMATIONS.map((name) => ANIM_SHEETS[name].file),
     );
     for (const file of requiredSheets())
       if (!animations.has(file))
         this.load.image(file, `/assets/sprites/${file}`);
-    for (const [name, sheet] of Object.entries(ANIM_SHEETS))
+    for (const name of CITY_ANIMATIONS) {
+      const sheet = ANIM_SHEETS[name];
       this.load.spritesheet(name, `/assets/sprites/${sheet.file}`, {
         frameWidth: sheet.width / sheet.cols,
         frameHeight: sheet.height / sheet.rows,
       });
+    }
   }
   async create(): Promise<void> {
     try {
       if (this.failures.length)
         throw new Error(`Missing city artwork: ${this.failures.join(", ")}`);
-      for (const [name, sheet] of Object.entries(ANIM_SHEETS))
+      for (const name of CITY_ANIMATIONS) {
+        const sheet = ANIM_SHEETS[name];
         if (!this.anims.exists(name))
           this.anims.create({
             key: name,
@@ -43,6 +46,7 @@ export class Preloader extends Phaser.Scene {
             frameRate: sheet.fps,
             repeat: -1,
           });
+      }
       const g = this.make.graphics({ x: 0, y: 0 });
       for (let frame = 0; frame < 4; frame++) {
         const x = frame * 24 + 12;

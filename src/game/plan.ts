@@ -545,6 +545,12 @@ function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
 }
 
 /** Every sheet the Phaser preloader must fetch. */
+export const CITY_ANIMATIONS = [
+  "craneArm",
+  "quadDog",
+  "cargoDrone",
+  "platformRover",
+] as const;
 export function requiredSheets(): string[] {
   const files = new Set<string>([
     BUILDING_SHEETS.S.file,
@@ -556,9 +562,8 @@ export function requiredSheets(): string[] {
     PROP_SHEETS.crew.file,
     PROP_SHEETS.drones.file,
     WILD_SHEETS.trees.file,
-    WILD_SHEETS.bushes.file,
   ]);
-  for (const sheet of Object.values(ANIM_SHEETS)) files.add(sheet.file);
+  for (const name of CITY_ANIMATIONS) files.add(ANIM_SHEETS[name].file);
   return [...files];
 }
 

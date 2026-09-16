@@ -99,7 +99,8 @@ def large_server(tmp_path):
 @pytest.fixture
 def browser():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=os.environ.get("HEADED") != "1")
+        software = os.environ.get("CITY_SOFTWARE_GL") == "1"
+        browser = p.chromium.launch(headless=os.environ.get("HEADED") != "1", args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] if software else [])
         yield browser
         browser.close()
 

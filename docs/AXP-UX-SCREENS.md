@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-10 → 2026-09-11  
 **Purpose:** Single record of every product screen discussed and the detailed SimCity-style language for representing repositories and repo state.  
-**Related code:** Origin `rootworks/tmp-9c9361bfac6116d7` (`src/parser/`, `docs/PARSER.md`, `src/render/`, `out/city.*`)  
+**Current code:** `maceip/axp-city` (`src/parser/`, `src/world/`, `src/live/`, `game/`; see `docs/ENGINE.md`)
 **Art assets:** `~/AXP-city-sprites/` on the Mac (building sheets, yards, robots, drones, environment tiles)
 
 This document is descriptive, not a ticket list. It freezes decisions and vocabulary so implementation does not re-litigate the hours of design.

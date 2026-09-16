@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from pathlib import Path
 
@@ -124,16 +125,25 @@ def test_thousand_lots_keep_rendering_bounded_after_camera_travel(browser,large_
     initial=page.evaluate("window.__AXP.diagnostics()")
     assert initial["totalLots"]==1000 and initial["visibleLots"]<180
     assert initial["objects"]<2500
-    page.keyboard.down("D");page.wait_for_timeout(4200);page.keyboard.up("D")
-    page.keyboard.down("S");page.wait_for_timeout(3200);page.keyboard.up("S")
+    for key,axis,distance in [("D","scrollX",1500),("S","scrollY",1100)]:
+        start=page.evaluate("window.__AXP.diagnostics()")
+        page.keyboard.down(key)
+        try:
+            page.wait_for_function("p=>window.__AXP.diagnostics()[p.axis]>p.start+p.distance",arg=dict(axis=axis,start=start[axis],distance=distance),timeout=20000)
+        finally:
+            page.keyboard.up(key)
     after=page.evaluate("window.__AXP.diagnostics()")
     assert after["chunks"]<90 and after["objects"]<2500
     timing=page.evaluate("""async()=>{const gaps=[];let last=performance.now();await new Promise(resolve=>{function frame(now){gaps.push(now-last);last=now;if(gaps.length<180)requestAnimationFrame(frame);else resolve();}requestAnimationFrame(frame);});gaps.shift();gaps.sort((a,b)=>a-b);return {median:gaps[Math.floor(gaps.length*.5)],p95:gaps[Math.floor(gaps.length*.95)]};}""")
-    assert timing["median"]<40 and timing["p95"]<100
-    report=dict(initial=initial,after=after,frame_ms=timing,browser=browser.version)
+    driver=page.evaluate("""()=>{const gl=window.__AXP.game.renderer.gl;const info=gl.getExtension('WEBGL_debug_renderer_info');return info?gl.getParameter(info.UNMASKED_RENDERER_WEBGL):'unavailable';}""")
+    software=os.environ.get("CITY_SOFTWARE_GL")=="1"
+    budget=dict(median=750,p95=1500) if software else dict(median=40,p95=100)
+    report=dict(initial=initial,after=after,frame_ms=timing,browser=browser.version,driver=driver,profile="CI software WebGL correctness" if software else "strict local frame-time budget",budget_ms=budget)
     print(json.dumps(report))
     (SHOTS/"performance.json").write_text(json.dumps(report,indent=2))
     page.screenshot(path=str(SHOTS/"thousand-lots.png"))
+    if software: assert "swiftshader" in driver.lower()
+    assert timing["median"]<budget["median"] and timing["p95"]<budget["p95"],report
     page.close()
 
 

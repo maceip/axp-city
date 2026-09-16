@@ -25,6 +25,8 @@ jobs:
       - run: pip install -r e2e/requirements.txt
       - run: python -m playwright install --with-deps chromium
       - run: python -m pytest e2e -v
+        env:
+          CITY_SOFTWARE_GL: "1"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

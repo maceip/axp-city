@@ -48,6 +48,7 @@ export class CityScene extends Phaser.Scene {
   private weather = 0;
   private move = { x: 0, y: 0 };
   private lastRefresh = -Infinity;
+  private lastInputTime = performance.now();
   private drag?: {
     id: number;
     x: number;
@@ -549,8 +550,13 @@ export class CityScene extends Phaser.Scene {
       }
     }
   }
-  update(time: number, delta: number): void {
+  update(time: number): void {
     const c = this.cameras.main;
+    // Phaser smooths/clamps its simulation delta. Camera travel follows wall time,
+    // so a slow frame does not make keyboard and D-pad controls crawl.
+    const inputTime = performance.now();
+    const elapsed = Math.min(inputTime - this.lastInputTime, 500);
+    this.lastInputTime = inputTime;
     if (!(document.activeElement instanceof HTMLInputElement)) {
       const x =
         this.move.x +
@@ -562,8 +568,8 @@ export class CityScene extends Phaser.Scene {
         (this.keys.W?.isDown || this.keys.UP?.isDown ? 1 : 0);
       if (x || y) {
         this.following = false;
-        c.scrollX += (((x * 420) / c.zoom) * Math.min(delta, 50)) / 1000;
-        c.scrollY += (((y * 420) / c.zoom) * Math.min(delta, 50)) / 1000;
+        c.scrollX += (((x * 420) / c.zoom) * elapsed) / 1000;
+        c.scrollY += (((y * 420) / c.zoom) * elapsed) / 1000;
       }
     }
     if (this.following && this.selected) {
