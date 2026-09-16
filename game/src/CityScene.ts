@@ -295,8 +295,7 @@ export class CityScene extends Phaser.Scene {
   private screenRect(repo: string): { x: number; y: number; width: number; height: number } | null {
     const p = this.city.plan.placements.find((p) => p.lot.fullName === repo);
     if (!p) return null;
-    // Lot-diamond sample: yard bays/props dominate. Tower tops may clip.
-    // Click targeting still uses lotBounds via screenPoint.
+    // Lot-crown sample: neighbouring civic stamps can cover the diamond.
     const b = lotSampleBounds(p);
     const view = this.view();
     const zoom = this.cameras.main.zoom;

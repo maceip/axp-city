@@ -20,7 +20,7 @@ describe("Phaser scene planning", () => {
       expect(size.height).toBeLessThanOrEqual(210.000001);
     }
   });
-  it("samples the lot diamond and building foot, not the full L-tower union", () => {
+  it("samples the building crown so neighbouring civic stamps cannot hide the lot", () => {
     const place = planCity(
       parseCity([metrics({ fullName: "acme/forge", stars: 25000 })], { now: FIXED_NOW }),
     ).placements[0];
@@ -28,13 +28,10 @@ describe("Phaser scene planning", () => {
     place.lot.buildingBand = "L";
     const tower = buildingBounds(place);
     const sample = lotSampleBounds(place);
-    const diamondH =
-      project(place.x + 4, place.y + 2.4).sy - project(place.x, place.y).sy;
+    expect(sample.y).toBeLessThanOrEqual(tower.y);
     expect(sample.height).toBeLessThan(tower.height);
-    expect(sample.height).toBeLessThan(diamondH * 1.6);
-    expect(sample.y).toBeGreaterThan(tower.y);
-    expect(diamondH / sample.height).toBeGreaterThan(0.6);
-    expect(sample.width).toBeGreaterThan(diamondH);
+    expect(sample.y + sample.height).toBeLessThan(tower.y + tower.height);
+    expect(sample.width).toBeGreaterThan(tower.width);
   });
   it("preserves the shared world addresses and gives every lot its own building and loading zone", () => {
     const places = planCity(
@@ -147,6 +144,9 @@ describe("Phaser scene planning", () => {
     expect(custom.images.filter((i) => i.tag?.startsWith("bay:"))).toHaveLength(2);
     expect(custom.images.some((i) => i.tag === "loading-apron")).toBe(true);
     expect(custom.images.some((i) => i.tag === "loading-pad")).toBe(true);
+    expect(custom.images.some((i) => i.tag === "roof-lamp")).toBe(true);
+    expect(custom.images.some((i) => i.tag === "roof-bench")).toBe(true);
+    expect(custom.images.filter((i) => i.tag?.startsWith("roof-bay:")).length).toBe(2);
     expect(base.images.some((i) => i.tag === "loading-pad")).toBe(false);
     expect(custom.diamonds.length).toBeGreaterThan(base.diamonds.length);
     expect(custom.images.filter((i) => i.tag?.startsWith("decor:")).map((i) => i.tag)).toEqual([

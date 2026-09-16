@@ -1,6 +1,6 @@
 import type { CityLot } from "../types.js";
 import type { LotPlacement } from "../world/layout.js";
-import { BUILDING_WIDTH, LOT_D, LOT_W } from "../world/constants.js";
+import { BUILDING_WIDTH, LOT_D } from "../world/constants.js";
 import { spriteBoxFor } from "../render/sprites.js";
 import { project } from "../render/iso.js";
 import type { Rect } from "./visibility.js";
@@ -20,33 +20,22 @@ export function buildingBounds(place: LotPlacement) {
   return { x: anchor.sx - size.width / 2, y: anchor.sy - size.height, ...size };
 }
 
-/** Horizontal/bottom padding around the projected lot diamond for `lotPixels`. */
-export const LOT_SAMPLE_PAD = 20;
-/** Max pixels above the diamond; L tower tops clip so the yard dominates the probe. */
-export const LOT_SAMPLE_RISE = 24;
+/** Padding around the building crown used by `lotPixels`. */
+export const LOT_SAMPLE_PAD = 12;
 
 /**
  * Screen-space rectangle used by `lotPixels` / `screenRect`. Click targeting
- * still uses `buildingBounds`. This sample is the isometric lot diamond plus
- * a capped rise for the building foot — not the full 210px L-tower union.
+ * still uses `buildingBounds`. Neighbouring civic stamps (the 480px park
+ * office) cover lot diamonds that sit behind them, so this sample is the
+ * upper ~70% of the building sprite — the part that clears those overlays.
  */
 export function lotSampleBounds(place: LotPlacement): Rect {
-  const corners = [
-    project(place.x, place.y),
-    project(place.x + LOT_W, place.y),
-    project(place.x, place.y + LOT_D),
-    project(place.x + LOT_W, place.y + LOT_D),
-  ];
-  const left = Math.min(...corners.map((c) => c.sx));
-  const right = Math.max(...corners.map((c) => c.sx));
-  const diamondTop = Math.min(...corners.map((c) => c.sy));
-  const diamondBottom = Math.max(...corners.map((c) => c.sy));
-  const diamondH = diamondBottom - diamondTop;
-  const rise = Math.min(LOT_SAMPLE_RISE, diamondH * 0.55);
+  const tower = buildingBounds(place);
+  const height = Math.max(72, tower.height * 0.7);
   return {
-    x: left - LOT_SAMPLE_PAD,
-    y: diamondTop - rise,
-    width: right - left + LOT_SAMPLE_PAD * 2,
-    height: diamondH + rise + LOT_SAMPLE_PAD,
+    x: tower.x - LOT_SAMPLE_PAD,
+    y: tower.y - 4,
+    width: tower.width + LOT_SAMPLE_PAD * 2,
+    height,
   };
 }

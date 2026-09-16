@@ -719,6 +719,52 @@ function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
   );
 }
 
+function roofOps(place: LotPlacement, images: ImageStamp[]): void {
+  const { lot } = place;
+  const bays = lot.layout?.bays ?? 1;
+  const extras = lot.extraProps ?? [];
+  if (bays <= 1 && extras.length === 0) return;
+  const size = buildingSize(lot);
+  const foot = project(place.x + 1, place.y + LOT_D / 2);
+  const roofX = foot.sx;
+  const roofY = foot.sy - size.height * 0.86;
+  const depth = depthAt(place.x, place.y, 8);
+  if (bays > 1) {
+    for (let bay = 1; bay < bays; bay++) {
+      const pallet = MATERIAL_PALLETS[(lot.buildingId + bay * 3) % MATERIAL_PALLETS.length];
+      images.push(
+        imageStamp(
+          PROP_SHEETS.materials,
+          pallet,
+          roofX - 30 + bay * 30,
+          roofY + 40,
+          54,
+          false,
+          depth,
+          "world",
+          { repo: lot.fullName, tag: `roof-bay:${bay + 1}` },
+        ),
+      );
+    }
+  }
+  if (extras.includes("lamp")) {
+    images.push(
+      imageStamp(GROUND_SHEET, GROUND_TILES.lampPost, roofX + 24, roofY + 48, 20, false, depth, "decor", {
+        repo: lot.fullName,
+        tag: "roof-lamp",
+      }),
+    );
+  }
+  if (extras.includes("bench")) {
+    images.push(
+      imageStamp(GROUND_SHEET, GROUND_TILES.benchProp, roofX - 22, roofY + 52, 42, false, depth, "decor", {
+        repo: lot.fullName,
+        tag: "roof-bench",
+      }),
+    );
+  }
+}
+
 /** Behaviour implied by a robot-atlas animation, used to pick the human equivalent. */
 function behaviourOf(anim: string): ActorBehaviour {
   switch (anim) {
@@ -793,7 +839,10 @@ export function planLot(
   const raw: RawAnim[] = [];
   lotTileOps(place, place.lot.buildingId, result.diamonds, result.images);
   buildingOp(place, result.images);
-  if (detail) yardOps(place, result.images, raw, result.ellipses, result.diamonds);
+  if (detail) {
+    yardOps(place, result.images, raw, result.ellipses, result.diamonds);
+    roofOps(place, result.images);
+  }
   result.hits.push({
     kind: "hit",
     repo: place.lot.fullName,
