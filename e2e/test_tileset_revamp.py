@@ -127,7 +127,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert kinds.get("gate", 0) >= 1
         assert info["hasBikeLane"], "bike-lane feature missing from the city plan"
         assert info["hasFreewayBikeLane"], "freeway bike shoulder missing from the city plan"
-        assert info["freewayBikeBand"] >= 2.5, f"freeway bike shoulder still too thin: {info['freewayBikeBand']}"
+        assert info["freewayBikeBand"] >= 1.8, f"freeway bike shoulder still too thin: {info['freewayBikeBand']}"
         assert info["roadStampWidth"] >= 140, f"roads still stamp too small: {info['roadStampWidth']}"
         assert info["bikeStampWidth"] >= 180, f"bike lanes still stamp too small: {info['bikeStampWidth']}"
         assert info["uniqueFacades"] >= 12, f"repo lots still look cloned: {info['uniqueFacades']} unique facades"
@@ -160,8 +160,8 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.wait_for_timeout(500)
         page.screenshot(path=str(SHOTS / "tileset-center-office.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-street-home.png"), full_page=False)
-        home_k, _home_c, home_lime = street_lane_share(SHOTS / "tileset-street-home.png", (200, 520, 1000, 600))
-        assert home_k >= 0.07, f"home-zoom bike corridor still recedes ({home_k:.3f} khaki)"
+        home_k, _home_c, home_lime = street_lane_share(SHOTS / "tileset-street-home.png", (200, 180, 1400, 520))
+        assert home_k >= 0.10, f"home-zoom bike corridor still recedes ({home_k:.3f} khaki)"
         assert home_lime < 0.12, f"home-zoom bike paint drifted to neon lime ({home_lime:.3f})"
 
         def sample_lot(name):

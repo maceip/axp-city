@@ -6,14 +6,15 @@ export const ROAD_D = 1.0;
 export const SHOULDER = 0.35;
 /** Dedicated bike-lane depth on the street shoulder (world units). */
 export const BIKE_BAND = 1.08;
-/**
- * Bike shoulder on the reserved freeway row. Wider than the lot-street band so
- * the corridor still reads at flyover. Does not change STRIDE_Y or lot addresses.
- */
-export const FREEWAY_BIKE_BAND = 2.85;
 export const STRIDE_X = 5.0;
 export const STRIDE_Y = LOT_D + ROAD_D + SHOULDER * 2;
 export const ROAD_TOP0 = -SHOULDER - ROAD_D;
+/**
+ * Painted bike lane down the reserved freeway, centered so grey asphalt frames
+ * it at flyover. Does not change STRIDE_Y or lot addresses.
+ */
+export const FREEWAY_BIKE_BAND = 1.9;
+export const FREEWAY_BIKE_INSET = (STRIDE_Y - FREEWAY_BIKE_BAND) / 2;
 
 /** 2×2 slot hole reserved for Central Park (never a repo lot). */
 export const PARK_SX0 = 0;

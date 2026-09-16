@@ -3,6 +3,7 @@ import {
   BIKE_BAND,
   CONSTRUCTION_MS,
   FREEWAY_BIKE_BAND,
+  FREEWAY_BIKE_INSET,
   FREEWAY_SY,
   LOT_D,
   LOT_W,
@@ -353,7 +354,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       kind: "bike",
       id: "freeway-bike-lane",
       x: freewayOrigin.x,
-      y: freewayOrigin.y + STRIDE_Y - FREEWAY_BIKE_BAND,
+      y: freewayOrigin.y + FREEWAY_BIKE_INSET,
       w: (maxSx - minSx + 1) * STRIDE_X,
       h: FREEWAY_BIKE_BAND,
     },
@@ -445,7 +446,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       kind: "bike",
       id: `bike-freeway-${sx}`,
       x: origin.x + LOT_W * 0.55,
-      y: freewayOrigin.y + STRIDE_Y - FREEWAY_BIKE_BAND * 0.4,
+      y: freewayOrigin.y + FREEWAY_BIKE_INSET + FREEWAY_BIKE_BAND * 0.55,
       sprite: (sx & 1) === 0 ? "bike-0" : "bike-1",
     });
   }
