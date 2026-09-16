@@ -24,6 +24,7 @@ interface LotView {
   images: Phaser.GameObjects.Image[];
   shapes: Phaser.GameObjects.Graphics[];
   signature: string;
+  renderKey: string;
   bounds: Rect;
   place: LotPlacement;
   /** Some sheet was still loading; rebuild when it arrives. */
@@ -70,7 +71,7 @@ export class CityScene extends Phaser.Scene {
   private frameTimes: number[] = [];
   private restoreSelected?: string;
   private restoreCamera?: { scrollX: number; scrollY: number; zoom: number };
-  private restoreHold = 0;
+  private restoreUntil = 0;
   reducedMotion = false;
 
   constructor() {
@@ -92,7 +93,7 @@ export class CityScene extends Phaser.Scene {
     this.lastRefresh = -Infinity;
     this.lastCamera = "";
     this.frameTimes = [];
-    this.restoreHold = 0;
+    this.restoreUntil = 0;
     this.connectionState = "connecting";
     this.city = this.registry.get("snapshot");
     this.reducedMotion = this.registry.get("reducedMotion") ?? matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -131,6 +132,7 @@ export class CityScene extends Phaser.Scene {
     if (restore) {
       this.registry.remove("restore");
       this.restoreCamera = { scrollX: restore.scrollX, scrollY: restore.scrollY, zoom: restore.zoom };
+      this.restoreUntil = performance.now() + 2500;
       this.applyRestoreCamera();
       this.restoreSelected = restore.selected;
     } else {
@@ -424,6 +426,23 @@ export class CityScene extends Phaser.Scene {
     return JSON.stringify([lot, place.x, place.y, c ? [c.stage, Math.round(c.scaffold * 24), Math.round(c.buildingAlpha * 24)] : null]);
   }
 
+  private renderKey(place: LotPlacement): string {
+    const lot = place.lot;
+    return JSON.stringify([
+      lot.buildingId,
+      lot.facadeTint,
+      lot.dressingProp,
+      lot.extraProps,
+      lot.layout,
+      lot.artwork?.sha256,
+      lot.yard,
+      lot.openPrs,
+      lot.openIssues,
+      lot.showMaterials,
+      lot.showBlueprint,
+    ]);
+  }
+
   private buildLot(place: LotPlacement, previous?: LotView): void {
     const now = this.now();
     const ops = planLot(place, true, now);
@@ -483,7 +502,7 @@ export class CityScene extends Phaser.Scene {
     }
     this.actors.setLotActors(place.lot.fullName, ops.anims);
     for (const anim of ops.anims) if (!this.assets.ready(anim.anim)) incomplete = true;
-    this.lots.set(place.lot.fullName, { images, shapes, signature, bounds, place, incomplete });
+    this.lots.set(place.lot.fullName, { images, shapes, signature, renderKey: this.renderKey(place), bounds, place, incomplete });
     if (this.selected === place.lot.fullName && this.hudReady) this.hud.setSelection(place);
   }
 
@@ -505,14 +524,7 @@ export class CityScene extends Phaser.Scene {
       wanted.add(name);
       const previous = this.lots.get(name);
       if (previous && previous.place !== place) previous.signature = "";
-      if (
-        previous &&
-        (previous.place.lot.buildingId !== place.lot.buildingId ||
-          JSON.stringify(previous.place.lot.layout) !== JSON.stringify(place.lot.layout) ||
-          JSON.stringify(previous.place.lot.extraProps) !== JSON.stringify(place.lot.extraProps) ||
-          previous.place.lot.artwork?.sha256 !== place.lot.artwork?.sha256)
-      )
-        previous.signature = "";
+      if (previous && previous.renderKey !== this.renderKey(place)) previous.signature = "";
       if (previous && previous.signature && !previous.place.addedAt && !previous.incomplete) continue;
       this.buildLot(place, previous);
     }
@@ -827,7 +839,8 @@ export class CityScene extends Phaser.Scene {
     this.frameTimes.push(elapsed);
     if (this.frameTimes.length > 240) this.frameTimes.shift();
     const typing = document.activeElement instanceof HTMLInputElement;
-    if (!typing && !(this.hudReady && this.hud.censusIsOpen)) {
+    const restoring = Boolean(this.restoreCamera) && inputTime < this.restoreUntil;
+    if (!restoring && !typing && !(this.hudReady && this.hud.censusIsOpen)) {
       const x = this.move.x + (this.keys.D?.isDown || this.keys.RIGHT?.isDown ? 1 : 0) - (this.keys.A?.isDown || this.keys.LEFT?.isDown ? 1 : 0);
       const y = this.move.y + (this.keys.S?.isDown || this.keys.DOWN?.isDown ? 1 : 0) - (this.keys.W?.isDown || this.keys.UP?.isDown ? 1 : 0);
       if (x || y) {
@@ -837,13 +850,17 @@ export class CityScene extends Phaser.Scene {
       }
     }
     this.actors.step(Math.min(delta, 100));
-    if (this.followActor) {
+    if (!restoring && this.followActor) {
       const at = this.actors.position(this.followActor);
       if (at) {
         const k = this.reducedMotion ? 1 : Math.min(1, elapsed / 180);
         c.scrollX += (at.sx - c.width / 2 - c.scrollX) * k;
         c.scrollY += (at.sy - 20 - c.height / 2 - c.scrollY) * k;
       } else this.followActor = undefined;
+    }
+    if (this.restoreCamera) {
+      this.applyRestoreCamera();
+      if (inputTime >= this.restoreUntil) this.restoreCamera = undefined;
     }
     const cameraKey = `${Math.round(c.scrollX)}:${Math.round(c.scrollY)}:${c.zoom.toFixed(3)}:${c.width}x${c.height}`;
     if (time - this.lastRefresh > 100 || cameraKey !== this.lastCamera) {
@@ -853,13 +870,5 @@ export class CityScene extends Phaser.Scene {
     } else this.actors.update();
     if (this.followActor) this.drawSelection();
     this.air(time);
-    if (this.restoreCamera) {
-      this.applyRestoreCamera();
-      this.restoreHold = (this.restoreHold ?? 0) + 1;
-      if (this.restoreHold > 8) {
-        this.restoreCamera = undefined;
-        this.restoreHold = 0;
-      }
-    }
   }
 }
