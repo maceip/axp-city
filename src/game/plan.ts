@@ -1,8 +1,10 @@
 import { buildingSize } from "./geometry.js";
+import { constructionState, type ConstructionState } from "./construction.js";
 import { HIGH_PR_COUNT } from "../parser/thresholds.js";
+import type { DecorPropName, YardSlot } from "../rules/cityFiles.js";
 import type { CityLot } from "../types.js";
 import { project } from "../render/iso.js";
-import { LOT_D, LOT_W, CONSTRUCTION_MS } from "../world/constants.js";
+import { LOT_D, LOT_W } from "../world/constants.js";
 import type { LotPlacement } from "../world/layout.js";
 function buildingAnchor(x: number, y: number) {
   return { x: x + 1, y: y + LOT_D / 2 };
@@ -18,6 +20,7 @@ import {
   CREW_WALK,
   DRONE_QUADS,
   GROUND_SHEET,
+  GROUND_TILES,
   LOT_TILE_DIRT,
   LOT_TILE_GRASS,
   MATERIAL_LOOSE,
@@ -62,7 +65,12 @@ export interface ImageStamp {
   repo?: string;
   pixelated?: boolean;
   alpha?: number;
+  /** Same-origin URL for artwork that is not part of the bundled sprite kit. */
+  url?: string;
 }
+
+/** Distinct behaviours the client animates. */
+export type ActorBehaviour = "walk" | "work" | "carry" | "wave" | "fly" | "drive";
 
 export interface AnimStamp {
   kind: "anim";
@@ -76,6 +84,9 @@ export interface AnimStamp {
   pace?: { dx: number; dy: number; legs: number };
   bob?: number;
   repo?: string;
+  /** Stable per-lot actor identity so leaving and returning keeps its state. */
+  actorId: string;
+  behaviour: ActorBehaviour;
 }
 
 export interface EllipseOp {
@@ -106,7 +117,12 @@ export interface LotRenderPlan {
   images: ImageStamp[];
   anims: AnimStamp[];
   hits: HitOp[];
+  /** Present while the lot is still under construction. */
+  construction?: ConstructionState;
 }
+
+/** Actor identity and behaviour are assigned once by `planLot`. */
+type RawAnim = Omit<AnimStamp, "actorId" | "behaviour">;
 function depthAt(wx: number, wy: number, bias = 0): number {
   return (wx + wy) * 18 + bias;
 }
@@ -194,7 +210,7 @@ function blueprintOps(
   y: number,
   lot: CityLot,
   images: ImageStamp[],
-  anims: AnimStamp[],
+  anims: RawAnim[],
   depth: number,
 ): void {
   const sheet = PROP_SHEETS.planning;
@@ -275,7 +291,7 @@ function matsOps(
   y: number,
   lot: CityLot,
   images: ImageStamp[],
-  anims: AnimStamp[],
+  anims: RawAnim[],
   depth: number,
 ): void {
   const sheet = PROP_SHEETS.materials;
@@ -320,7 +336,7 @@ function crewOps(
   y: number,
   lot: CityLot,
   images: ImageStamp[],
-  anims: AnimStamp[],
+  anims: RawAnim[],
   depth: number,
 ): void {
   if (lot.recentActivity) {
@@ -410,7 +426,7 @@ function idleWalkerOp(
   x: number,
   y: number,
   lot: CityLot,
-  anims: AnimStamp[],
+  anims: RawAnim[],
   depth: number,
 ): void {
   const anchor = project(x + 0.7, y + 0.6);
@@ -434,7 +450,7 @@ function droneOps(
   y: number,
   lot: CityLot,
   images: ImageStamp[],
-  anims: AnimStamp[],
+  anims: RawAnim[],
   ellipses: EllipseOp[],
   depth: number,
 ): void {
@@ -498,10 +514,60 @@ function droneOps(
   );
 }
 
+/** Default yard-local positions (world units from the yard origin) per prop. */
+const DEFAULT_SLOTS: Record<string, { x: number; y: number }> = {
+  "drafting-table": { x: 0.2, y: 0.7 },
+  blueprint: { x: 0.95, y: 0.12 },
+  materials: { x: 0.08, y: 0.08 },
+  crew: { x: 0, y: 0 },
+  drone: { x: 1.25, y: -0.2 },
+  cones: { x: 1.55, y: 1.7 },
+  lamp: { x: 1.7, y: 0.05 },
+  bench: { x: 0.35, y: 1.85 },
+  tree: { x: 1.6, y: 1.35 },
+  bush: { x: 0.05, y: 1.6 },
+  planter: { x: 1.1, y: 1.9 },
+};
+
+const DECOR_BOXES: Record<DecorPropName, { box: SpriteBox; width: number }> = {
+  cones: { box: GROUND_TILES.cone, width: 20 },
+  lamp: { box: GROUND_TILES.lampPost, width: 16 },
+  bench: { box: GROUND_TILES.benchProp, width: 40 },
+  tree: { box: GROUND_TILES.treeRoundA, width: 40 },
+  bush: { box: GROUND_TILES.bushA, width: 38 },
+  planter: { box: GROUND_TILES.sandTile, width: 34 },
+};
+
+function slotFor(lot: CityLot, prop: string): { x: number; y: number } {
+  const explicit = lot.layout?.slots.find((s: YardSlot) => s.prop === prop);
+  return explicit ? { x: explicit.x, y: explicit.y } : DEFAULT_SLOTS[prop];
+}
+
+function decorOps(
+  yx: number,
+  yy: number,
+  lot: CityLot,
+  images: ImageStamp[],
+  depth: number,
+): void {
+  for (const prop of lot.extraProps ?? []) {
+    const decor = DECOR_BOXES[prop];
+    if (!decor) continue;
+    const at = slotFor(lot, prop);
+    const anchor = project(yx + at.x, yy + at.y);
+    images.push(
+      imageStamp(GROUND_SHEET, decor.box, anchor.sx, anchor.sy, decor.width, false, depth, "decor", {
+        repo: lot.fullName,
+        tag: `decor:${prop}`,
+      }),
+    );
+  }
+}
+
 function yardOps(
   place: LotPlacement,
   images: ImageStamp[],
-  anims: AnimStamp[],
+  anims: RawAnim[],
   ellipses: EllipseOp[],
 ): void {
   const { lot } = place;
@@ -509,26 +575,73 @@ function yardOps(
   const yx = origin.x;
   const yy = origin.y;
   const depth = depthAt(place.x, place.y, 4);
-  if (lot.showDraftingTable)
-    draftingTableOp(yx + 0.2, yy + 0.7, lot, images, depth);
-  if (lot.showBlueprint)
-    blueprintOps(yx + 0.95, yy + 0.12, lot, images, anims, depth);
-  if (lot.showMaterials)
-    matsOps(yx + 0.08, yy + 0.08, lot, images, anims, depth);
-  if (lot.showCrew) crewOps(yx, yy, lot, images, anims, depth);
+  const at = (prop: string) => {
+    const s = slotFor(lot, prop);
+    return { x: yx + s.x, y: yy + s.y };
+  };
+  if (lot.showDraftingTable) {
+    const p = at("drafting-table");
+    draftingTableOp(p.x, p.y, lot, images, depth);
+  }
+  if (lot.showBlueprint) {
+    const p = at("blueprint");
+    blueprintOps(p.x, p.y, lot, images, anims, depth);
+  }
+  if (lot.showMaterials) {
+    const p = at("materials");
+    matsOps(p.x, p.y, lot, images, anims, depth);
+    const bays = lot.layout?.bays ?? 1;
+    for (let bay = 1; bay < bays; bay++) {
+      const pallet = MATERIAL_PALLETS[(lot.buildingId + bay * 2) % MATERIAL_PALLETS.length];
+      const a = project(p.x + 0.9 + bay * 0.42, p.y + 0.85 - bay * 0.38);
+      images.push(
+        imageStamp(PROP_SHEETS.materials, pallet, a.sx, a.sy, 52, !lot.recentActivity, depth + 0.2, "world", {
+          repo: lot.fullName,
+          tag: `bay:${bay + 1}`,
+        }),
+      );
+    }
+  }
+  if (lot.showCrew) {
+    const p = at("crew");
+    crewOps(p.x, p.y, lot, images, anims, depth);
+  }
   if (lot.yard === "idle_active") idleWalkerOp(yx, yy, lot, anims, depth);
-  if (lot.showDrone)
-    droneOps(yx + 1.25, yy - 0.2, lot, images, anims, ellipses, depth);
+  if (lot.showDrone) {
+    const p = at("drone");
+    droneOps(p.x, p.y, lot, images, anims, ellipses, depth);
+  }
+  decorOps(yx, yy, lot, images, depth);
 }
 
 function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
   const { lot } = place;
+  const plant = buildingAnchor(place.x, place.y);
+  const anchor = project(plant.x, plant.y);
+  if (lot.artwork) {
+    const box: SpriteBox = { x: 0, y: 0, w: lot.artwork.width, h: lot.artwork.height };
+    const s = buildingSize(lot).width / box.w;
+    images.push({
+      kind: "image",
+      sheet: `artwork:${lot.artwork.sha256}`,
+      box,
+      sx: anchor.sx,
+      sy: anchor.sy,
+      scaleX: s,
+      scaleY: s,
+      dimmed: !lot.recentActivity,
+      depth: depthAt(place.x, place.y, 6),
+      layer: "world",
+      repo: lot.fullName,
+      tag: "building",
+      url: lot.artwork.url,
+    });
+    return;
+  }
   const sheet = sheetForBand(
     lot.buildingId <= 17 ? "S" : lot.buildingId <= 34 ? "M" : "L",
   );
   const box = spriteBoxFor(lot.buildingId);
-  const plant = buildingAnchor(place.x, place.y);
-  const anchor = project(plant.x, plant.y);
   images.push(
     imageStamp(
       sheet,
@@ -543,6 +656,34 @@ function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
     ),
   );
 }
+
+/** Behaviour implied by a robot-atlas animation, used to pick the human equivalent. */
+function behaviourOf(anim: string): ActorBehaviour {
+  switch (anim) {
+    case "cargoDrone":
+      return "fly";
+    case "craneArm":
+    case "blueprint":
+    case "humanWork":
+      return "work";
+    case "carryCrate":
+    case "palletJack":
+    case "platformRover":
+    case "humanCarry":
+      return "carry";
+    case "humanWave":
+      return "wave";
+    default:
+      return "walk";
+  }
+}
+
+const HUMAN_ANIM: Partial<Record<ActorBehaviour, string>> = {
+  walk: "humanWalk",
+  work: "humanWork",
+  carry: "humanCarry",
+  wave: "humanWave",
+};
 
 /** Every sheet the Phaser preloader must fetch. */
 export const CITY_ANIMATIONS = [
@@ -567,7 +708,12 @@ export function requiredSheets(): string[] {
   return [...files];
 }
 
-/** Materialize a visible lot only. The canonical world plan owns every address. */
+/**
+ * Materialize one lot. The canonical world plan owns every address; this only
+ * decides what stands on it. `detail=false` is an export-only still (no yard
+ * props or actors) — the live scene always renders full detail and optimises
+ * by reusing objects, not by dropping features.
+ */
 export function planLot(
   place: LotPlacement,
   detail = true,
@@ -580,9 +726,10 @@ export function planLot(
     anims: [],
     hits: [],
   };
+  const raw: RawAnim[] = [];
   lotTileOps(place, place.lot.buildingId, result.diamonds, result.images);
   buildingOp(place, result.images);
-  if (detail) yardOps(place, result.images, result.anims, result.ellipses);
+  if (detail) yardOps(place, result.images, raw, result.ellipses);
   result.hits.push({
     kind: "hit",
     repo: place.lot.fullName,
@@ -596,41 +743,105 @@ export function planLot(
     building.alpha = place.lot.recentActivity
       ? 1
       : (place.lot.quietAlpha ?? 0.62);
-  if (place.addedAt && now - Date.parse(place.addedAt) < CONSTRUCTION_MS) {
-    if (building) building.alpha = 0.25;
-    const anchor = project(place.x + 0.4, place.y + 1.1);
-    result.anims.push({
-      kind: "anim",
-      anim: "craneArm",
-      sheet: ANIM_SHEETS.craneArm,
-      sx: anchor.sx,
-      sy: anchor.sy,
-      targetW: 64,
-      depth: anchor.sy + 15,
-      phase: 0,
-      repo: place.lot.fullName,
-    });
+  const site = constructionState(place, now);
+  if (site.stage !== "complete") {
+    result.construction = site;
+    if (building) building.alpha = Math.min(building.alpha ?? 1, site.buildingAlpha);
+    if (site.siteDressing) {
+      result.diamonds.push({
+        kind: "diamond",
+        x: place.x + 0.2,
+        y: place.y + 0.2,
+        w: LOT_W - 0.4,
+        d: LOT_D - 0.4,
+        fill: hex("c9a06b"),
+        fillAlpha: 1,
+        stroke: hex("503214"),
+        strokeAlpha: 0.25,
+        depth: -99_995,
+      });
+      for (const [i, [cx, cy]] of [
+        [0.35, 0.4],
+        [3.4, 1.8],
+        [3.1, 0.35],
+      ].entries()) {
+        const a = project(place.x + cx, place.y + cy);
+        result.images.push(
+          imageStamp(GROUND_SHEET, GROUND_TILES.cone, a.sx, a.sy, 18, false, a.sy, "world", {
+            repo: place.lot.fullName,
+            tag: `cone:${i}`,
+          }),
+        );
+      }
+    }
+    if (site.crane) {
+      const anchor = project(place.x + 0.4, place.y + 1.1);
+      raw.push({
+        kind: "anim",
+        anim: "craneArm",
+        sheet: ANIM_SHEETS.craneArm,
+        sx: anchor.sx,
+        sy: anchor.sy,
+        targetW: place.lot.buildingBand === "L" ? 68 : place.lot.buildingBand === "M" ? 60 : 52,
+        depth: anchor.sy + 15,
+        phase: 0,
+        repo: place.lot.fullName,
+      });
+    }
   }
-  // Human crews use a small walking person; the robot atlas remains for bot yards.
-  result.anims = result.anims.filter(
+  // Only yards with a crew, an idle walker, or air traffic animate; the rest are stills.
+  let anims = raw.filter(
     (op) =>
       op.anim === "cargoDrone" ||
       op.anim === "craneArm" ||
       place.lot.showCrew ||
       place.lot.yard === "idle_active",
   );
-  if (place.lot.occupantClass === "human")
-    for (const op of result.anims) {
-      if (
-        ["unitWalk", "carryCrate", "blueprint", "palletJack"].includes(op.anim)
-      ) {
-        op.anim = "humanWalk";
-        op.targetW = 18;
-      }
+  // Human (and mixed) crews are people with distinct behaviours; the robot atlas stays for bot yards.
+  const humans = place.lot.occupantClass === "human" || place.lot.occupantClass === "mixed";
+  if (humans) {
+    const robots = place.lot.occupantClass === "mixed";
+    anims = anims.map((op, index) => {
+      const behaviour = behaviourOf(op.anim);
+      const human = HUMAN_ANIM[behaviour];
+      // A mixed crew keeps every other ground worker as a robot.
+      if (!human || op.anim === "craneArm" || (robots && index % 2 === 1)) return op;
+      return { ...op, anim: human, targetW: 18, pace: op.pace ? { ...op.pace, legs: 3 } : undefined };
+    });
+    if (place.lot.showCrew && place.lot.recentActivity) {
+      const w = project(place.x + 3.55, place.y + 2.05);
+      anims.push({
+        kind: "anim",
+        anim: "humanWave",
+        sheet: ANIM_SHEETS.unitWalk,
+        sx: w.sx,
+        sy: w.sy,
+        targetW: 18,
+        depth: w.sy,
+        phase: phaseFor(place.lot),
+        repo: place.lot.fullName,
+      });
     }
+  }
+  const counts = new Map<string, number>();
+  result.anims = anims.map((op) => {
+    const n = counts.get(op.anim) ?? 0;
+    counts.set(op.anim, n + 1);
+    return { ...op, actorId: `${place.lot.fullName}#${op.anim}:${n}`, behaviour: behaviourOf(op.anim) };
+  });
   for (const image of result.images)
     if (image.layer === "world") image.depth = image.sy;
   for (const anim of result.anims)
     anim.depth = anim.sy + (anim.anim === "cargoDrone" ? 1000 : 0);
   return result;
 }
+
+/** Animations the client generates procedurally (people and vehicles). */
+export const GENERATED_ANIMATIONS = [
+  "humanWalk",
+  "humanWork",
+  "humanCarry",
+  "humanWave",
+  "car",
+  "tram",
+] as const;

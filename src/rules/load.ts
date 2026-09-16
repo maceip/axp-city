@@ -8,6 +8,9 @@ import {
   type CityRules,
 } from "./cityFiles.js";
 
+/** Rule files larger than this are rejected before their bodies are parsed. */
+export const RULE_FILE_MAX_BYTES = 65_536;
+
 export function repoName(value: string): string {
   if (
     !/^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}\/[a-zA-Z0-9_.-]{1,100}$/.test(value) ||
@@ -17,6 +20,7 @@ export function repoName(value: string): string {
     throw new Error("Invalid repository; expected owner/name");
   return value;
 }
+
 export async function loadLocalRules(root = ".city"): Promise<CityRules> {
   async function read(file: string): Promise<unknown> {
     try {
@@ -31,20 +35,111 @@ export async function loadLocalRules(root = ".city"): Promise<CityRules> {
     loadingZone: parseLoadingZoneRules(await read("loading-zone.json")),
   };
 }
+
+export class RuleFileTooLargeError extends Error {
+  constructor(file: string) {
+    super(`${file} exceeds ${RULE_FILE_MAX_BYTES} bytes`);
+    this.name = "RuleFileTooLargeError";
+  }
+}
+
+function isAuthorError(error: unknown): error is Error {
+  return (
+    error instanceof SyntaxError ||
+    error instanceof CityRulesError ||
+    error instanceof RuleFileTooLargeError
+  );
+}
+
+export interface RepositoryRules {
+  rules: CityRules;
+  source: "default" | "repository";
+  warning?: string;
+}
+
+/** Reads one `.city/<file>` of a repository; `undefined` means the file does not exist. */
+export type RuleFileReader = (file: string) => Promise<unknown | undefined>;
+
 export async function loadRepositoryRules(
   fullName: string,
   defaults = DEFAULT_RULES,
   token?: string,
   request: typeof fetch = fetch,
-): Promise<{
-  rules: CityRules;
-  source: "default" | "repository";
-  warning?: string;
-}> {
+): Promise<RepositoryRules> {
   repoName(fullName);
+  return applyRepositoryRules(githubRuleReader(fullName, token, request), defaults);
+}
+
+/**
+ * Fixture mode has no GitHub: repository rule files are read from
+ * `<rulesDir>/repos/<owner>/<name>/` so local demos and browser tests exercise
+ * the same validation, precedence and fallback path as live repositories.
+ */
+export async function loadFixtureRepositoryRules(
+  fullName: string,
+  rulesDir: string,
+  defaults = DEFAULT_RULES,
+): Promise<RepositoryRules> {
+  const [owner, name] = repoName(fullName).split("/");
+  const read: RuleFileReader = async (file) => {
+    const path = join(rulesDir, "repos", owner, name, file);
+    let raw: string;
+    try {
+      raw = await readFile(path, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw error;
+    }
+    if (Buffer.byteLength(raw) > RULE_FILE_MAX_BYTES) throw new RuleFileTooLargeError(file);
+    return JSON.parse(raw);
+  };
+  return applyRepositoryRules(read, defaults);
+}
+
+async function applyRepositoryRules(
+  read: RuleFileReader,
+  defaults: CityRules,
+): Promise<RepositoryRules> {
   let count = 0;
   const warnings: string[] = [];
-  async function read(file: string): Promise<unknown> {
+  const readCounted = async (file: string): Promise<unknown> => {
+    const value = await read(file);
+    if (value === undefined) return {};
+    count++;
+    return value;
+  };
+  let building = defaults.building;
+  let loadingZone = defaults.loadingZone;
+  // Invalid author configuration uses validated defaults and an explicit warning.
+  // Transport/auth failures fail the refresh, retaining the last good state.
+  try {
+    building = parseBuildingRules(await readCounted("building.json"), building);
+  } catch (e) {
+    if (isAuthorError(e)) warnings.push(`building.json: ${e.message}`);
+    else throw e;
+  }
+  try {
+    loadingZone = parseLoadingZoneRules(
+      await readCounted("loading-zone.json"),
+      loadingZone,
+    );
+  } catch (e) {
+    if (isAuthorError(e)) warnings.push(`loading-zone.json: ${e.message}`);
+    else throw e;
+  }
+  return {
+    rules: { building, loadingZone },
+    source: count ? "repository" : "default",
+    ...(warnings.length ? { warning: warnings.join("; ") } : {}),
+  };
+}
+
+function githubRuleReader(
+  fullName: string,
+  token: string | undefined,
+  request: typeof fetch,
+): RuleFileReader {
+  return async function read(file: string): Promise<unknown | undefined> {
     const response = await request(
       `https://api.github.com/repos/${fullName}/contents/.city/${file}`,
       {
@@ -56,45 +151,18 @@ export async function loadRepositoryRules(
         signal: AbortSignal.timeout(10_000),
       },
     );
-    if (response.status === 404) return {};
+    if (response.status === 404) return undefined;
     if (!response.ok) throw new Error(`GitHub rules HTTP ${response.status}`);
-    const text = await response.text();
-    if (text.length > 65_536) throw new Error("Rule file exceeds 64 KiB");
-    count++;
-    return JSON.parse(text);
-  }
-  let building = defaults.building;
-  let loadingZone = defaults.loadingZone;
-  // Invalid author configuration uses validated defaults and an explicit warning.
-  // Transport/auth failures fail the refresh, retaining the last good state.
-  try {
-    building = parseBuildingRules(await read("building.json"), building);
-  } catch (e) {
-    if (
-      e instanceof SyntaxError ||
-      (e instanceof Error &&
-        (e instanceof CityRulesError || e.message.includes("64 KiB")))
-    )
-      warnings.push(`building.json: ${e.message}`);
-    else throw e;
-  }
-  try {
-    loadingZone = parseLoadingZoneRules(
-      await read("loading-zone.json"),
-      loadingZone,
-    );
-  } catch (e) {
-    if (
-      e instanceof SyntaxError ||
-      (e instanceof Error &&
-        (e instanceof CityRulesError || e.message.includes("64 KiB")))
-    )
-      warnings.push(`loading-zone.json: ${e.message}`);
-    else throw e;
-  }
-  return {
-    rules: { building, loadingZone },
-    source: count ? "repository" : "default",
-    ...(warnings.length ? { warning: warnings.join("; ") } : {}),
+    // Reject oversized files from the declared length before buffering, then
+    // re-check the actual byte length (not string length) once read.
+    const declared = Number(response.headers.get("content-length") ?? "0");
+    if (declared > RULE_FILE_MAX_BYTES) {
+      await response.body?.cancel();
+      throw new RuleFileTooLargeError(file);
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.byteLength > RULE_FILE_MAX_BYTES)
+      throw new RuleFileTooLargeError(file);
+    return JSON.parse(bytes.toString("utf8"));
   };
 }

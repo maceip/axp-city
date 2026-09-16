@@ -1,32 +1,21 @@
 /**
- * City-lot thresholds. Keep these in sync with README.md and docs/PARSER.md.
+ * Parser thresholds that are not part of the rules files.
  *
- * Building bands are driven by stargazer count (first cut). `sizeKb` is
- * ingested and shown on lots but does not change the band — the 12-repo
- * Android set already spans S / M / L cleanly on stars alone.
- *
- *   S  stars < 5_000          → building IDs 01–17  (sheds, shops, houses)
- *   M  5_000 ≤ stars < 20_000 → building IDs 18–34  (mid-rise campus / civic)
- *   L  stars ≥ 20_000         → building IDs 35–50  (towers / landmarks)
+ * Building star bands and catalog ID ranges live in ONE place: `DEFAULT_RULES`
+ * in `src/rules/cityFiles.ts`, mirrored by the deployment defaults in
+ * `.city/*.json` (a unit test keeps the two identical). Do not add band
+ * constants here.
  *
  * Recent activity: `pushed_at` within RECENT_ACTIVITY_DAYS OR any default-branch
- * commit counted inside that same window. N = 14.
- *
- * Precedence: open PRs beat open issues for the yard *kind*. When both are
- * present the yard still gets a small blueprint (combined materials + plan).
+ * commit counted inside that same window. Commit authors are only considered
+ * inside that same window.
  *
  * Drones: open PRs ≥ HIGH_PR_COUNT, or a bot/agent login was observed among
- * recent commit authors or open-PR authors.
+ * in-window commit authors or open-PR authors. Bot detection is a heuristic on
+ * account type and login; it is not proof that code was machine-written.
  */
 
 export const RECENT_ACTIVITY_DAYS = 14;
-
-export const STAR_BAND_SMALL_MAX = 5_000;
-export const STAR_BAND_MEDIUM_MAX = 20_000;
-
-export const BUILDING_ID_SMALL: readonly [number, number] = [1, 17];
-export const BUILDING_ID_MEDIUM: readonly [number, number] = [18, 34];
-export const BUILDING_ID_LARGE: readonly [number, number] = [35, 50];
 
 /** “High PR pressure” — drones even without a detected bot. */
 export const HIGH_PR_COUNT = 15;

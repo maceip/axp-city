@@ -1,7 +1,7 @@
 /**
  * Normalized city signals. GitHub delivers dozens of event types; the city
- * page only cares about the handful that light up a lot. Everything else is
- * acknowledged and ignored.
+ * page only cares about the handful that light up a lot or change its
+ * lifecycle. Everything else is acknowledged and ignored.
  */
 export type CitySignal =
   | "push"
@@ -12,15 +12,30 @@ export type CitySignal =
   | "issue_closed"
   | "repo_created"
   | "repo_updated"
+  | "repo_renamed"
+  | "repo_transferred"
+  | "repo_removed"
+  | "repo_privatized"
+  | "repo_publicized"
   | "ping";
+
+/** Signals that withdraw a lot's public data instead of refreshing it. */
+export const WITHDRAWING_SIGNALS: readonly CitySignal[] = [
+  "repo_removed",
+  "repo_privatized",
+];
 
 export interface CityEvent {
   /** GitHub `X-GitHub-Delivery` id — also the dedup key. */
   id: string;
   /** When the catcher received it (ISO 8601). */
   receivedAt: string;
-  /** `owner/name`. */
+  /** `owner/name` as reported by the delivery (the new name after a rename). */
   repo: string;
+  /** GitHub numeric repository id; stable across renames and transfers. */
+  repoId?: number | null;
+  /** Previous `owner/name` for renames and transfers. */
+  previousRepo?: string;
   signal: CitySignal;
   actor: string | null;
   /** Push ref, e.g. `refs/heads/main`. */
@@ -34,8 +49,8 @@ export interface CityEvent {
 }
 
 export interface DeliveryResult {
-  status: 200 | 400 | 401 | 413 | 429 | 500;
+  status: 200 | 202 | 400 | 401 | 413 | 429 | 500;
   body: string;
-  /** Present when the delivery produced a city signal. */
+  /** Present when the delivery produced a city signal that was queued. */
   event?: CityEvent;
 }

@@ -2,6 +2,8 @@ import type { CityEvent, CitySignal } from "./types.js";
 
 interface RepoRef {
   full_name?: string;
+  id?: number;
+  owner?: { login?: string };
 }
 
 interface ActorRef {
@@ -19,14 +21,21 @@ export function normalizeDelivery(
   deliveryId: string,
   receivedAt: string,
 ): CityEvent | null {
-  const repo = (payload.repository as RepoRef | undefined)?.full_name;
+  const repository = payload.repository as RepoRef | undefined;
+  const repo = repository?.full_name;
   if (!repo) return null;
 
   const actor = ((payload.sender as ActorRef | undefined)?.login ?? null) as
     | string
     | null;
 
-  const base = { id: deliveryId, receivedAt, repo, actor };
+  const base: Omit<CityEvent, "signal"> = {
+    id: deliveryId,
+    receivedAt,
+    repo,
+    repoId: typeof repository?.id === "number" ? repository.id : null,
+    actor,
+  };
 
   switch (eventName) {
     case "ping":
@@ -49,9 +58,59 @@ export function normalizeDelivery(
     case "fork":
       return { ...base, signal: "repo_updated" };
     case "repository":
-      if (payload.action === "created")
-        return { ...base, signal: "repo_created" };
+      return normalizeRepository(base, payload);
+    default:
       return null;
+  }
+}
+
+/**
+ * Repository lifecycle. Renames and transfers carry the old name so the lot
+ * keeps its address; deletion and privatization withdraw published data.
+ */
+function normalizeRepository(
+  base: Omit<CityEvent, "signal">,
+  payload: Record<string, unknown>,
+): CityEvent | null {
+  const action = payload.action;
+  const changes = payload.changes as
+    | {
+        repository?: { name?: { from?: string } };
+        owner?: { from?: { user?: { login?: string }; organization?: { login?: string } } };
+      }
+    | undefined;
+  const [owner, name] = base.repo.split("/");
+  switch (action) {
+    case "created":
+      return { ...base, signal: "repo_created" };
+    case "renamed": {
+      const from = changes?.repository?.name?.from;
+      return {
+        ...base,
+        signal: "repo_renamed",
+        previousRepo: from ? `${owner}/${from}` : undefined,
+      };
+    }
+    case "transferred": {
+      const from =
+        changes?.owner?.from?.user?.login ??
+        changes?.owner?.from?.organization?.login;
+      return {
+        ...base,
+        signal: "repo_transferred",
+        previousRepo: from ? `${from}/${name}` : undefined,
+      };
+    }
+    case "deleted":
+    case "archived":
+      return { ...base, signal: action === "deleted" ? "repo_removed" : "repo_updated" };
+    case "privatized":
+      return { ...base, signal: "repo_privatized" };
+    case "publicized":
+      return { ...base, signal: "repo_publicized" };
+    case "edited":
+    case "unarchived":
+      return { ...base, signal: "repo_updated" };
     default:
       return null;
   }

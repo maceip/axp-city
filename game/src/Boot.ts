@@ -4,6 +4,7 @@ export const SceneKeys = {
   Boot: "Boot",
   Preloader: "Preloader",
   City: "City",
+  Hud: "Hud",
 } as const;
 
 export class Boot extends Phaser.Scene {

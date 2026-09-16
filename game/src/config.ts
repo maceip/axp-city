@@ -1,11 +1,15 @@
 import Phaser from "phaser";
 import { Boot } from "./Boot.js";
 import { CityScene } from "./CityScene.js";
+import { HudScene } from "./HudScene.js";
 import { Preloader } from "./Preloader.js";
+import type { RendererChoice } from "./support.js";
 
-export function createGame(parent: string): Phaser.Game {
+export { detectSupport, type RendererChoice, type SupportReport } from "./support.js";
+
+export function createGame(parent: string, renderer: RendererChoice): Phaser.Game {
   return new Phaser.Game({
-    type: Phaser.WEBGL,
+    type: renderer === "webgl" ? Phaser.WEBGL : Phaser.CANVAS,
     parent,
     backgroundColor: "#91b477",
     pixelArt: false,
@@ -20,8 +24,9 @@ export function createGame(parent: string): Phaser.Game {
     render: {
       powerPreference: "high-performance",
       mipmapFilter: "LINEAR_MIPMAP_LINEAR",
+      failIfMajorPerformanceCaveat: false,
     },
-    scene: [Boot, Preloader, CityScene],
+    scene: [Boot, Preloader, CityScene, HudScene],
     fps: { target: 60 },
   });
 }

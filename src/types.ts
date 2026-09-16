@@ -1,3 +1,36 @@
+/**
+ * Metric fields that a fetch can fail to measure. A field listed in
+ * `unknownFields` holds a placeholder, never a measured zero.
+ */
+export type MetricField =
+  | "openIssues"
+  | "openPrs"
+  | "recentDefaultCommits"
+  | "recentAuthors"
+  | "prAuthors"
+  | "languageBytes"
+  | "sizeKb";
+
+export const METRIC_FIELDS: readonly MetricField[] = [
+  "openIssues",
+  "openPrs",
+  "recentDefaultCommits",
+  "recentAuthors",
+  "prAuthors",
+  "languageBytes",
+  "sizeKb",
+];
+
+/** How author lists were gathered. Sampling caps are explicit, not hidden. */
+export interface AuthorSample {
+  /** Open pull requests inspected for authors (GraphQL 20, REST up to 100). */
+  prAuthorsInspected: number;
+  /** Default-branch commits inspected for in-window authors (GraphQL 15, REST 30). */
+  recentCommitsInspected: number;
+  /** True when every open PR and every in-window commit was inspected. */
+  complete: boolean;
+}
+
 /** Normalized GitHub metrics for one repository. Parser input. */
 export interface RepoMetrics {
   owner: string;
@@ -18,10 +51,18 @@ export interface RepoMetrics {
   updatedAt: string | null;
   /** Default-branch commits whose timestamp falls inside the activity window. */
   recentDefaultCommits: number;
+  /** Authors of default-branch commits inside the activity window only. */
   recentAuthors: string[];
   prAuthors: Array<{ login: string; type: string }>;
   fetchedAt: string;
   source: "github-graphql" | "github-rest" | "fixture";
+  /** GitHub numeric repository id; stable across renames and transfers. */
+  repoId?: number | null;
+  /** Repository visibility as reported by GitHub. Unknown when absent. */
+  isPrivate?: boolean | null;
+  /** Fields this fetch could not measure. Empty or absent means fully measured. */
+  unknownFields?: MetricField[];
+  authorSample?: AuthorSample;
 }
 
 export type BuildingBand = "S" | "M" | "L";
@@ -38,14 +79,30 @@ export type YardKind =
   | "prs_quiet"
   | "prs_active";
 
-/** Who is working the lot. Humans for human activity; robots/drones for AI. */
-export type OccupantClass = "human" | "robot" | "none";
+/**
+ * Who is working the lot, derived from account classification of authors in
+ * the activity window. `human`: only human-looking accounts. `robot`: only
+ * bot/automation accounts. `mixed`: both. `unknown`: recent activity but the
+ * author data was not measured. `none`: no activity in the window.
+ * Bot detection is a login/account-type heuristic, not proof of AI authorship.
+ */
+export type OccupantClass = "human" | "robot" | "mixed" | "unknown" | "none";
+
+/** How much of the metric data behind a lot was actually measured. */
+export interface LotFreshness {
+  /** Fields carried over from the last complete refresh instead of measured. */
+  carriedFields: MetricField[];
+  /** When those carried values were last measured. */
+  carriedFrom?: string;
+}
 
 export interface CityLot {
   fullName: string;
   owner: string;
   name: string;
   url: string;
+  /** GitHub numeric repository id when known; the stable identity for renames. */
+  repoId?: number | null;
   buildingBand: BuildingBand;
   /** Stable 1–50 id inside the band’s conceptual catalog. */
   buildingId: number;
@@ -59,6 +116,8 @@ export interface CityLot {
   botDetected: boolean;
   /** Ground crew class. Drones may still fly over human high-PR yards. */
   occupantClass: OccupantClass;
+  /** Human-readable explanation of `occupantClass` for the inspect card and census. */
+  crewBasis: string;
   stars: number;
   forks: number;
   openIssues: number;
@@ -68,8 +127,14 @@ export interface CityLot {
   quietAlpha?: number;
   rulesSource?: "default" | "repository";
   rulesWarning?: string;
+  /** Validated version-2 rule extensions (artwork, layout, extra props). */
+  artwork?: import("./rules/cityFiles.js").ApprovedArtwork;
+  layout?: import("./rules/cityFiles.js").YardLayout;
+  extraProps?: import("./rules/cityFiles.js").DecorPropName[];
   dataSource?: RepoMetrics["source"];
   fetchedAt?: string;
+  /** Present when some fields were carried from an earlier complete refresh. */
+  partial?: LotFreshness;
 }
 
 export interface ParseOptions {
@@ -77,6 +142,8 @@ export interface ParseOptions {
   now?: Date | string | number;
   recentDays?: number;
   rules?: import("./rules/cityFiles.js").CityRules;
+  /** Fields carried from the last complete refresh (see `mergeMetrics`). */
+  carried?: { fields: MetricField[]; from?: string };
 }
 
 export interface IngestSnapshot {

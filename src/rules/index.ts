@@ -1,7 +1,48 @@
 export {
+  DECOR_PROP_NAMES,
+  DEFAULT_RULES,
+  MAX_BAYS,
+  RULES_VERSIONS,
+  YARD_D,
+  YARD_MAX_SLOTS,
+  YARD_MIN_SPACING,
+  YARD_PROP_NAMES,
+  YARD_W,
+  parseArtworkRule,
   parseBuildingRules,
   parseLoadingZoneRules,
+  parseYardLayout,
   yardLabel,
   yardPropList,
 } from "./cityFiles.js";
-export type { BuildingRules, LoadingZoneRules } from "./cityFiles.js";
+export type {
+  AnyPropName,
+  ApprovedArtwork,
+  ArtworkRule,
+  BuildingRules,
+  CityRules,
+  DecorPropName,
+  LoadingZoneRules,
+  YardLayout,
+  YardPropName,
+  YardSlot,
+} from "./cityFiles.js";
+export {
+  ARTWORK_MAX_BYTES,
+  ARTWORK_URL_PREFIX,
+  isApproved,
+  loadArtworkApprovals,
+  parseArtworkApprovals,
+  pngDimensions,
+  resolveArtwork,
+  type ArtworkApprovals,
+} from "./artwork.js";
+export {
+  RULE_FILE_MAX_BYTES,
+  loadFixtureRepositoryRules,
+  loadLocalRules,
+  loadRepositoryRules,
+  repoName,
+  type RepositoryRules,
+  type RuleFileReader,
+} from "./load.js";
