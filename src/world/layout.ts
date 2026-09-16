@@ -2,6 +2,7 @@ import type { CityLot } from "../types.js";
 import {
   BIKE_BAND,
   CONSTRUCTION_MS,
+  FREEWAY_BIKE_BAND,
   FREEWAY_SY,
   LOT_D,
   LOT_W,
@@ -352,9 +353,9 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       kind: "bike",
       id: "freeway-bike-lane",
       x: freewayOrigin.x,
-      y: freewayOrigin.y + STRIDE_Y - BIKE_BAND - 0.12,
+      y: freewayOrigin.y + STRIDE_Y - FREEWAY_BIKE_BAND,
       w: (maxSx - minSx + 1) * STRIDE_X,
-      h: BIKE_BAND,
+      h: FREEWAY_BIKE_BAND,
     },
   ];
 
@@ -436,6 +437,17 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
         sprite: ((sx + row) & 1) === 0 ? "bike-0" : "bike-1",
       });
     }
+  }
+  const freewaySlots = [minSx, Math.round((minSx + maxSx) / 2), maxSx];
+  for (const sx of new Set(freewaySlots)) {
+    const origin = slotOrigin(sx, FREEWAY_SY);
+    civics.push({
+      kind: "bike",
+      id: `bike-freeway-${sx}`,
+      x: origin.x + LOT_W * 0.55,
+      y: freewayOrigin.y + STRIDE_Y - FREEWAY_BIKE_BAND * 0.4,
+      sprite: (sx & 1) === 0 ? "bike-0" : "bike-1",
+    });
   }
 
   const radius = Math.max(

@@ -229,13 +229,23 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
+        g.fillStyle(0xe4d8a8, 0.98);
+        g.fillPoints(
+          [
+            { x: p.sx + width / 2 - 18, y: p.sy + 26 },
+            { x: p.sx + width / 2 + 18, y: p.sy + 26 },
+            { x: p.sx + width / 2, y: p.sy + 33 },
+          ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
+          true,
+        );
         g.fillStyle(0xece3b8, 0.96);
         g.fillPoints(
           [
-            { x: p.sx + width / 2 - 10, y: p.sy + 10 },
-            { x: p.sx + width / 2 + 4, y: p.sy + 16 },
-            { x: p.sx + width / 2 - 10, y: p.sy + 22 },
-            { x: p.sx + width / 2 + 16, y: p.sy + 18 },
+            { x: p.sx + width / 2 - 18, y: p.sy + 11 },
+            { x: p.sx + width / 2 + 2, y: p.sy + 7 },
+            { x: p.sx + width / 2 + 20, y: p.sy + 16 },
+            { x: p.sx + width / 2 + 2, y: p.sy + 26 },
+            { x: p.sx + width / 2 - 8, y: p.sy + 18 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
@@ -356,21 +366,21 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     road: ROAD_STAMP_WIDTH,
     bike: BIKE_STAMP_WIDTH,
   };
-  const paintBikeBand = (x: number, streetY: number, w: number) => {
-    diamond(x, streetY, w, BIKE_BAND, 0xa89c68, 1);
-    diamond(x, streetY + BIKE_BAND - 0.12, w, 0.16, 0xe4d8a8, 0.98);
+  const paintBikeBand = (x: number, streetY: number, w: number, band: number, labelSize: number) => {
+    diamond(x, streetY, w, band, 0xa89c68, 1);
+    diamond(x, streetY + band - 0.24, w, 0.24, 0xe4d8a8, 0.98);
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      diamond(laneX + 0.3, streetY + 0.16, 2.2, 0.58, 0xece3b8, 0.98);
-      diamond(laneX + 2.5, streetY + 0.4, 1.65, 0.44, 0xe4d8a8, 0.92);
+      diamond(laneX + 0.12, streetY + band * 0.12, 3.1, Math.min(0.86, band * 0.42), 0xece3b8, 0.98);
+      diamond(laneX + 2.0, streetY + band * 0.38, 2.4, Math.min(0.64, band * 0.3), 0xe4d8a8, 0.94);
     }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
-    const step = span > 10 ? 4 : 3;
+    const step = Math.max(2, Math.ceil(span / 6));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += step) {
-      const labelAt = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.8, streetY + BIKE_BAND * 0.42);
+      const labelAt = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.8, streetY + band * 0.48);
       objects.push(
         scene.add
-          .bitmapText(labelAt.sx, labelAt.sy, HUD_FONT.face, "BIKE LANE", 15)
+          .bitmapText(labelAt.sx, labelAt.sy, HUD_FONT.face, "BIKE LANE", labelSize)
           .setTint(0xece3b8)
           .setOrigin(0.5)
           .setDepth(-90_000),
@@ -382,10 +392,20 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
     const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
     diamond(x, streetY + BIKE_BAND, w, 0.32, 0x5e6662, 0.96);
-    paintBikeBand(x, streetY, w);
+    paintBikeBand(x, streetY, w, BIKE_BAND, 18);
   }
   const freewayBike = plan.features.find((f) => f.id === "freeway-bike-lane");
-  if (freewayBike) paintBikeBand(freewayBike.x, freewayBike.y, freewayBike.w);
+  if (freewayBike) {
+    paintBikeBand(freewayBike.x, freewayBike.y, freewayBike.w, freewayBike.h, 26);
+    const flyover = project(freewayBike.x + freewayBike.w / 2, freewayBike.y + freewayBike.h * 0.5);
+    objects.push(
+      scene.add
+        .bitmapText(flyover.sx, flyover.sy + 18, HUD_FONT.face, "BIKE LANE", 22)
+        .setTint(0xece3b8)
+        .setOrigin(0.5)
+        .setDepth(-89_000),
+    );
+  }
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];
     if (!box) continue;

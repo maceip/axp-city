@@ -175,11 +175,12 @@ describe("Phaser scene planning", () => {
     const actors = ambientActors(plan);
     const cars = actors.filter((a) => a.kind === "car");
     const freeway = plan.features.find((f) => f.kind === "freeway")!;
+    const freewayBike = plan.features.find((f) => f.id === "freeway-bike-lane")!;
     expect(cars.length).toBeGreaterThanOrEqual(4);
     for (const car of cars) {
       for (const p of car.path) {
         expect(p.y).toBeGreaterThan(freeway.y);
-        expect(p.y).toBeLessThan(freeway.y + freeway.h);
+        expect(p.y).toBeLessThan(freewayBike.y);
       }
       expect(car.motion).toBe("wrap");
     }

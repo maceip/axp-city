@@ -254,6 +254,8 @@ export class CityScene extends Phaser.Scene {
           return acc;
         }, {}),
         hasBikeLane: Boolean(this.city.plan.features.some((f) => f.kind === "bike")),
+        hasFreewayBikeLane: Boolean(this.city.plan.features.some((f) => f.id === "freeway-bike-lane")),
+        freewayBikeBand: this.city.plan.features.find((f) => f.id === "freeway-bike-lane")?.h ?? 0,
         uniqueFacades: new Set(
           this.city.plan.placements.map((p) => `${p.lot.buildingId}:${p.lot.facadeTint}:${p.lot.dressingProp}`),
         ).size,
@@ -305,6 +307,23 @@ export class CityScene extends Phaser.Scene {
       hudLabel: (name: string) => {
         if (!this.hudReady) return null;
         return this.hud.labelText(name);
+      },
+      featureScreenBox: (id: string) => {
+        const feature = this.city.plan.features.find((f) => f.id === id);
+        if (!feature) return null;
+        const view = this.view();
+        const zoom = this.cameras.main.zoom;
+        const corners = [
+          project(feature.x, feature.y),
+          project(feature.x + feature.w, feature.y),
+          project(feature.x + feature.w, feature.y + feature.h),
+          project(feature.x, feature.y + feature.h),
+        ];
+        const xs = corners.map((p) => (p.sx - view.x) * zoom);
+        const ys = corners.map((p) => (p.sy - view.y) * zoom);
+        const x = Math.min(...xs);
+        const y = Math.min(...ys);
+        return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
       },
     };
   }

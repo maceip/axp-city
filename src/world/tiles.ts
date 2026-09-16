@@ -1,5 +1,5 @@
 import type { CityPlan } from "./layout.js";
-import { BIKE_BAND, LOT_D, LOT_W, SHOULDER, STRIDE_X, STRIDE_Y } from "./constants.js";
+import { BIKE_BAND, FREEWAY_BIKE_BAND, LOT_D, LOT_W, SHOULDER, STRIDE_X, STRIDE_Y } from "./constants.js";
 import { hash01 } from "./hash.js";
 import { isFreewaySlot, isParkSlot, isRiverSlot, isTramSlot } from "./slots.js";
 
@@ -32,7 +32,11 @@ export function tileKind(ix: number, iy: number, plan: CityPlan): GroundKind {
   const inDeveloped = sx >= minSx && sx <= maxSx && sy >= minSy && sy <= maxSy;
   if (inDeveloped) {
     if (isParkSlot(sx, sy)) return "park";
-    if (isFreewaySlot(sx, sy)) return "freeway";
+    if (isFreewaySlot(sx, sy)) {
+      const localY = iy - sy * STRIDE_Y;
+      if (localY >= STRIDE_Y - FREEWAY_BIKE_BAND) return "bike";
+      return "freeway";
+    }
     if (isTramSlot(sx, sy)) return "tram";
     if (isRiverSlot(sx, sy)) return "river";
     const localX = ix - sx * STRIDE_X;

@@ -695,11 +695,11 @@ def iso_diamond(
         draw.line([(cx - width * 0.22, cy - 2), (cx + width * 0.22, cy + 2)], fill=dash + (240,), width=4)
         draw.line([(cx - width * 0.18, cy + 6), (cx + width * 0.18, cy + 10)], fill=dash + (180,), width=2)
     if chevrons and dash:
-        for t in (0.28, 0.50, 0.72):
-            px = cx + (t - 0.5) * width * 0.48
-            py = cy + (t - 0.5) * height * 0.2
+        for t in (0.24, 0.50, 0.76):
+            px = cx + (t - 0.5) * width * 0.52
+            py = cy + (t - 0.5) * height * 0.22
             draw.polygon(
-                [(px - 15, py + 2), (px - 1, py - 8), (px + 16, py + 2), (px - 1, py + 10)],
+                [(px - 20, py + 3), (px - 1, py - 11), (px + 22, py + 3), (px - 1, py + 13)],
                 fill=dash + (240,),
             )
     return im

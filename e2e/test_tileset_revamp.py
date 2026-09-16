@@ -126,6 +126,8 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert kinds.get("bike", 0) >= 4, f"bike-lane stamps missing from the plan: {kinds}"
         assert kinds.get("gate", 0) >= 1
         assert info["hasBikeLane"], "bike-lane feature missing from the city plan"
+        assert info["hasFreewayBikeLane"], "freeway bike shoulder missing from the city plan"
+        assert info["freewayBikeBand"] >= 1.6, f"freeway bike shoulder still too thin: {info['freewayBikeBand']}"
         assert info["roadStampWidth"] >= 140, f"roads still stamp too small: {info['roadStampWidth']}"
         assert info["bikeStampWidth"] >= 180, f"bike lanes still stamp too small: {info['bikeStampWidth']}"
         assert info["uniqueFacades"] >= 12, f"repo lots still look cloned: {info['uniqueFacades']} unique facades"
@@ -136,16 +138,30 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.screenshot(path=str(SHOTS / "tileset-city-overview.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-roads-bikes-civics.png"), full_page=False)
         khaki, cream, lime = street_lane_share(SHOTS / "tileset-city-overview.png", (200, 470, 900, 560))
-        assert khaki >= 0.06, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
-        assert khaki + cream >= 0.09, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
+        assert khaki >= 0.08, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
+        assert khaki + cream >= 0.12, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
         assert lime < 0.12, f"overview bike paint drifted to neon lime ({lime:.3f})"
+        corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
+        assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
+        clip = {
+            "x": max(0, corridor["x"]),
+            "y": max(0, corridor["y"]),
+            "width": min(1600, corridor["x"] + corridor["width"]) - max(0, corridor["x"]),
+            "height": min(1000, corridor["y"] + corridor["height"]) - max(0, corridor["y"]),
+        }
+        assert clip["width"] > 40 and clip["height"] > 16, f"freeway bike clip off-screen: {clip}"
+        page.screenshot(path=str(SHOTS / "tileset-freeway-bike.png"), clip=clip)
+        fw_k, fw_c, fw_lime = street_lane_share(SHOTS / "tileset-freeway-bike.png", (0, 0, int(clip["width"]), int(clip["height"])))
+        assert fw_k >= 0.12, f"freeway bike clip still recedes ({fw_k:.3f} khaki)"
+        assert fw_k + fw_c >= 0.18, f"freeway bike clip khaki+chevron still thin ({fw_k + fw_c:.3f})"
+        assert fw_lime < 0.12, f"freeway bike clip drifted to neon lime ({fw_lime:.3f})"
 
         click_hud(page, "home")
         page.wait_for_timeout(500)
         page.screenshot(path=str(SHOTS / "tileset-center-office.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-street-home.png"), full_page=False)
         home_k, _home_c, home_lime = street_lane_share(SHOTS / "tileset-street-home.png", (200, 520, 1000, 600))
-        assert home_k >= 0.05, f"home-zoom bike corridor still recedes ({home_k:.3f} khaki)"
+        assert home_k >= 0.07, f"home-zoom bike corridor still recedes ({home_k:.3f} khaki)"
         assert home_lime < 0.12, f"home-zoom bike paint drifted to neon lime ({home_lime:.3f})"
 
         def sample_lot(name):
