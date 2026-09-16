@@ -32,9 +32,11 @@ def fixture_metrics():
 
 
 class CityServer:
-    def __init__(self, root, metrics):
+    def __init__(self, root, metrics, live=False, env=None):
         self.root = root
         self.metrics = metrics
+        self.live = live
+        self.extra_env = env or {}
         self.file = root / "metrics.json"
         self.rules = root / "rules"
         self.rules.mkdir()
@@ -50,7 +52,15 @@ class CityServer:
         self.file.write_text(json.dumps(self.metrics))
 
     def start(self):
-        env = dict(os.environ, CITY_OFFLINE="1", CITY_DATA_DIR=str(self.root / "data"), CITY_FIXTURE_PATH=str(self.file), CITY_RULES_DIR=str(self.rules), GITHUB_WEBHOOK_SECRET=SECRET, CITY_ADMIN_TOKEN=ADMIN, HOST="127.0.0.1")
+        env = dict(os.environ, CITY_DATA_DIR=str(self.root / "data"), CITY_RULES_DIR=str(self.rules), GITHUB_WEBHOOK_SECRET=SECRET, CITY_ADMIN_TOKEN=ADMIN, HOST="127.0.0.1")
+        if self.live:
+            # Real GitHub through GITHUB_TOKEN from the environment; nothing is enrolled
+            # until a test does so, and no fixture file is in reach of the resolver.
+            env.pop("CITY_OFFLINE", None)
+            env["CITY_ENROLL_FILE"] = os.devnull
+        else:
+            env.update(CITY_OFFLINE="1", CITY_FIXTURE_PATH=str(self.file))
+        env.update(self.extra_env)
         self.log = (self.root / "server.log").open("a")
         self.proc = subprocess.Popen(["node", "dist/server/cli/server.js", "--port", str(self.port)], cwd=REPO, env=env, stdout=self.log, stderr=subprocess.STDOUT)
         # A loaded CI runner (browser + server on two cores) can take well over five
@@ -103,6 +113,17 @@ class CityServer:
 @pytest.fixture
 def server(tmp_path):
     runtime = CityServer(tmp_path, fixture_metrics())
+    yield runtime
+    runtime.stop()
+
+
+@pytest.fixture
+def live_server(tmp_path):
+    """The real resolver against GitHub. Skipped without a token so the suite never
+    pretends live coverage it did not get."""
+    if not os.environ.get("GITHUB_TOKEN"):
+        pytest.skip("GITHUB_TOKEN is not set; live GitHub coverage was not run")
+    runtime = CityServer(tmp_path, [], live=True, env={"CITY_REFRESH_INTERVAL_MS": "15000", "CITY_STALE_AFTER_MS": "600000"})
     yield runtime
     runtime.stop()
 

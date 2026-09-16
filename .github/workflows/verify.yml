@@ -66,12 +66,15 @@ jobs:
           PLAYWRIGHT_SERVICE_URL: ${{ secrets.PLAYWRIGHT_SERVICE_URL }}
           PLAYWRIGHT_SERVICE_ACCESS_TOKEN: ${{ secrets.PLAYWRIGHT_SERVICE_ACCESS_TOKEN }}
           PLAYWRIGHT_SERVICE_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          # Read-only Actions token: test_live_github.py fetches this repository from api.github.com.
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Browser suite (local SwiftShader Chromium, software-rendered correctness)
         if: steps.backend.outputs.hosted != '1' && matrix.engine == 'chromium'
         run: python -m pytest e2e -v
         env:
           CITY_LOCAL_BROWSER: "1"
           CITY_SOFTWARE_GL: "1"
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Browser suite (local ${{ matrix.engine }})
         if: steps.backend.outputs.hosted != '1' && matrix.engine != 'chromium'
         run: python -m pytest e2e/test_city_visual.py e2e/test_support.py e2e/test_exports.py -v
