@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_RULES,
   parseBuildingRules,
   parseLoadingZoneRules,
   yardPropList,
@@ -24,6 +25,13 @@ describe("in-repo city rules", () => {
     expect(zone.precedence).toEqual(["openPrs", "openIssues", "recentActivity"]);
     expect(zone.props.prs).toEqual(["materials"]);
     expect(zone.props.highPrsOrBot).toEqual(["drone"]);
+  });
+
+  it("keeps the shipped .city/ files identical to DEFAULT_RULES, the single source of truth", () => {
+    const building = JSON.parse(readFileSync(".city/building.json", "utf8")) as unknown;
+    const zone = JSON.parse(readFileSync(".city/loading-zone.json", "utf8")) as unknown;
+    expect(building).toEqual(DEFAULT_RULES.building);
+    expect(zone).toEqual(DEFAULT_RULES.loadingZone);
   });
 
   it("lists loading-zone props from the parser flags", () => {
