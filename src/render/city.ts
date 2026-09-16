@@ -2,6 +2,28 @@ import type { CityLot } from "../types.js";
 import { animatedFigure } from "./anim.js";
 import { diamond, fmt, project, TILE_H, TILE_W } from "./iso.js";
 import {
+  buildingTargetWidth,
+  FOREST_BUSHES,
+  FOREST_PAD_X,
+  FOREST_PAD_Y,
+  FOREST_STEP,
+  FOREST_TREES,
+  hash01,
+  LOT_D,
+  LOT_W,
+  MARGIN,
+  type LotPlacement,
+  placeLots,
+  ROAD_D,
+  ROAD_TOP0,
+  roadCenterY,
+  STRIDE_X,
+  STRIDE_Y,
+  VB_Y,
+  worldBounds,
+  worldSize,
+} from "./layout.js";
+import {
   renderYardProps,
   spriteBench,
   spriteLamp,
@@ -18,31 +40,21 @@ import {
   sheetForBand,
   spriteBoxFor,
   stamper,
-  WILD_BUSHES,
   WILD_SHEETS,
-  WILD_TREES,
   WILD_WATER,
   type SpriteBox,
   type StampFn,
 } from "./sprites.js";
 
-/** Real sprite art from assets/city-sprites (flood-keyed, occluding stamps). */
+export {
+  buildingTargetWidth,
+  type LotPlacement,
+  placeLots,
+  worldBounds,
+  worldSize,
+} from "./layout.js";
 
-/**
- * Stamp width per star band, in screen px. A lot is 4 world units = 144px
- * wide, so even the L landmarks stay near their own pad and the S sheds
- * read smaller than the towers — size follows stars, not sprite art.
- */
-export function buildingTargetWidth(band: CityLot["buildingBand"]): number {
-  switch (band) {
-    case "S":
-      return 112;
-    case "M":
-      return 138;
-    case "L":
-      return 168;
-  }
-}
+/** Real sprite art from assets/city-sprites (flood-keyed, occluding stamps). */
 
 function buildingStamp(lot: CityLot, x: number, y: number, stamp: StampFn): string {
   const sheet = sheetForBand(lot.buildingBand);
@@ -58,77 +70,6 @@ function buildingStamp(lot: CityLot, x: number, y: number, stamp: StampFn): stri
     buildingTargetWidth(lot.buildingBand),
     !lot.recentActivity,
   );
-}
-
-const COLS = 4;
-const LOT_W = 4;
-const LOT_D = 2.4;
-// Streets are real tile stamps ~1 world unit wide, so the row gap leaves a
-// grass shoulder on each side: shoulder + road + shoulder.
-const ROAD_D = 1.0;
-const SHOULDER = 0.35;
-const STRIDE_X = 4.7;
-const STRIDE_Y = LOT_D + ROAD_D + SHOULDER * 2;
-const MARGIN = 1.4;
-const ROAD_TOP0 = MARGIN - SHOULDER - ROAD_D;
-
-function roadCenterY(row: number): number {
-  return ROAD_TOP0 + row * STRIDE_Y + ROAD_D / 2;
-}
-
-// Tile ground extends past the developed island so the camera can roam over
-// art instead of void. The wild ring below covers this apron.
-const FOREST_PAD_X = 6;
-const FOREST_PAD_Y = 4;
-const FOREST_STEP = 1.7;
-// Tallest stamps rise ~260px above their anchors; keep them inside.
-const VB_Y = -240;
-
-// Measured boxes 0-1 are sheet UI thumbnails, not trees; the full-width bush
-// row is a hedge strip rather than a plantable bush.
-const FOREST_TREES = WILD_TREES.filter((box) => box.h >= 50);
-const FOREST_BUSHES = WILD_BUSHES.filter((box) => box.w <= 64);
-
-/** Deterministic 0-1 hash for stable foliage variety (no RNG in renders). */
-function hash01(ix: number, iy: number, seed: number): number {
-  let h =
-    Math.imul(ix, 374761393) +
-    Math.imul(iy, 668265263) +
-    Math.imul(seed, 974634211);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  h ^= h >>> 16;
-  return (h >>> 0) / 4294967296;
-}
-
-export interface LotPlacement {
-  lot: CityLot;
-  col: number;
-  row: number;
-  x: number;
-  y: number;
-}
-
-export function placeLots(lots: CityLot[]): LotPlacement[] {
-  return lots.map((lot, i) => {
-    const col = i % COLS;
-    const row = Math.floor(i / COLS);
-    return {
-      lot,
-      col,
-      row,
-      x: MARGIN + col * STRIDE_X,
-      y: MARGIN + row * STRIDE_Y,
-    };
-  });
-}
-
-function worldSize(count: number): { w: number; h: number; rows: number } {
-  const rows = Math.max(1, Math.ceil(count / COLS));
-  return {
-    rows,
-    w: MARGIN + COLS * STRIDE_X + 0.8,
-    h: MARGIN + rows * STRIDE_Y + 0.6,
-  };
 }
 
 /**
@@ -223,17 +164,6 @@ function lotTile(place: LotPlacement, index: number, stamp: StampFn): string {
     ((LOT_W + LOT_D) * 18) / tile.h,
   );
   return s;
-}
-
-function worldBounds(w: number, h: number): { x: number; y: number; width: number; height: number } {
-  const x0 = -FOREST_PAD_X;
-  const y0 = -FOREST_PAD_Y;
-  const x1 = w + FOREST_PAD_X;
-  const y1 = h + FOREST_PAD_Y;
-  const sx0 = (x0 - y1) * (TILE_W / 2);
-  const sx1 = (x1 - y0) * (TILE_W / 2);
-  const sy1 = (x1 + y1) * (TILE_H / 2) + 80;
-  return { x: sx0, y: VB_Y, width: sx1 - sx0, height: sy1 - VB_Y };
 }
 
 /**

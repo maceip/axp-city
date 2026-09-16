@@ -11,15 +11,22 @@
     "render": "tsx src/cli/render.ts",
     "demo": "tsx src/cli/demo.ts",
     "preview": "tsx src/cli/preview.ts",
+    "game": "vite --config game/vite.config.ts",
+    "game:build": "vite build --config game/vite.config.ts",
+    "game:preview": "vite preview --config game/vite.config.ts",
     "webhooks": "tsx src/cli/webhooks.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p game/tsconfig.json"
+  },
+  "dependencies": {
+    "phaser": "4.2.1"
   },
   "devDependencies": {
     "@types/node": "^24.3.1",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
+    "vite": "^6.3.5",
     "vitest": "^3.2.4"
   }
 }

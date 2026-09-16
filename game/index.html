@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AXP City</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%2386c55c'/%3E%3Cpath d='M8 3 L13 6 L8 9 L3 6 Z' fill='%234ea2d6'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="mast">
+        <div>
+          <h1>AXP City</h1>
+          <p class="lede">
+            Each GitHub repository is two adjacent plots — a building pad sized by stars, and a
+            loading zone (receiving yard) whose props come from open issues, open PRs, and recent
+            activity. Phaser 4 stamps the same sprite sheets the SVG map uses.
+          </p>
+        </div>
+        <p class="meta" id="mast-meta"></p>
+      </header>
+      <div id="stage">
+        <div id="game-container"></div>
+        <p class="maphint">drag to pan · scroll to zoom · hover a lot for its tag · click a lot to inspect · WASD/arrows move</p>
+        <div class="hovertag" id="hover-tag" aria-hidden="true" hidden></div>
+        <aside class="lotcard" id="lot-card" hidden></aside>
+        <div id="boot-card">
+          <p class="kicker">Phaser 4</p>
+          <h2>Loading city</h2>
+          <p>Parser lots + flood-keyed sprite atlases.</p>
+          <div id="boot-bar"><span></span></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
