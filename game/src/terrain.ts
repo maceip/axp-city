@@ -404,13 +404,13 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
         const chevron = scene.add
           .image(at.sx, at.sy, "bike-chevron-k1")
           .setOrigin(0.5)
-          .setDisplaySize(128, 48)
+          .setDisplaySize(168, 58)
           .setDepth(at.sy + 28);
         chevron.setData("bikeLaneMark", true);
         chevron.setData("bikeLaneGlance", true);
         chevron.setData("bikeLaneChevron", true);
-        chevron.setData("markScreenW", 132);
-        chevron.setData("markScreenH", 50);
+        chevron.setData("markScreenW", 168);
+        chevron.setData("markScreenH", 58);
         objects.push(chevron);
       } else {
         objects.push(paintIsoChevron(scene, laneX + 2.0, streetY + band * 0.5, false));
