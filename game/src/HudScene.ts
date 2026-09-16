@@ -12,7 +12,7 @@ import { constructionLabel, constructionState } from "../../src/game/constructio
 import type { Rect } from "../../src/game/visibility.js";
 import type { CityFreshness, CitySnapshot } from "../../src/live/protocol.js";
 import { project } from "../../src/render/iso.js";
-import { HUD_FRAMES, HUD_SHEET } from "../../src/render/sprites.js";
+import { HUD_FONT, HUD_FRAMES, HUD_SHEET } from "../../src/render/sprites.js";
 import { yardLabel, yardPropList } from "../../src/rules/cityFiles.js";
 import type { LotPlacement } from "../../src/world/layout.js";
 import { SceneKeys } from "./Boot.js";
@@ -30,35 +30,36 @@ export interface HudActions {
   toggleMotion(): boolean;
 }
 
-const FONT = "JetBrains Mono";
 const GOLD = "#f6dd91";
 const INK = "#f2efe2";
 const MUTED = "#b9c4b3";
 
-/** Phaser canvas text: one loaded mono face, no letterSpacing (that path doubles glyphs). */
+function tint(color: string): number {
+  return Number.parseInt(color.replace("#", ""), 16);
+}
+
+/**
+ * HUD copy uses a PIL-baked bitmap font. Chromium SwiftShader fillText
+ * (and therefore Phaser Text) duplicates the last letters of each word.
+ */
 function ink(
   scene: Phaser.Scene,
   x: number,
   y: number,
   text: string,
   style: { fontSize?: string; color?: string; fontStyle?: string; wordWrap?: { width: number } } = {},
-): Phaser.GameObjects.Text {
-  const label = scene.add.text(x, y, text, {
-    fontFamily: FONT,
-    fontSize: style.fontSize ?? "12px",
-    color: style.color ?? INK,
-    fontStyle: style.fontStyle,
-    padding: { x: 3, y: 2 },
-    wordWrap: style.wordWrap,
-  });
-  label.setResolution(2);
+): Phaser.GameObjects.BitmapText {
+  const size = Number.parseInt(style.fontSize ?? "12", 10);
+  const label = scene.add.bitmapText(x, y, HUD_FONT.face, text, size);
+  label.setTint(tint(style.color ?? INK));
+  if (style.wordWrap) label.setMaxWidth(style.wordWrap.width);
   return label;
 }
 
 interface Button {
   container: Phaser.GameObjects.Container;
   bg: Phaser.GameObjects.Graphics;
-  label: Phaser.GameObjects.Text;
+  label: Phaser.GameObjects.BitmapText;
   width: number;
   height: number;
   name: string;
@@ -96,17 +97,17 @@ export class HudScene extends Phaser.Scene {
   private selected?: LotPlacement;
   private buttons = new Map<string, Button>();
   private plate!: Phaser.GameObjects.Container;
-  private district!: Phaser.GameObjects.Text;
-  private coords!: Phaser.GameObjects.Text;
+  private district!: Phaser.GameObjects.BitmapText;
+  private coords!: Phaser.GameObjects.BitmapText;
   private statusDot!: Phaser.GameObjects.Graphics;
-  private statusText!: Phaser.GameObjects.Text;
-  private freshText!: Phaser.GameObjects.Text;
-  private countText!: Phaser.GameObjects.Text;
+  private statusText!: Phaser.GameObjects.BitmapText;
+  private freshText!: Phaser.GameObjects.BitmapText;
+  private countText!: Phaser.GameObjects.BitmapText;
   private compass!: Phaser.GameObjects.Container;
   private massBar!: Phaser.GameObjects.Graphics;
-  private massLabel!: Phaser.GameObjects.Text;
+  private massLabel!: Phaser.GameObjects.BitmapText;
   private massContainer!: Phaser.GameObjects.Container;
-  private zoomText!: Phaser.GameObjects.Text;
+  private zoomText!: Phaser.GameObjects.BitmapText;
   private minimap!: Phaser.GameObjects.Container;
   private minimapPlan!: Phaser.GameObjects.Graphics;
   private minimapView!: Phaser.GameObjects.Graphics;
@@ -115,21 +116,21 @@ export class HudScene extends Phaser.Scene {
   private minimapBg!: Phaser.GameObjects.Image;
   private card!: Phaser.GameObjects.Container;
   private cardBg!: Phaser.GameObjects.Image;
-  private cardTexts: Phaser.GameObjects.Text[] = [];
+  private cardTexts: Phaser.GameObjects.BitmapText[] = [];
   private census!: Phaser.GameObjects.Container;
   private censusBg!: Phaser.GameObjects.Image;
-  private censusRowsTexts: Phaser.GameObjects.Text[] = [];
-  private censusHeader: Phaser.GameObjects.Text[] = [];
+  private censusRowsTexts: Phaser.GameObjects.BitmapText[] = [];
+  private censusHeader: Phaser.GameObjects.BitmapText[] = [];
   private censusOpen = false;
   private censusScroll = 0;
   private censusSort: { key: CensusSortKey; descending: boolean } = { key: "stars", descending: true };
   private censusFilter = "";
   private censusVisible: CensusRow[] = [];
-  private toastText!: Phaser.GameObjects.Text;
+  private toastText!: Phaser.GameObjects.BitmapText;
   private toastBg!: Phaser.GameObjects.Image;
   private toastTimer?: Phaser.Time.TimerEvent;
-  private tag!: Phaser.GameObjects.Text;
-  private hint!: Phaser.GameObjects.Text;
+  private tag!: Phaser.GameObjects.BitmapText;
+  private hint!: Phaser.GameObjects.BitmapText;
   private dpad!: Phaser.GameObjects.Container;
   private tools!: Phaser.GameObjects.Container;
   private kitRail!: Phaser.GameObjects.Image;
@@ -283,10 +284,7 @@ export class HudScene extends Phaser.Scene {
     this.hint = ink(this, 0, 0, "FIELD NOTES · drag · scroll/pinch · WASD · / search · C census · F follow · Esc", {
       fontSize: "11px",
       color: "#efe6c8",
-    })
-      .setPadding(12, 7)
-      .setBackgroundColor("rgba(58,62,52,0.92)")
-      .setOrigin(0.5, 1);
+    }).setOrigin(0, 1);
     this.kitRail = this.hudPanel("rail", 136, 220);
     this.kitRail.setName("kit-rail");
     this.button("census", "CENSUS", 118, 34, () => this.toggleCensus());
@@ -317,11 +315,7 @@ export class HudScene extends Phaser.Scene {
 
     this.toastBg = this.hudPanel("toast", 360, 48).setOrigin(0.5, 1).setVisible(false).setDepth(49);
     this.toastText = ink(this, 0, 0, "", { fontSize: "13px" }).setOrigin(0.5, 1).setVisible(false).setDepth(50);
-    this.tag = ink(this, 0, 0, "", { fontSize: "12px" })
-      .setPadding(8, 4)
-      .setBackgroundColor("rgba(21,37,32,0.94)")
-      .setVisible(false)
-      .setDepth(60);
+    this.tag = ink(this, 0, 0, "", { fontSize: "12px" }).setVisible(false).setDepth(60);
 
     this.input.on("wheel", (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       if (this.censusOpen && contains(frameOf(this.census), p.x, p.y)) {
@@ -386,7 +380,7 @@ export class HudScene extends Phaser.Scene {
     if (mapW !== this.minimapSize.w) {
       this.minimapSize = { w: mapW, h: mapH };
       this.minimapBg.setDisplaySize(mapW + 12, mapH + 30);
-      (this.minimap.list[3] as Phaser.GameObjects.Text).setPosition(mapW / 2, mapH + 8);
+      (this.minimap.list[3] as Phaser.GameObjects.BitmapText).setPosition(mapW / 2, mapH + 8);
       this.minimap.setSize(mapW, mapH);
       (this.minimap.input!.hitArea as Phaser.Geom.Rectangle).setTo(mapW / 2, mapH / 2, mapW, mapH);
       this.drawMinimapPlan();
@@ -513,7 +507,7 @@ export class HudScene extends Phaser.Scene {
       }
     }
     this.freshText.setText(fresh.length > 50 ? `${fresh.slice(0, 49)}…` : fresh);
-    this.freshText.setColor(freshColour);
+    this.freshText.setTint(tint(freshColour));
     this.emit("status", { connection: labels[this.connection], freshness: fresh });
   }
 
@@ -780,8 +774,8 @@ export class HudScene extends Phaser.Scene {
       }
       line.setText(text.trimEnd());
       line.setInteractive({ useHandCursor: true });
-      line.on("pointerover", () => line.setColor("#ffffff"));
-      line.on("pointerout", () => line.setColor(selected ? GOLD : INK));
+      line.on("pointerover", () => line.setTint(0xffffff));
+      line.on("pointerout", () => line.setTint(tint(selected ? GOLD : INK)));
       line.on("pointerup", () => this.actions.select(row.repo, true));
       this.census.add(line);
       this.censusRowsTexts.push(line);

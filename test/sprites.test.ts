@@ -13,6 +13,7 @@ import {
   DRONE_QUADS,
   GROUND_SHEET,
   GROUND_TILES,
+  HUD_FONT,
   HUD_FRAMES,
   HUD_SHEET,
   MATERIAL_LOOSE,
@@ -183,6 +184,8 @@ describe("civic and HUD kits", () => {
   it("ships restyled civic and HUD sheets with in-bounds frames", () => {
     expect(existsSync(join("assets", "city-sprites", CIVIC_SHEET.file))).toBe(true);
     expect(existsSync(join("assets", "city-sprites", HUD_SHEET.file))).toBe(true);
+    expect(existsSync(join("assets", "city-sprites", HUD_FONT.file))).toBe(true);
+    expect(existsSync(join("assets", "city-sprites", HUD_FONT.xml))).toBe(true);
     for (const [name, box] of Object.entries(CIVIC_SPRITES)) {
       expect(box.w, name).toBeGreaterThan(0);
       expect(box.h, name).toBeGreaterThan(0);

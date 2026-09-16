@@ -235,6 +235,8 @@ describe("Phaser scene planning", () => {
     expect(new Set(requiredSheets()).size).toBe(requiredSheets().length);
     expect(requiredSheets()).toContain("civic-kit-k1.png");
     expect(requiredSheets()).toContain("hud-kit-k1.png");
+    expect(requiredSheets()).toContain("hud-font-k1.png");
+    expect(requiredSheets()).toContain("hud-font-k1.xml");
   });
   it("tints repo facades and stamps dressing plus construction art from the civic kit", () => {
     const places = planCity(

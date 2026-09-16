@@ -338,6 +338,15 @@ export const HUD_SHEET: PropSheet = {
   height: 768,
 };
 
+/** PIL-baked JetBrains Mono atlas — Phaser Text/fillText doubles glyphs on SwiftShader. */
+export const HUD_FONT = {
+  file: "hud-font-k1.png",
+  xml: "hud-font-k1.xml",
+  width: 320,
+  height: 390,
+  face: "hud-ink",
+};
+
 export const HUD_FRAMES: Record<string, SpriteBox> = {
   plate: { x: 8, y: 8, w: 250, h: 78 },
   status: { x: 270, y: 8, w: 320, h: 62 },
