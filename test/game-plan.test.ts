@@ -31,9 +31,9 @@ describe("Phaser scene planning", () => {
     const diamondH =
       project(place.x + 4, place.y + 2.4).sy - project(place.x, place.y).sy;
     expect(sample.height).toBeLessThan(tower.height);
-    expect(sample.height).toBeLessThan(diamondH * 2.2);
+    expect(sample.height).toBeLessThan(diamondH * 1.6);
     expect(sample.y).toBeGreaterThan(tower.y);
-    expect(diamondH / sample.height).toBeGreaterThan(0.45);
+    expect(diamondH / sample.height).toBeGreaterThan(0.6);
     expect(sample.width).toBeGreaterThan(diamondH);
   });
   it("preserves the shared world addresses and gives every lot its own building and loading zone", () => {
@@ -146,6 +146,8 @@ describe("Phaser scene planning", () => {
     const custom = planLot(place);
     expect(custom.images.filter((i) => i.tag?.startsWith("bay:"))).toHaveLength(2);
     expect(custom.images.some((i) => i.tag === "loading-apron")).toBe(true);
+    expect(custom.images.some((i) => i.tag === "loading-pad")).toBe(true);
+    expect(base.images.some((i) => i.tag === "loading-pad")).toBe(false);
     expect(custom.diamonds.length).toBeGreaterThan(base.diamonds.length);
     expect(custom.images.filter((i) => i.tag?.startsWith("decor:")).map((i) => i.tag)).toEqual([
       "decor:cones",

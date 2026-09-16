@@ -176,11 +176,14 @@ function lotTileOps(
   images: ImageStamp[],
 ): void {
   const { lot, x, y } = place;
+  const loading = (lot.layout?.bays ?? 1) > 1;
   const worked = lot.yard === "fully_dormant" || lot.yard.startsWith("prs_");
-  const tile: SpriteBox = worked
-    ? LOT_TILE_DIRT
-    : LOT_TILE_GRASS[index % LOT_TILE_GRASS.length];
-  const bed = worked ? "c9a06b" : "8fc46a";
+  const tile: SpriteBox = loading
+    ? GROUND_TILES.asphaltSlab
+    : worked
+      ? LOT_TILE_DIRT
+      : LOT_TILE_GRASS[index % LOT_TILE_GRASS.length];
+  const bed = loading ? "5c6168" : worked ? "c9a06b" : "8fc46a";
   diamonds.push({
     kind: "diamond",
     x: x + 0.15,
@@ -189,8 +192,8 @@ function lotTileOps(
     d: LOT_D - 0.3,
     fill: hex(bed),
     fillAlpha: 1,
-    stroke: hex("283c23"),
-    strokeAlpha: 0.18,
+    stroke: hex(loading ? "d4b45a" : "283c23"),
+    strokeAlpha: loading ? 0.7 : 0.18,
     depth: -100_000,
   });
   const bc = {
@@ -206,6 +209,7 @@ function lotTileOps(
     false,
     -99_999,
     "ground",
+    loading ? { repo: lot.fullName, tag: "loading-pad" } : undefined,
   );
   stamp.scaleX = ((LOT_W + LOT_D) * 36) / tile.w;
   stamp.scaleY = ((LOT_W + LOT_D) * 18) / tile.h;
@@ -622,7 +626,8 @@ function yardOps(
     }
     for (let bay = 1; bay < bays; bay++) {
       const pallet = MATERIAL_PALLETS[(lot.buildingId + bay * 2) % MATERIAL_PALLETS.length];
-      const a = project(p.x + 0.45 + bay * 0.85, p.y + 1.25 - bay * 0.52);
+      // Toward the camera (higher x+y) so extra bays are not hidden by the building.
+      const a = project(place.x + 1.15 + bay * 0.85, place.y + 1.55 - bay * 0.12);
       images.push(
         imageStamp(PROP_SHEETS.materials, pallet, a.sx, a.sy, 78, !lot.recentActivity, depth + 0.2, "world", {
           repo: lot.fullName,

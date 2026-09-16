@@ -23,7 +23,7 @@ export function buildingBounds(place: LotPlacement) {
 /** Horizontal/bottom padding around the projected lot diamond for `lotPixels`. */
 export const LOT_SAMPLE_PAD = 20;
 /** Max pixels above the diamond; L tower tops clip so the yard dominates the probe. */
-export const LOT_SAMPLE_RISE = 64;
+export const LOT_SAMPLE_RISE = 24;
 
 /**
  * Screen-space rectangle used by `lotPixels` / `screenRect`. Click targeting
