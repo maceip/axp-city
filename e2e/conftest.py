@@ -195,6 +195,28 @@ def ready(page, url):
     page.locator("#boot-card").wait_for(state="hidden")
 
 
+def settled(page, timeout=10000):
+    """Wait until the camera has stopped moving (a key press still pans the frame after
+    it resolves on a slow renderer), then return the diagnostics of that resting state."""
+    page.wait_for_function(
+        """() => new Promise(resolve => {
+            const d = window.__AXP.diagnostics();
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                const e = window.__AXP.diagnostics();
+                resolve(d.scrollX === e.scrollX && d.scrollY === e.scrollY && d.zoom === e.zoom);
+            }));
+        })""",
+        timeout=timeout,
+    )
+    return page.evaluate("window.__AXP.diagnostics()")
+
+
+def webgl_available(page):
+    """Whether this browser gave the client a WebGL context (headless Firefox on a CI
+    runner without a GPU does not; the client then uses the documented Canvas fallback)."""
+    return page.evaluate("window.__AXP_SUPPORT.renderer") == "webgl"
+
+
 @pytest.fixture
 def page(browser, server):
     page = browser.new_page(viewport=dict(width=1600, height=1000))

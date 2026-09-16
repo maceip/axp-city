@@ -1,7 +1,9 @@
 """Browser and device support: Canvas fallback, unsupported screen, context loss, resize."""
 from pathlib import Path
 
-from conftest import ready
+import pytest
+
+from conftest import ready, settled, webgl_available
 
 SHOTS = Path(__file__).parent / "screenshots"
 SHOTS.mkdir(exist_ok=True)
@@ -67,10 +69,12 @@ def test_failed_sprite_sheets_are_reported_and_the_city_still_draws(browser, ser
 
 
 def test_webgl_context_loss_recovers_camera_and_selection(page):
+    if not webgl_available(page):
+        pytest.skip("this browser runs the Canvas fallback; there is no WebGL context to lose")
     page.evaluate("window.__AXP.select('acme/robots')")
     page.wait_for_function("window.__AXP.diagnostics().cardVisible")
     page.keyboard.press("d")
-    before = page.evaluate("window.__AXP.diagnostics()")
+    before = settled(page)
     lost = page.evaluate(
         """() => { const gl = window.__AXP.game.renderer.gl; const ext = gl.getExtension('WEBGL_lose_context'); if (!ext) return false; window.__AXP_EXT = ext; ext.loseContext(); return true; }"""
     )

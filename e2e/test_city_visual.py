@@ -127,7 +127,15 @@ def test_production_routes_use_phaser_and_resolve_all_assets(browser, server, ba
         assert page.locator("#game canvas").count() == 1
         assert page.locator("svg#axp-map").count() == 0
         state = diag(page)
-        assert state["version"] == "4.2.1" and state["renderer"] == 2 and state["rendererName"] == "webgl"
+        assert state["version"] == "4.2.1"
+        # WebGL whenever the browser offers it; otherwise the documented Canvas fallback,
+        # never silently and never the other way round.
+        support = page.evaluate("window.__AXP_SUPPORT")
+        if support["renderer"] == "webgl":
+            assert state["renderer"] == 2 and state["rendererName"] == "webgl", state
+        else:
+            assert state["renderer"] == 1 and state["rendererName"] == "canvas", state
+            assert any("WebGL is unavailable" in r for r in support["reasons"]), support
     # The HUD is drawn by Phaser: every advertised control has a canvas position.
     for name in ["compass", "minimap", "zoom-in", "zoom-out", "home", "census", "capture", "svg", "motion", "follow", "status"]:
         assert hud(page, name)["width"] > 0
@@ -241,11 +249,12 @@ def test_actors_persist_across_viewport_travel_and_ambient_life_moves(page):
     assert diag(page)["drawnActors"] < diag(page)["actors"]
     click_hud(page, "home")
     page.wait_for_function("window.__AXP.diagnostics().visibleLots > 0")
-    page.wait_for_timeout(300)
+    # The simulation clock advances at most 100 ms per frame, so on a software renderer
+    # it runs slower than wall time; wait for it rather than for a fixed pause.
+    page.wait_for_function("c => window.__AXP.actorClock() - c > 900", arg=clock0, timeout=20000)
     t1, clock1 = page.evaluate("id => [window.__AXP.actorTimeline(id), window.__AXP.actorClock()]", walker)
     # The off-screen actor's timeline advanced by exactly as much as the simulation clock
-    # (it was never reset or paused), and the round trip itself took real time.
-    assert clock1 - clock0 > 900, (clock0, clock1)
+    # (it was never reset or paused).
     assert abs((t1 - t0) - (clock1 - clock0)) < 1, (t0, t1, clock0, clock1)
     # Same lot, same actor ids after returning: nothing was rebuilt.
     again = page.evaluate("window.__AXP.lotActors('acme/forge')")
