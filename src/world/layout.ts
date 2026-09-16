@@ -17,6 +17,18 @@ import {
 import { hash01 } from "./hash.js";
 import { isReservedSlot, lotSlot, slotKey } from "./slots.js";
 
+/**
+ * Version of the slot-assignment algorithm. Persisted with every lot so a
+ * future planner change can migrate explicitly instead of silently moving
+ * addresses on a rebuild.
+ */
+export const LAYOUT_VERSION = 1;
+
+export interface SlotAssignment {
+  col: number;
+  row: number;
+}
+
 export interface LotPlacement {
   lot: CityLot;
   col: number;
@@ -66,6 +78,55 @@ export interface PlanOptions {
   addedAt?: Record<string, string>;
   /** Force these repos into the construction animation (tests / live inject). */
   constructing?: Iterable<string>;
+  /**
+   * Persisted slot assignments keyed by fullName. When present they are used
+   * verbatim; lots without one receive the next free ring slot. Slots listed in
+   * `reserved` (withdrawn lots' tombstones) are never reassigned.
+   */
+  assignments?: Record<string, SlotAssignment>;
+  reserved?: Iterable<SlotAssignment>;
+}
+
+/**
+ * First unreserved ring slot that is not in `occupied`. Deterministic, so the
+ * same occupied set always yields the same answer.
+ */
+export function nextFreeSlot(occupied: Set<string>): SlotAssignment {
+  for (let i = 0; i < 1_000_000; i++) {
+    const slot = lotSlot(i);
+    if (!occupied.has(slotKey(slot.sx, slot.sy)))
+      return { col: slot.sx, row: slot.sy };
+  }
+  throw new Error("City is full");
+}
+
+/**
+ * Assign slots for `names` in order: persisted assignments first, then the
+ * next free slot for each newcomer. Used by the store when a lot is added and
+ * by the planner when no store exists.
+ */
+export function assignSlots(
+  names: string[],
+  assignments: Record<string, SlotAssignment> = {},
+  reserved: Iterable<SlotAssignment> = [],
+): Record<string, SlotAssignment> {
+  const out: Record<string, SlotAssignment> = {};
+  const occupied = new Set<string>();
+  for (const r of reserved) occupied.add(slotKey(r.col, r.row));
+  for (const name of names) {
+    const known = assignments[name];
+    if (known) {
+      out[name] = { ...known };
+      occupied.add(slotKey(known.col, known.row));
+    }
+  }
+  for (const name of names) {
+    if (out[name]) continue;
+    const slot = nextFreeSlot(occupied);
+    out[name] = slot;
+    occupied.add(slotKey(slot.col, slot.row));
+  }
+  return out;
 }
 
 export function slotOrigin(sx: number, sy: number): { x: number; y: number } {
@@ -114,17 +175,23 @@ function isConstructing(
  */
 export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
   const forced = new Set(options.constructing ?? []);
-  const placements: LotPlacement[] = lots.map((lot, i) => {
-    const slot = lotSlot(i);
-    const origin = slotOrigin(slot.sx, slot.sy);
+  const reserved = [...(options.reserved ?? [])];
+  const slots = assignSlots(
+    lots.map((lot) => lot.fullName),
+    options.assignments,
+    reserved,
+  );
+  const placements: LotPlacement[] = lots.map((lot) => {
+    const slot = slots[lot.fullName];
+    const origin = slotOrigin(slot.col, slot.row);
     return {
       lot,
-      col: slot.sx,
-      row: slot.sy,
+      col: slot.col,
+      row: slot.row,
       x: origin.x,
       y: origin.y,
       constructing: isConstructing(lot.fullName, options, forced),
-      district: districtName(slot.sx, slot.sy),
+      district: districtName(slot.col, slot.row),
       addedAt: options.addedAt?.[lot.fullName],
     };
   });
@@ -133,7 +200,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
   let maxSx = PARK_SX1;
   let minSy = PARK_SY0;
   let maxSy = PARK_SY1;
-  for (const place of placements) {
+  for (const place of [...placements, ...reserved]) {
     minSx = Math.min(minSx, place.col);
     maxSx = Math.max(maxSx, place.col);
     minSy = Math.min(minSy, place.row);

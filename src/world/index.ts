@@ -18,8 +18,11 @@ export {
 } from "./constants.js";
 export { hash01 } from "./hash.js";
 export {
+  LAYOUT_VERSION,
+  assignSlots,
   districtName,
   featureByKind,
+  nextFreeSlot,
   planCity,
   slotOrigin,
   type CityFeature,
@@ -27,6 +30,7 @@ export {
   type FeatureKind,
   type LotPlacement,
   type PlanOptions,
+  type SlotAssignment,
   type VacantPlot,
 } from "./layout.js";
 export {
