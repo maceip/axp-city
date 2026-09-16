@@ -11,7 +11,7 @@ export function createGame(parent: string, renderer: RendererChoice): Phaser.Gam
   return new Phaser.Game({
     type: renderer === "webgl" ? Phaser.WEBGL : Phaser.CANVAS,
     parent,
-    backgroundColor: "#91b477",
+    backgroundColor: "#84966c",
     pixelArt: false,
     antialias: true,
     roundPixels: false,

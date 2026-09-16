@@ -21,18 +21,18 @@ import { ensureFrame } from "./stamps.js";
 
 const trees = WILD_TREES.filter((box) => box.h >= 50 && box.w < 130);
 const COLORS: Record<string, number> = {
-  park: 0x84ad65,
+  park: 0x7a9460,
   freeway: 0x52606b,
   tram: 0x8f9890,
-  river: 0x69adb0,
-  lot: 0x9daf7c,
-  vacant: 0x96b776,
+  river: 0x6a9094,
+  lot: 0x8a9c72,
+  vacant: 0x8ea070,
   street: 0x5e6662,
   bike: 0x767056,
-  grass: 0x91b477,
+  grass: 0x84966c,
   dirt: 0xb7ae80,
-  water: 0x89b49b,
-  trees: 0x89ab6e,
+  water: 0x7a9a90,
+  trees: 0x7d8f64,
 };
 
 interface ChunkView {

@@ -781,33 +781,95 @@ FOLIAGE_BOXES = {
 }
 
 
+OLIVE = (108, 114, 78)
+SLATE_TEAL = (106, 138, 136)
+
+
+def crush_rgba_pixels(im: Image.Image, water: bool = False) -> Image.Image:
+    """Pull neon lime / chartreuse / cyan toward olive-cream-slate. Boxes stay put."""
+    out = im.copy()
+    px = out.load()
+    target = SLATE_TEAL if water else OLIVE
+    for yy in range(out.height):
+        for xx in range(out.width):
+            r, g, b, a = px[xx, yy]
+            if a < 16:
+                continue
+            sat = max(r, g, b) - min(r, g, b)
+            yellow = g > r + 18 and b < 55
+            neon = g > r + 22 and g > b + 16 and sat > 48
+            cyan = b > r + 18 and g > r + 8 and sat > 40
+            if not (yellow or neon or cyan):
+                continue
+            if water and cyan and not neon:
+                t = min(1.0, (sat - 24) / 70)
+                t = max(0.40, t)
+                mix = SLATE_TEAL
+            else:
+                t = min(1.0, ((sat - 36) / 70) if neon or cyan else 0.72)
+                t = max(0.35, t)
+                mix = target if water else OLIVE
+            px[xx, yy] = (
+                int(r * (1 - 0.50 * t) + mix[0] * 0.50 * t),
+                int(g * (1 - 0.62 * t) + mix[1] * 0.62 * t),
+                int(b * (1 - 0.55 * t) + mix[2] * 0.55 * t),
+                a,
+            )
+    return out
+
+
 def crush_catalog_vibe(path: Path = OUT / "civic-kit-k1.png") -> None:
     """Pull leftover neon greens on office/plants/odds toward olive-cream-slate."""
     kit = open_rgba(path)
-    olive = (108, 114, 78)
     for name, (x, y, w, h) in FOLIAGE_BOXES.items():
-        crop = kit.crop((x, y, x + w, y + h)).copy()
-        px = crop.load()
-        for yy in range(crop.height):
-            for xx in range(crop.width):
-                r, g, b, a = px[xx, yy]
-                if a < 16:
-                    continue
-                sat = max(r, g, b) - min(r, g, b)
-                yellow = g > r + 18 and b < 55
-                neon = g > r + 22 and g > b + 16 and sat > 48
-                if yellow or neon:
-                    t = min(1.0, ((sat - 36) / 70) if neon else 0.72)
-                    t = max(0.35, t)
-                    px[xx, yy] = (
-                        int(r * (1 - 0.50 * t) + olive[0] * 0.50 * t),
-                        int(g * (1 - 0.62 * t) + olive[1] * 0.62 * t),
-                        int(b * (1 - 0.55 * t) + olive[2] * 0.55 * t),
-                        a,
-                    )
+        crop = crush_rgba_pixels(kit.crop((x, y, x + w, y + h)))
         kit.paste(crop, (x, y))
     kit.save(path)
     print("crushed catalog vibe on", ", ".join(FOLIAGE_BOXES), "→", path)
+
+
+GROUND_VIBE_BOXES = {
+    "grassA": (22, 35, 165, 106),
+    "grassB": (210, 35, 163, 107),
+    "grassC": (394, 35, 165, 107),
+    "grassD": (1089, 184, 152, 99),
+    "dualGrassA": (24, 317, 246, 96),
+    "dualGrassB": (301, 317, 253, 96),
+    "parkGrass": (224, 450, 166, 110),
+    "treeRoundA": (49, 588, 74, 101),
+    "treeRoundB": (181, 588, 73, 101),
+    "pineA": (314, 582, 61, 107),
+    "pineB": (442, 584, 57, 105),
+    "bushA": (547, 612, 104, 76),
+}
+
+GROUND_WATER_BOXES = {
+    "waterTile": (905, 320, 151, 99),
+}
+
+
+def crush_ground_vibe(path: Path = OUT / "v5-ground-tiles-kit-k1.png") -> None:
+    """Restyle lot-pad grass, park trees, and water on the v5 ground kit."""
+    kit = open_rgba(path)
+    for name, (x, y, w, h) in GROUND_VIBE_BOXES.items():
+        kit.paste(crush_rgba_pixels(kit.crop((x, y, x + w, y + h))), (x, y))
+    for name, (x, y, w, h) in GROUND_WATER_BOXES.items():
+        kit.paste(crush_rgba_pixels(kit.crop((x, y, x + w, y + h)), water=True), (x, y))
+    kit.save(path)
+    print("crushed ground vibe", ", ".join({**GROUND_VIBE_BOXES, **GROUND_WATER_BOXES}), "→", path)
+
+
+def crush_wild_vibe() -> None:
+    """Restyle raw wild-tree / bush sheets onto the catalog olive (boxes unchanged)."""
+    for name in ("v8-wild-trees-k1.png", "v8-wild-bushes-k1.png"):
+        path = OUT / name
+        if not path.exists():
+            continue
+        im = crush_rgba_pixels(open_rgba(path))
+        if "bush" in name:
+            im = crush_rgba_pixels(im)
+        im.save(path)
+        print("crushed wild vibe", path)
 
 
 def fill_band(needed: int, primary: list[Image.Image], *pools: list[Image.Image]) -> list[Image.Image]:
@@ -950,6 +1012,10 @@ if __name__ == "__main__":
         existing["hud"] = hud_boxes
         MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
         print("catalog vibe restyle", boxes, "hud", len(hud_boxes))
+    elif "--wild-vibe" in sys.argv:
+        crush_wild_vibe()
+        crush_ground_vibe()
+        print("wild + ground vibe restyle")
     elif "--boost-civic" in sys.argv:
         boost_civic_readability()
     elif "--civic-only" in sys.argv:

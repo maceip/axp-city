@@ -28,7 +28,7 @@ const FEATURE_FILL: Record<CityFeature["kind"], string> = {
 };
 
 const VACANT_FILL: Record<VacantPlot["variant"], string> = {
-  grass: "#8fc46a",
+  grass: "#8aa86a",
   dirt: "#c9a06b",
   trees: "#5b8f47",
   plaza: "#d3c4ad",

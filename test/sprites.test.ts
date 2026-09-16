@@ -236,4 +236,43 @@ print(f"{mr:.1f} {mg:.1f} {mb:.1f} {lime/n:.3f} {pr} {pg} {pb}")
     expect(Math.abs(pr - pg), "HUD plate still reads as raw walnut, not olive timber").toBeLessThan(20);
     expect(pb, "HUD plate should stay in the cream-slate family").toBeGreaterThan(40);
   });
+
+  it("restyles wild-tree canopy onto the same olive catalog as civic plants", () => {
+    const script = `
+from PIL import Image
+trees = Image.open("assets/city-sprites/v8-wild-trees-k1.png").convert("RGBA")
+civic = Image.open("assets/city-sprites/civic-kit-k1.png").convert("RGBA")
+px = trees.load()
+n = lime = 0
+sr = sg = sb = 0
+for y in range(0, trees.height, 4):
+    for x in range(0, trees.width, 4):
+        r, g, b, a = px[x, y]
+        if a < 40:
+            continue
+        n += 1
+        sr += r; sg += g; sb += b
+        if g > r + 28 and g > b + 20 and (max(r, g, b) - min(r, g, b)) > 55:
+            lime += 1
+cpx = civic.load()
+cn = clr = clg = clb = 0
+for y in range(319, 420, 2):
+    for x in range(1375, 1449, 2):
+        r, g, b, a = cpx[x, y]
+        if a < 40:
+            continue
+        cn += 1
+        clr += r; clg += g; clb += b
+print(f"{sr/n:.1f} {sg/n:.1f} {sb/n:.1f} {lime/n:.3f} {clr/cn:.1f} {clg/cn:.1f} {clb/cn:.1f}")
+`;
+    const [mr, mg, mb, limeFrac, cr, cg, cb] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(limeFrac, `wild trees still neon (${mr},${mg},${mb})`).toBeLessThan(0.10);
+    expect(mg - mr, "wild canopy still much greener than civic plants").toBeLessThan(28);
+    expect(Math.abs(mg - cg), "wild vs civic foliage still in different families").toBeLessThan(40);
+  });
 });

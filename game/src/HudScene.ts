@@ -523,13 +523,13 @@ export class HudScene extends Phaser.Scene {
       py = (y: number) => ((y - minY) / (maxY - minY)) * h;
     const g = this.minimapPlan;
     g.clear();
-    g.fillStyle(0xa8bc8d, 1).fillRect(0, 0, w, h);
+    g.fillStyle(0x8fa07a, 1).fillRect(0, 0, w, h);
     for (const f of plan.features) {
       const fill =
         f.kind === "river"
-          ? 0x6bacae
+          ? 0x6a9094
           : f.kind === "park"
-            ? 0x759959
+            ? 0x6e8658
             : f.kind === "plaza"
               ? 0xc4b69a
               : f.kind === "office"

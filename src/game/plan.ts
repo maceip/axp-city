@@ -183,7 +183,7 @@ function lotTileOps(
     : worked
       ? LOT_TILE_DIRT
       : LOT_TILE_GRASS[index % LOT_TILE_GRASS.length];
-  const bed = loading ? "5c6168" : worked ? "c9a06b" : "8fc46a";
+  const bed = loading ? "5c6168" : worked ? "c9a06b" : "8aa86a";
   diamonds.push({
     kind: "diamond",
     x: x + 0.15,
