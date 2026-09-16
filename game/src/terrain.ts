@@ -488,15 +488,15 @@ function ensureBikeMarkTextures(scene: Phaser.Scene): void {
 }
 
 function bikeLanePlaque(scene: Phaser.Scene, sx: number, sy: number, glance: boolean): Phaser.GameObjects.Container {
-  const w = glance ? 118 : 96;
-  const h = glance ? 28 : 22;
+  const w = glance ? 132 : 100;
+  const h = glance ? 30 : 22;
   const plaque = scene.add.graphics();
   plaque.fillStyle(0x3f3c34, 0.94);
   plaque.fillRoundedRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4, 5);
   plaque.fillStyle(0x5c4e38, 0.96);
   plaque.fillRoundedRect(-w / 2, -h / 2, w, h, 4);
   const text = scene.add
-    .bitmapText(0, 1, HUD_FONT.face, "BIKE LANE", glance ? 16 : 13)
+    .bitmapText(0, 1, HUD_FONT.face, "BIKE LANE", glance ? 18 : 13)
     .setTint(0xf4ecd0)
     .setOrigin(0.5);
   const box = scene.add.container(sx, sy, [plaque, text]);
