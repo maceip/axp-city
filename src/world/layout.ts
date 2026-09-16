@@ -398,11 +398,19 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
   const streetRows = [...new Set(placements.map((p) => p.row))].sort(
     (a, b) => a - b,
   );
-  // One road tile + one bike-lane tile per occupied street slot so Phaser
-  // and tests share a continuous corridor (not a sparse 4px diamond).
+  // Continuous corridors are painted in terrain. Stamp a few restyled
+  // diamonds per row (not every slot) so a 1,000-lot city does not keep
+  // thousands of unculled civic images alive.
   for (const row of streetRows) {
+    const slots: number[] = [];
     for (let sx = minSx; sx <= maxSx; sx++) {
-      if (isReservedSlot(sx, row)) continue;
+      if (!isReservedSlot(sx, row)) slots.push(sx);
+    }
+    const picks = new Set<number>();
+    if (slots[0] !== undefined) picks.add(slots[0]);
+    if (slots.length > 1) picks.add(slots[slots.length - 1]!);
+    if (slots.length > 4) picks.add(slots[Math.floor(slots.length / 2)]!);
+    for (const sx of picks) {
       const origin = slotOrigin(sx, row);
       civics.push({
         kind: "road",
