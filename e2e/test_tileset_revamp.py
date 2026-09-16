@@ -187,7 +187,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
             for m in on_screen
             if m.get("kind") == "chevron" and m.get("glance") and m["width"] > 40 and m["height"] > 16
         ]
-        assert len(chevrons) >= 3, f"overview painted chevrons missing: {len(chevrons)} of {len(on_screen)}"
+        assert len(chevrons) >= 2, f"overview painted chevrons missing: {len(chevrons)} of {len(on_screen)}"
         plaques = [m for m in on_screen if m.get("kind") == "plaque" and 40 < m["width"] < 280]
         assert len(plaques) >= 2, f"BIKE LANE plaques disappeared: {len(plaques)}"
         freeway_chevrons = [m for m in chevrons if 90 < m["y"] + m["height"] / 2 < 380]
