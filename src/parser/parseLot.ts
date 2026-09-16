@@ -171,7 +171,7 @@ export function pickBuildingId(
 
 /** Muted isometric tints — keep gray pads readable, shift roofs/walls. */
 export const FACADE_TINTS = [
-  0xffffff, 0xffe4c8, 0xd5e8ff, 0xe8ffd5, 0xffd5e0, 0xfff3c4, 0xe0d5ff, 0xd5fff3,
+  0xffffff, 0xe4d4b8, 0xd5e8ff, 0xe8ffd5, 0xe8d4d4, 0xe8e0b8, 0xe0d5ff, 0xd5fff3,
 ] as const;
 
 const DRESSING: import("../types.js").DressingProp[] = [

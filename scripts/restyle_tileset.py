@@ -10,6 +10,7 @@ renderer stamps. Repo lots do not receive raw mismatched art.
 
 from __future__ import annotations
 
+import colorsys
 import json
 import math
 from collections import deque
@@ -362,6 +363,134 @@ def stamp_jane_odd_frames(path: Path = OUT / "civic-kit-k1.png") -> None:
         print("stamped", name, "jane-odd →", (x, y, w, h))
     kit.save(path)
     print("crushed Jane church/villa/mill/hall onto catalog cream-slate")
+
+
+# Measured Phaser frames (src/render/sprites.ts). Roof remap stays in-box.
+CATALOG_BUILDING_BOXES: dict[int, tuple[int, int, int, int]] = {
+    1: (78, 65, 99, 111),
+    2: (329, 56, 110, 120),
+    3: (579, 61, 121, 115),
+    4: (831, 52, 129, 124),
+    5: (1087, 55, 129, 121),
+    6: (63, 244, 130, 112),
+    7: (322, 237, 123, 119),
+    8: (579, 253, 122, 103),
+    9: (837, 238, 117, 118),
+    10: (1094, 239, 115, 117),
+    11: (22, 364, 211, 172),
+    12: (283, 364, 202, 172),
+    13: (546, 364, 187, 172),
+    14: (806, 364, 179, 172),
+    15: (1053, 364, 198, 172),
+    16: (20, 544, 215, 172),
+    17: (298, 545, 171, 171),
+    18: (82, 4, 91, 172),
+    19: (333, 4, 101, 172),
+    20: (584, 4, 111, 172),
+    21: (834, 4, 124, 172),
+    22: (1094, 4, 115, 172),
+    23: (65, 184, 126, 172),
+    24: (325, 184, 118, 172),
+    25: (573, 184, 134, 172),
+    26: (839, 184, 114, 172),
+    27: (1097, 184, 109, 172),
+    28: (35, 364, 186, 172),
+    29: (297, 364, 174, 172),
+    30: (550, 364, 179, 172),
+    31: (815, 364, 162, 172),
+    32: (1062, 364, 180, 172),
+    33: (41, 544, 173, 172),
+    34: (279, 544, 210, 172),
+    35: (129, 5, 61, 171),
+    36: (448, 4, 64, 172),
+    37: (765, 4, 70, 172),
+    38: (1082, 4, 75, 172),
+    39: (122, 184, 76, 172),
+    40: (440, 184, 80, 172),
+    41: (765, 184, 70, 172),
+    42: (1079, 184, 82, 172),
+    43: (127, 364, 66, 172),
+    44: (448, 364, 63, 172),
+    45: (718, 364, 163, 172),
+    46: (1042, 364, 155, 172),
+    47: (82, 544, 156, 172),
+    48: (406, 544, 148, 172),
+    49: (719, 544, 161, 172),
+    50: (1045, 544, 149, 172),
+}
+
+CATALOG_SHEETS = {
+    "S": (OUT / "buildings-small-01-17-k1.png", range(1, 18)),
+    "M": (OUT / "buildings-medium-18-34-k1.png", range(18, 35)),
+    "L": (OUT / "buildings-large-35-50-k1.png", range(35, 51)),
+}
+
+# Distinct catalog roof families — not one house, not raw terracotta.
+ROOF_FAMILIES = (
+    (132, 118, 96),   # umber
+    (108, 112, 114),  # slate
+    (116, 118, 90),   # olive
+    (146, 132, 112),  # muted clay
+)
+
+
+def _clamp_byte(v: float) -> int:
+    return max(0, min(255, int(round(v))))
+
+
+def is_high_chroma_orange_roof(r: int, g: int, b: int) -> bool:
+    """Terracotta / orange tiles — skip foliage, glass, low-sat wood."""
+    if g > r + 12 and g > b + 8:
+        return False
+    if b > r + 12 and b >= g - 4:
+        return False
+    h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+    deg = h * 360.0
+    orange = 10.0 <= deg <= 42.0
+    return orange and s >= 0.38 and v >= 0.34 and r > 120 and r > b + 26
+
+
+def restyle_catalog_roof(im: Image.Image, building_id: int) -> Image.Image:
+    """Pull high-chroma terracotta in the roof band onto a catalog family."""
+    out = im.copy()
+    px = out.load()
+    ys = [y for y in range(out.height) for x in range(out.width) if px[x, y][3] >= 16]
+    if not ys:
+        return out
+    y0, y1 = min(ys), max(ys)
+    y_cut = y0 + int((y1 - y0) * 0.66)
+    fr, fg, fb = ROOF_FAMILIES[building_id % 4]
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16 or y > y_cut or not is_high_chroma_orange_roof(r, g, b):
+                continue
+            h, s, _v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+            t = 0.86 if s < 0.48 else 0.94
+            nr = r * (1 - t) + fr * t
+            ng = g * (1 - t) + fg * t
+            nb = b * (1 - t) + fb * t
+            luma = 0.299 * r + 0.587 * g + 0.114 * b
+            new_luma = 0.299 * nr + 0.587 * ng + 0.114 * nb
+            if new_luma > 1:
+                scale = luma / new_luma
+                nr, ng, nb = nr * scale, ng * scale, nb * scale
+            px[x, y] = (_clamp_byte(nr), _clamp_byte(ng), _clamp_byte(nb), a)
+    return out
+
+
+def stamp_catalog_roofs() -> None:
+    """Remap terracotta roofs in place. Sprite boxes and silhouettes stay put."""
+    for name, (path, ids) in CATALOG_SHEETS.items():
+        kit = open_rgba(path)
+        n = 0
+        for bid in ids:
+            x, y, w, h = CATALOG_BUILDING_BOXES[bid]
+            crop = restyle_catalog_roof(kit.crop((x, y, x + w, y + h)).copy(), bid)
+            kit.paste(crop, (x, y))
+            n += 1
+        kit.save(path)
+        print("stamped catalog roofs", name, n, "→", path)
 
 
 def stamp_scaffold_frames(path: Path = OUT / "civic-kit-k1.png") -> None:
@@ -1050,6 +1179,7 @@ def main() -> None:
     s_sheet.save(OUT / "buildings-small-01-17-k1.png")
     m_sheet.save(OUT / "buildings-medium-18-34-k1.png")
     l_sheet.save(OUT / "buildings-large-35-50-k1.png")
+    stamp_catalog_roofs()
 
     building_boxes = {}
     for i, box in enumerate(s_boxes, 1):
@@ -1081,6 +1211,7 @@ def main() -> None:
                 "Construction-city HUD: beveled wood/slate plaques + brass rivets (not Jane chrome)",
                 "Jane's houses only after saturation crush",
                 "Jane church / villa / mill / hall after cream-slate remap (not raw lemon Realty)",
+                "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
             ],
@@ -1152,6 +1283,8 @@ if __name__ == "__main__":
         stamp_scaffold_frames()
     elif "--stamp-jane-odds" in sys.argv:
         stamp_jane_odd_frames()
+    elif "--stamp-catalog-roofs" in sys.argv:
+        stamp_catalog_roofs()
     elif "--civic-only" in sys.argv:
         civic_boxes, hud_boxes = write_civic_and_hud()
         existing = {}

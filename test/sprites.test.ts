@@ -63,6 +63,58 @@ describe("building sprite atlas", () => {
     }
   });
 
+  it("remaps high-chroma terracotta roofs onto catalog families without flattening the sheet", () => {
+    const script = `
+from PIL import Image
+import colorsys
+boxes = {6:(63,244,130,112), 11:(22,364,211,172), 17:(298,545,171,171)}
+small = Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA")
+px = small.load()
+
+def orange(r,g,b):
+    if g > r + 12 and g > b + 8:
+        return False
+    h,s,v = colorsys.rgb_to_hsv(r/255,g/255,b/255)
+    return 10 <= h*360 <= 42 and s >= 0.38 and v >= 0.34 and r > b + 26
+
+def stats(box):
+    x0,y0,w,h = box
+    n=ora=0
+    sr=sg=sb=0
+    for y in range(y0,y0+h):
+        for x in range(x0,x0+w):
+            r,g,b,a = px[x,y]
+            if a<16: continue
+            n+=1
+            sr+=r;sg+=g;sb+=b
+            if orange(r,g,b): ora+=1
+    return n, ora, sr/n, sg/n, sb/n
+
+n6,o6,r6,g6,b6 = stats(boxes[6])
+n17,o17,r17,g17,b17 = stats(boxes[17])
+n11,o11,r11,g11,b11 = stats(boxes[11])
+families=set()
+for y in range(0,small.height,3):
+    for x in range(0,small.width,3):
+        r,g,b,a = px[x,y]
+        if a<16: continue
+        if max(r,g,b)-min(r,g,b)>28:
+            families.add(int(colorsys.rgb_to_hsv(r/255,g/255,b/255)[0]*8))
+print(f"{o6/n6:.4f} {r6-b6:.1f} {g17-r17:.1f} {g11-r11:.1f} {len(families)}")
+`;
+    const [orange6, warm6, pagodaGreen, houseGreen, families] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(orange6, "building 6 still has a high-chroma terracotta roof").toBeLessThan(0.05);
+    expect(warm6, "building 6 roof still reads orange (R>>B)").toBeLessThan(32);
+    expect(pagodaGreen, "pagoda roof was flattened off catalog green").toBeGreaterThan(4);
+    expect(houseGreen, "green catalog house roof was flattened").toBeGreaterThan(0);
+    expect(families, "catalog roofs collapsed to one hue family").toBeGreaterThanOrEqual(4);
+  });
+
   it("lands the stamp bottom-center on the pad at lot scale", () => {
     const sheet = sheetForBand("S");
     const box = spriteBoxFor(1);

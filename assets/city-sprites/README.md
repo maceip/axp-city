@@ -116,8 +116,10 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
 
 - `buildings-*-k1.png` — ChatGPT 10×3 AXP isometric families + original
   pagoda (id 17), packed on a 5-column grid. Repo lots pick `buildingId`
-  1–50 as before; `facadeTint` + `dressingProp` are a second hash so two
-  lots that share a silhouette do not look like the same house.
+  1–50 as before; high-chroma terracotta roofs remap to umber / slate /
+  olive / clay families so lots share one vibe without becoming one house.
+  `facadeTint` + `dressingProp` are a second hash so two lots that share a
+  silhouette still read as different houses.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
   stamped larger than any repo lot), Jane's city hall / church / villa / store
   (odd unused buildings, cream-slate remap — not raw lemon Realty), attached construction stages (pad→posts→roof→shell,
