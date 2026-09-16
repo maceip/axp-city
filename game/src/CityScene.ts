@@ -72,6 +72,7 @@ export class CityScene extends Phaser.Scene {
   private restoreSelected?: string;
   private restoreCamera?: { scrollX: number; scrollY: number; zoom: number };
   private restoreUntil = 0;
+  private restoreKeysIdle = false;
   reducedMotion = false;
 
   constructor() {
@@ -92,8 +93,11 @@ export class CityScene extends Phaser.Scene {
     this.move = { x: 0, y: 0 };
     this.lastRefresh = -Infinity;
     this.lastCamera = "";
+    this.lastInputTime = performance.now();
     this.frameTimes = [];
     this.restoreUntil = 0;
+    this.restoreCamera = undefined;
+    this.restoreKeysIdle = false;
     this.connectionState = "connecting";
     this.city = this.registry.get("snapshot");
     this.reducedMotion = this.registry.get("reducedMotion") ?? matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -115,6 +119,7 @@ export class CityScene extends Phaser.Scene {
       home: () => this.home(),
       select: (repo: string | undefined, frame?: boolean) => this.select(repo, frame ?? true),
       move: (x: number, y: number) => {
+        this.releaseRestoreCamera();
         this.stopFollowing();
         this.move = { x, y };
         this.cameras.main.scrollX += (x * 32) / this.cameras.main.zoom;
@@ -133,7 +138,6 @@ export class CityScene extends Phaser.Scene {
     if (restore) {
       this.registry.remove("restore");
       this.restoreCamera = { scrollX: restore.scrollX, scrollY: restore.scrollY, zoom: restore.zoom };
-      this.restoreUntil = performance.now() + 2500;
       this.applyRestoreCamera();
       this.restoreSelected = restore.selected;
     } else {
@@ -599,6 +603,7 @@ export class CityScene extends Phaser.Scene {
   }
 
   private home(): void {
+    this.releaseRestoreCamera();
     this.stopFollowing();
     const center = project(3.5, 2);
     this.cameras.main.setZoom(innerWidth < 700 ? 0.9 : 1);
@@ -611,10 +616,16 @@ export class CityScene extends Phaser.Scene {
     if (!r) return;
     this.cameras.main.setZoom(r.zoom);
     this.cameras.main.setScroll(r.scrollX, r.scrollY);
-    this.lastRefresh = -Infinity;
+  }
+
+  private releaseRestoreCamera(): void {
+    this.restoreCamera = undefined;
+    this.restoreUntil = 0;
+    this.restoreKeysIdle = false;
   }
 
   private frameLot(place: LotPlacement): void {
+    this.releaseRestoreCamera();
     const camera = this.cameras.main,
       bounds = lotBounds(place);
     const small = camera.width < 700;
@@ -637,6 +648,7 @@ export class CityScene extends Phaser.Scene {
   }
 
   private zoomAt(factor: number, x = this.cameras.main.width / 2, y = this.cameras.main.height / 2): void {
+    this.releaseRestoreCamera();
     const c = this.cameras.main,
       zoom = Phaser.Math.Clamp(c.zoom * factor, 0.35, 2.2);
     const wx = c.scrollX + c.width / 2 + (x - c.width / 2) / c.zoom,
@@ -712,6 +724,7 @@ export class CityScene extends Phaser.Scene {
         const d = this.drag;
         if (Math.hypot(p.x - d.startX, p.y - d.startY) > 5) d.moved = true;
         if (d.moved) {
+          this.releaseRestoreCamera();
           this.cameras.main.scrollX -= (p.x - d.x) / this.cameras.main.zoom;
           this.cameras.main.scrollY -= (p.y - d.y) / this.cameras.main.zoom;
         }
@@ -841,7 +854,8 @@ export class CityScene extends Phaser.Scene {
     this.frameTimes.push(elapsed);
     if (this.frameTimes.length > 240) this.frameTimes.shift();
     const typing = document.activeElement instanceof HTMLInputElement;
-    const restoring = Boolean(this.restoreCamera) && inputTime < this.restoreUntil;
+    const restoring = Boolean(this.restoreCamera);
+    if (restoring) this.applyRestoreCamera();
     if (!restoring && !typing && !(this.hudReady && this.hud.censusIsOpen)) {
       const x = this.move.x + (this.keys.D?.isDown || this.keys.RIGHT?.isDown ? 1 : 0) - (this.keys.A?.isDown || this.keys.LEFT?.isDown ? 1 : 0);
       const y = this.move.y + (this.keys.S?.isDown || this.keys.DOWN?.isDown ? 1 : 0) - (this.keys.W?.isDown || this.keys.UP?.isDown ? 1 : 0);
@@ -850,6 +864,11 @@ export class CityScene extends Phaser.Scene {
         c.scrollX += (((x * 420) / c.zoom) * elapsed) / 1000;
         c.scrollY += (((y * 420) / c.zoom) * elapsed) / 1000;
       }
+    } else if (restoring && !typing) {
+      const x = this.move.x + (this.keys.D?.isDown || this.keys.RIGHT?.isDown ? 1 : 0) - (this.keys.A?.isDown || this.keys.LEFT?.isDown ? 1 : 0);
+      const y = this.move.y + (this.keys.S?.isDown || this.keys.DOWN?.isDown ? 1 : 0) - (this.keys.W?.isDown || this.keys.UP?.isDown ? 1 : 0);
+      if (!x && !y) this.restoreKeysIdle = true;
+      else if (this.restoreKeysIdle) this.releaseRestoreCamera();
     }
     this.actors.step(Math.min(delta, 100));
     if (!restoring && this.followActor) {
@@ -859,10 +878,6 @@ export class CityScene extends Phaser.Scene {
         c.scrollX += (at.sx - c.width / 2 - c.scrollX) * k;
         c.scrollY += (at.sy - 20 - c.height / 2 - c.scrollY) * k;
       } else this.followActor = undefined;
-    }
-    if (this.restoreCamera) {
-      this.applyRestoreCamera();
-      if (inputTime >= this.restoreUntil) this.restoreCamera = undefined;
     }
     const cameraKey = `${Math.round(c.scrollX)}:${Math.round(c.scrollY)}:${c.zoom.toFixed(3)}:${c.width}x${c.height}`;
     if (time - this.lastRefresh > 100 || cameraKey !== this.lastCamera) {
