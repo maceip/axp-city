@@ -25,6 +25,11 @@ def hud(page, name):
     return point
 
 
+def hud_or_none(page, name):
+    """The HUD point when the control is on screen, else None (no assertion)."""
+    return page.evaluate("name => window.__AXP.hudPoint(name)", name)
+
+
 def click_hud(page, name):
     p = hud(page, name)
     page.mouse.click(p["x"], p["y"])
@@ -796,7 +801,76 @@ def test_mobile_tap_dpad_pinch_and_layout(browser, server):
     # The native search field opens a real keyboard path on phones.
     page.locator("#repo-search").tap()
     assert page.evaluate("document.activeElement.id") == "repo-search"
+    page.evaluate("document.activeElement.blur()")
     page.screenshot(path=str(SHOTS / "mobile.png"))
+
+    # Every advertised control is inside the phone viewport and is what a finger meets there:
+    # not clipped by the edge and not under the native search field (a DOM element above
+    # the canvas), which is where the compass and MASS bar used to sit.
+    for name in ["plate", "status", "compass", "mass", "census", "capture", "svg", "motion", "follow", "zoom-in", "zoom-out", "minimap", "dpad"]:
+        p = hud(page, name)
+        assert p["x"] - p["width"] / 2 >= 0 and p["x"] + p["width"] / 2 <= 390 and p["y"] + p["height"] / 2 <= 844, (name, p)
+        assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).tagName", [p["x"], p["y"]]) == "CANVAS", name
+    frames = {name: hud(page, name) for name in ["plate", "status", "compass", "mass"]}
+    for a in frames:
+        for b in frames:
+            if a < b:
+                fa, fb = frames[a], frames[b]
+                overlap = min(fa["x"] + fa["width"] / 2, fb["x"] + fb["width"] / 2) > max(fa["x"] - fa["width"] / 2, fb["x"] - fb["width"] / 2) and \
+                    min(fa["y"] + fa["height"] / 2, fb["y"] + fb["height"] / 2) > max(fa["y"] - fa["height"] / 2, fb["y"] - fb["height"] / 2)
+                assert not overlap, (a, b, fa, fb)
+
+    # Every other advertised control by touch: zoom buttons, home, minimap travel, compass,
+    # motion toggle, census open / row pick / close, follow.
+    def tap(name):
+        p = hud(page, name)
+        page.touchscreen.tap(p["x"], p["y"])
+
+    z = diag(page)["zoom"]
+    tap("zoom-out")
+    page.wait_for_function("z => window.__AXP.diagnostics().zoom < z - 0.05", arg=z)
+    tap("zoom-in")
+    page.wait_for_function("z => Math.abs(window.__AXP.diagnostics().zoom - z) < 0.02", arg=z)
+    tap("home")
+    settled(page)
+    home = diag(page)
+    m = hud(page, "minimap")
+    page.touchscreen.tap(m["x"] - m["width"] * 0.35, m["y"] - m["height"] * 0.3)
+    page.wait_for_function("s => Math.abs(window.__AXP.diagnostics().scrollX - s.scrollX) > 50 || Math.abs(window.__AXP.diagnostics().scrollY - s.scrollY) > 50", arg=home)
+    tap("compass")
+    page.wait_for_function("s => Math.abs(window.__AXP.diagnostics().scrollX - s.scrollX) < 5 && Math.abs(window.__AXP.diagnostics().scrollY - s.scrollY) < 5", arg=home, timeout=10000)
+    tap("motion")
+    page.wait_for_function("window.__AXP.diagnostics().reducedMotion")
+    tap("motion")
+    page.wait_for_function("!window.__AXP.diagnostics().reducedMotion")
+    tap("census")
+    page.wait_for_function("window.__AXP.diagnostics().censusOpen")
+    page.wait_for_timeout(500)
+    rows = page.evaluate("window.__AXP.censusRows().map(r => r.repo)")
+    page.screenshot(path=str(SHOTS / "mobile-census.png"))
+    # The census is a bottom sheet: the controls it covers are withdrawn rather than
+    # left showing through the plaque, and every row is inside the phone's width.
+    assert all(hud_or_none(page, name) is None for name in ["dpad", "census", "capture", "svg", "motion", "follow"])
+    for repo in rows:
+        r = hud(page, f"census-row-{repo}")
+        assert r and r["x"] - r["width"] / 2 >= 0 and r["x"] + r["width"] / 2 <= 390, (repo, r)
+    row = hud(page, f"census-row-{rows[1]}")  # a census row is a real touch target
+    page.touchscreen.tap(row["x"], row["y"])
+    page.wait_for_function("r => window.__AXP.diagnostics().selected === r", arg=rows[1])
+    # Two bottom sheets take turns on a phone: picking a row closes the census and shows the card.
+    page.wait_for_function("!window.__AXP.diagnostics().censusOpen && window.__AXP.diagnostics().cardVisible")
+    # The card covers the toolbar, so it carries its own Follow button.
+    assert hud_or_none(page, "follow") is None and hud(page, "follow-card") is not None
+    tap("follow-card")
+    page.wait_for_function("Boolean(window.__AXP.diagnostics().following)", timeout=10000)
+    # The follow toast wraps inside the phone instead of running past its edge.
+    page.wait_for_function("window.__AXP.diagnostics().toastVisible")
+    t = hud(page, "toast")
+    assert t and t["x"] - t["width"] / 2 >= 0 and t["x"] + t["width"] / 2 <= 390, t
+    page.screenshot(path=str(SHOTS / "mobile-follow.png"))
+    tap("close-card")
+    page.wait_for_function("!window.__AXP.diagnostics().cardVisible && !window.__AXP.diagnostics().following")
+    assert all(hud_or_none(page, name) is not None for name in ["dpad", "census", "capture", "svg", "motion", "follow"])
     context.close()
 
 

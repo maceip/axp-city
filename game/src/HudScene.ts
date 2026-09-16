@@ -17,6 +17,7 @@ import { yardLabel, yardPropList } from "../../src/rules/cityFiles.js";
 import type { LotPlacement } from "../../src/world/layout.js";
 import { SceneKeys } from "./Boot.js";
 import type { ConnectionState } from "./connection.js";
+import { NinePanel } from "./ninepanel.js";
 import { ensureFrame } from "./stamps.js";
 
 export interface HudActions {
@@ -34,6 +35,11 @@ const FONT = "ui-monospace, Menlo, Consolas, monospace";
 const GOLD = "#f6dd91";
 const INK = "#f2efe2";
 const MUTED = "#b9c4b3";
+/** MASS plate width: fits "MASS · M BUILDING · 123,456 ★" at 10 px. */
+const MASS_W = 200;
+/** Census table: 11 px monospace rows of this height, indented from the plaque edge. */
+const CENSUS_ROW_H = 22;
+const CENSUS_PAD = 16;
 
 interface Button {
   container: Phaser.GameObjects.Container;
@@ -98,14 +104,17 @@ export class HudScene extends Phaser.Scene {
   private cardBg!: Phaser.GameObjects.Image;
   private cardTexts: Phaser.GameObjects.Text[] = [];
   private census!: Phaser.GameObjects.Container;
-  private censusBg!: Phaser.GameObjects.Image;
+  private censusBg!: NinePanel;
   private censusRowsTexts: Phaser.GameObjects.Text[] = [];
   private censusHeader: Phaser.GameObjects.Text[] = [];
+  /** Advance of one glyph of the census font, measured once so header and rows share columns. */
+  private censusGlyph = 0;
   private censusOpen = false;
   private censusScroll = 0;
   private censusSort: { key: CensusSortKey; descending: boolean } = { key: "stars", descending: true };
   private censusFilter = "";
   private censusVisible: CensusRow[] = [];
+  private censusVisibleRows = 1;
   private toastText!: Phaser.GameObjects.Text;
   private toastBg!: Phaser.GameObjects.Image;
   private toastTimer?: Phaser.Time.TimerEvent;
@@ -204,11 +213,11 @@ export class HudScene extends Phaser.Scene {
     this.compass.setName("compass");
 
     this.massContainer = this.add.container(0, 92);
-    const massBg = this.hudPanel("mass", 186, 44);
+    const massBg = this.hudPanel("mass", MASS_W, 44);
     this.massLabel = this.add.text(12, 8, "MASS —", { fontFamily: FONT, fontSize: "10px", color: GOLD, letterSpacing: 1 });
     this.massBar = this.add.graphics();
     this.massContainer.add([massBg, this.massLabel, this.massBar]);
-    this.massContainer.setSize(186, 44).setName("mass");
+    this.massContainer.setSize(MASS_W, 44).setName("mass").setDepth(2);
     this.drawMass(undefined);
 
     this.zoomText = this.add.text(0, 0, "100%", { fontFamily: FONT, fontSize: "12px", color: INK }).setOrigin(0.5);
@@ -220,7 +229,7 @@ export class HudScene extends Phaser.Scene {
     this.minimapBg.setPosition(-6, -6);
     this.minimapPlan = this.add.graphics();
     this.minimapView = this.add.graphics();
-    const mapLabel = this.add.text(this.minimapSize.w / 2, this.minimapSize.h + 8, "CITY OVERVIEW · drag to travel", { fontFamily: FONT, fontSize: "9px", color: MUTED, letterSpacing: 1 }).setOrigin(0.5, 0);
+    const mapLabel = this.add.text(this.minimapSize.w / 2, this.minimapSize.h + 8, "CITY OVERVIEW · drag to travel", { fontFamily: FONT, fontSize: "9px", color: MUTED }).setOrigin(0.5, 0);
     this.minimap.add([this.minimapBg, this.minimapPlan, this.minimapView, mapLabel]);
     this.minimap.setSize(this.minimapSize.w, this.minimapSize.h);
     this.minimap.setInteractive({
@@ -294,16 +303,27 @@ export class HudScene extends Phaser.Scene {
       if (this.selected) window.open(this.selected.lot.url, "_blank", "noopener,noreferrer");
     });
     this.card.add(open.container);
+    // The card is the one place a phone user can reach Follow while it covers the toolbar.
+    const followCard = this.button("follow-card", "Follow crew", 118, 34, () => this.actions.follow());
+    this.card.add(followCard.container);
 
     this.census = this.add.container(0, 0).setVisible(false).setName("census-panel");
-    this.censusBg = this.hudPanel("census", 900, 120);
+    // The kit's "census" art is a translucent parchment ticker with a wooden block at
+    // its right end; stretched into a tall table it left light text on a light,
+    // see-through ground. The table sits on the same dark plaque as the inspect card,
+    // stretched from its border so the rivets and bevel keep their size.
+    this.censusBg = new NinePanel(this, HUD_SHEET.file, HUD_FRAMES.card, 18, 540, 400);
+    this.add.existing(this.censusBg);
     this.census.add(this.censusBg);
+    const probe = this.add.text(0, 0, "0000000000", { fontFamily: FONT, fontSize: "11px" });
+    this.censusGlyph = probe.width / 10;
+    probe.destroy();
     const closeCensus = this.button("close-census", "×", 32, 32, () => this.toggleCensus(false));
     this.census.add(closeCensus.container);
 
-    this.toastBg = this.hudPanel("toast", 360, 48).setOrigin(0.5, 1).setVisible(false).setDepth(49);
+    this.toastBg = this.hudPanel("toast", 360, 48).setOrigin(0.5, 1).setVisible(false).setDepth(49).setName("toast");
     this.toastText = this.add
-      .text(0, 0, "", { fontFamily: FONT, fontSize: "13px", color: INK })
+      .text(0, 0, "", { fontFamily: FONT, fontSize: "13px", color: INK, align: "center", wordWrap: { width: 324 } })
       .setOrigin(0.5, 1)
       .setVisible(false)
       .setDepth(50);
@@ -368,33 +388,43 @@ export class HudScene extends Phaser.Scene {
     this.mast.setVisible(!small);
     this.mast.setPosition(10, 10);
     this.mast.setDisplaySize(W - 20, 86);
-    this.tools.setPosition(W - 336, 16);
-    this.massContainer.setVisible(!small || !this.card.visible);
+    // Phones cannot fit the survey plate, the native search field and the status plate in
+    // one row: stack them (plate → search at 100 px by CSS → status) and keep the compass
+    // and MASS bar out from under the search input.
+    this.tools.setPosition(small ? 16 : W - 336, small ? 150 : 16);
+    this.massContainer.setVisible(true);
     const mapW = small ? 120 : 180,
       mapH = small ? 78 : 118;
     if (mapW !== this.minimapSize.w) {
       this.minimapSize = { w: mapW, h: mapH };
       this.minimapBg.setDisplaySize(mapW + 12, mapH + 30);
-      (this.minimap.list[3] as Phaser.GameObjects.Text).setPosition(mapW / 2, mapH + 8);
+      const caption = this.minimap.list[3] as Phaser.GameObjects.Text;
+      caption.setPosition(mapW / 2, mapH + 8).setText(small ? "CITY OVERVIEW · tap" : "CITY OVERVIEW · drag to travel");
       this.minimap.setSize(mapW, mapH);
       (this.minimap.input!.hitArea as Phaser.Geom.Rectangle).setTo(mapW / 2, mapH / 2, mapW, mapH);
       this.drawMinimapPlan();
     }
     this.minimap.setPosition(W - mapW - 22, H - mapH - 46);
     const zoomY = H - mapH - 100;
-    this.buttons.get("zoom-out")!.container.setPosition(W - mapW - 22, zoomY);
-    this.zoomText.setPosition(W - mapW - 22 + 40 + 34, zoomY + 20);
-    this.buttons.get("zoom-in")!.container.setPosition(W - mapW - 22 + 108, zoomY);
+    // The zoom row is 148 px wide; the phone minimap is narrower than that, so anchor
+    // the row to the right edge instead of the minimap's left edge.
+    const zoomX = small ? W - 22 - 148 : W - mapW - 22;
+    this.buttons.get("zoom-out")!.container.setPosition(zoomX, zoomY);
+    this.zoomText.setPosition(zoomX + 40 + 34, zoomY + 20);
+    this.buttons.get("zoom-in")!.container.setPosition(zoomX + 108, zoomY);
     this.dpad.setPosition(16, H - 166);
     this.dpad.setScale(small ? 0.85 : 1);
-    // A phone's bottom-sheet card covers the d-pad; it returns when the card closes.
-    this.dpad.setVisible(!(small && this.card.visible));
+    // A phone's bottom sheets (card, census) cover the d-pad and the toolbar; both
+    // return when the sheet closes, and the card carries its own Follow meanwhile.
+    const sheet = small && (this.card.visible || this.censusOpen);
+    this.dpad.setVisible(!sheet);
     const toolbar = ["census", "capture", "svg", "motion", "follow"];
+    for (const name of toolbar) this.buttons.get(name)!.container.setVisible(!sheet);
     this.hint.setOrigin(0, 1).setPosition(190, H - 60).setVisible(!small && !this.censusOpen && W >= 1100);
     if (small) {
       this.kitRail.setVisible(false);
-      this.compass.setPosition(W - 60, 92);
-      this.massContainer.setPosition(W - 210, 92);
+      this.compass.setPosition(W - 68, 20);
+      this.massContainer.setPosition(16, 222);
       const y0 = H - 248;
       let x = 16;
       for (const name of ["census", "capture", "svg"]) {
@@ -429,8 +459,7 @@ export class HudScene extends Phaser.Scene {
         y += b.height + 8;
       }
     }
-    this.toastBg.setPosition(W / 2, H - (small ? 230 : 70));
-    this.toastText.setPosition(W / 2, H - (small ? 230 : 70));
+    this.placeToast();
     this.layoutCard();
     this.layoutCensus();
     this.emit("layout", { small });
@@ -580,10 +609,13 @@ export class HudScene extends Phaser.Scene {
 
   private drawMass(place: LotPlacement | undefined): void {
     const pct = massPercent(place?.lot.buildingBand);
-    this.massLabel.setText(place ? `MASS · ${place.lot.buildingBand} BUILDING · ${place.lot.stars.toLocaleString()} ★` : "MASS — select a building");
+    const barW = MASS_W - 24;
+    this.massLabel.setLetterSpacing(1).setText(place ? `MASS · ${place.lot.buildingBand} BUILDING · ${place.lot.stars.toLocaleString()} ★` : "MASS — select a building");
+    // Star counts in the hundreds of thousands still have to end inside the plaque.
+    if (this.massLabel.width > barW) this.massLabel.setLetterSpacing(0);
     this.massBar.clear();
-    this.massBar.fillStyle(0x2a2f2c, 1).fillRoundedRect(12, 26, 162, 8, 3);
-    if (pct) this.massBar.fillStyle(0xf6dd91, 1).fillRoundedRect(12, 26, 1.62 * pct, 8, 3);
+    this.massBar.fillStyle(0x2a2f2c, 1).fillRoundedRect(12, 26, barW, 8, 3);
+    if (pct) this.massBar.fillStyle(0xf6dd91, 1).fillRoundedRect(12, 26, (barW / 100) * pct, 8, 3);
   }
 
   /** One selection for the whole client: card, MASS bar, minimap marker and mirror. */
@@ -629,7 +661,7 @@ export class HudScene extends Phaser.Scene {
       y += t.height + 6;
     }
     this.card.setData("height", y + 52);
-    this.card.setVisible(true);
+    this.card.setVisible(!(this.scale.width < 700 && this.censusOpen));
     this.layoutCard();
     if (site.stage !== "complete")
       // Stage and percentage move with time, not only with data; keep the card current.
@@ -660,6 +692,7 @@ export class HudScene extends Phaser.Scene {
     this.cardBg.setDisplaySize(width, height);
     this.buttons.get("close-card")!.container.setPosition(width - 40, 8);
     this.buttons.get("open-repo")!.container.setPosition(16, height - 44);
+    this.buttons.get("follow-card")!.container.setPosition(width - 118 - 16, height - 44);
     if (small) {
       this.dpad.setVisible(false);
       this.hint.setVisible(false);
@@ -683,6 +716,9 @@ export class HudScene extends Phaser.Scene {
     this.census.setVisible(open);
     this.censusScroll = 0;
     if (open) this.renderCensus();
+    // On a phone both are bottom sheets, so they take turns: the census hides the card
+    // and picking a row hands back to the card (see the row handler).
+    if (this.selected) this.card.setVisible(!(this.scale.width < 700 && open));
     this.layout();
     this.emit("census", open);
   }
@@ -713,7 +749,8 @@ export class HudScene extends Phaser.Scene {
       this.censusBg.setDisplaySize(W, height);
       this.buttons.get("close-census")!.container.setPosition(W - 44, 8);
     } else {
-      const width = Math.min(540, Math.max(380, W * 0.34));
+      // Wide enough for the six desktop columns at 11 px without truncating crew labels.
+      const width = Math.min(560, Math.max(440, W * 0.4));
       const height = H - 122;
       this.census.setPosition(16, 106).setSize(width, height);
       this.censusBg.setDisplaySize(width, height);
@@ -723,24 +760,46 @@ export class HudScene extends Phaser.Scene {
     this.renderCensus();
   }
 
-  columns(): Array<{ key: CensusSortKey | "crew" | "yard" | "props"; label: string; width: number }> {
+  /**
+   * Census columns as glyph counts of the monospace row font, so the header
+   * labels and the padded row strings line up exactly. Numbers keep fixed
+   * widths; repository, district and crew share whatever the plaque has left.
+   */
+  columns(): Array<{ key: CensusSortKey | "crew"; label: string; chars: number; numeric: boolean }> {
     const small = this.scale.width < 700;
-    return small
+    const width = this.census.width || (small ? this.scale.width : 440);
+    const total = Math.max(30, Math.floor((width - 2 * CENSUS_PAD) / (this.censusGlyph || 6.6)));
+    const columns: Array<{ key: CensusSortKey | "crew"; label: string; chars: number; numeric: boolean; min?: number; weight?: number; max?: number }> = small
       ? [
-          { key: "repo", label: "Repo", width: 170 },
-          { key: "stars", label: "Stars", width: 60 },
-          { key: "prs", label: "PRs", width: 40 },
-          { key: "band", label: "Bld", width: 40 },
-          { key: "crew", label: "Crew", width: 90 },
+          { key: "repo", label: "Repo", chars: 0, numeric: false, min: 14, weight: 3, max: 40 },
+          { key: "stars", label: "Stars", chars: 7, numeric: true },
+          { key: "prs", label: "PRs", chars: 4, numeric: true },
+          { key: "band", label: "Bld", chars: 3, numeric: false },
+          { key: "crew", label: "Crew", chars: 0, numeric: false, min: 10, weight: 1, max: 12 },
         ]
       : [
-          { key: "repo", label: "Repo", width: 168 },
-          { key: "district", label: "District", width: 88 },
-          { key: "stars", label: "Stars", width: 52 },
-          { key: "prs", label: "PRs", width: 40 },
-          { key: "band", label: "Bld", width: 36 },
-          { key: "crew", label: "Crew", width: 88 },
+          { key: "repo", label: "Repo", chars: 0, numeric: false, min: 14, weight: 3, max: 40 },
+          { key: "district", label: "District", chars: 0, numeric: false, min: 8, weight: 1, max: 14 },
+          { key: "stars", label: "Stars", chars: 7, numeric: true },
+          { key: "prs", label: "PRs", chars: 4, numeric: true },
+          { key: "band", label: "Bld", chars: 3, numeric: false },
+          { key: "crew", label: "Crew", chars: 0, numeric: false, min: 10, weight: 1, max: 12 },
         ];
+    const flexible = columns.filter((c) => c.min !== undefined);
+    let spare = total - (columns.length - 1) - columns.reduce((n, c) => n + (c.min ?? c.chars), 0);
+    for (const c of flexible) c.chars = c.min!;
+    const weights = flexible.reduce((n, c) => n + c.weight!, 0);
+    for (const c of flexible) {
+      const extra = Math.min(c.max! - c.min!, Math.floor((spare * c.weight!) / weights));
+      c.chars += Math.max(0, extra);
+    }
+    spare = total - (columns.length - 1) - columns.reduce((n, c) => n + c.chars, 0);
+    for (const c of flexible) {
+      const extra = Math.min(c.max! - c.chars, Math.max(0, spare));
+      c.chars += extra;
+      spare -= extra;
+    }
+    return columns.map(({ key, label, chars, numeric }) => ({ key, label, chars, numeric }));
   }
 
   private renderCensus(): void {
@@ -749,54 +808,72 @@ export class HudScene extends Phaser.Scene {
     this.censusHeader = [];
     const rows = sortCensus(filterCensus(censusRows(this.snapshot.plan, this.now()), this.censusFilter), this.censusSort.key, this.censusSort.descending);
     this.censusVisible = rows;
+    const small = this.scale.width < 700;
+    const W = this.census.width || this.scale.width;
     const H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420));
-    const rowH = 22;
-    const visibleRows = Math.max(1, Math.floor((H - 70) / rowH));
-    this.censusScroll = Math.min(this.censusScroll, Math.max(0, rows.length - visibleRows));
-    const title = this.add.text(16, 10, `LOT CENSUS · ${rows.length} of ${this.snapshot.plan.placements.length} repositories${this.censusFilter ? ` matching “${this.censusFilter}”` : ""} · sorted by ${this.censusSort.key} ${this.censusSort.descending ? "↓" : "↑"} · scroll or ↑↓ to browse, Enter to inspect`, {
+    const wrap = W - CENSUS_PAD - 60; // room for the close button
+    const title = this.add.text(CENSUS_PAD, 10, `LOT CENSUS · ${rows.length} of ${this.snapshot.plan.placements.length} repositories${this.censusFilter ? ` matching “${this.censusFilter}”` : ""}`, {
       fontFamily: FONT,
       fontSize: "11px",
       color: GOLD,
       letterSpacing: 1,
+      wordWrap: { width: wrap },
     });
-    this.census.add(title);
-    this.censusHeader.push(title);
-    let x = 16;
-    for (const column of this.columns()) {
+    const subtitle = this.add.text(
+      CENSUS_PAD,
+      title.y + title.height + 2,
+      `sorted by ${this.censusSort.key} ${this.censusSort.descending ? "↓" : "↑"} · ${small ? "tap a row to inspect" : "scroll or ↑↓ to browse · Enter to inspect · click a heading to sort"}`,
+      { fontFamily: FONT, fontSize: "10px", color: MUTED, wordWrap: { width: wrap } },
+    );
+    this.census.add([title, subtitle]);
+    this.censusHeader.push(title, subtitle);
+    const headerY = subtitle.y + subtitle.height + 8;
+    const columns = this.columns();
+    const glyph = this.censusGlyph || 6.6;
+    let offset = 0;
+    for (const column of columns) {
       const sortable = ["repo", "stars", "issues", "prs", "band", "district"].includes(column.key);
-      const header = this.add.text(x, 34, `${column.label}${this.censusSort.key === column.key ? (this.censusSort.descending ? " ↓" : " ↑") : ""}`, { fontFamily: FONT, fontSize: "11px", color: sortable ? INK : MUTED, fontStyle: "bold" });
+      const label = `${column.label}${this.censusSort.key === column.key ? (this.censusSort.descending ? " ↓" : " ↑") : ""}`;
+      // Numeric headings end where their right-aligned digits end.
+      const x = CENSUS_PAD + (column.numeric ? offset + column.chars - label.length : offset) * glyph;
+      const header = this.add.text(x, headerY, label, { fontFamily: FONT, fontSize: "11px", color: sortable ? INK : MUTED, fontStyle: "bold" });
       if (sortable) {
         header.setInteractive({ useHandCursor: true });
         header.on("pointerup", () => this.sortBy(column.key as CensusSortKey));
       }
       this.census.add(header);
       this.censusHeader.push(header);
-      x += column.width;
+      offset += column.chars + 1;
     }
+    const rowsTop = headerY + CENSUS_ROW_H + 2;
+    const visibleRows = Math.max(1, Math.floor((H - rowsTop - 26) / CENSUS_ROW_H));
+    this.censusVisibleRows = visibleRows;
+    this.censusScroll = Math.min(this.censusScroll, Math.max(0, rows.length - visibleRows));
     const slice = rows.slice(this.censusScroll, this.censusScroll + visibleRows);
     slice.forEach((row, i) => {
-      const y = 58 + i * rowH;
+      const y = rowsTop + i * CENSUS_ROW_H;
       const selected = row.repo === this.selected?.lot.fullName;
-      let cx = 16;
-      const line = this.add.text(0, y, "", { fontFamily: FONT, fontSize: "11px", color: selected ? GOLD : INK });
+      const line = this.add.text(CENSUS_PAD, y, "", { fontFamily: FONT, fontSize: "11px", color: selected ? GOLD : INK });
       let text = "";
-      for (const column of this.columns()) {
+      for (const column of columns) {
         const value = String(cellValue(row, column.key));
-        const chars = Math.max(3, Math.floor(column.width / 7.2) - 1);
-        text += (value.length > chars ? `${value.slice(0, chars - 1)}…` : value).padEnd(chars + 1);
-        cx += column.width;
+        const cell = value.length > column.chars ? `${value.slice(0, column.chars - 1)}…` : value;
+        text += (column.numeric ? cell.padStart(column.chars) : cell.padEnd(column.chars)) + " ";
       }
       line.setText(text.trimEnd());
+      line.setName(`census-row-${row.repo}`);
       line.setInteractive({ useHandCursor: true });
       line.on("pointerover", () => line.setColor("#ffffff"));
       line.on("pointerout", () => line.setColor(selected ? GOLD : INK));
-      line.on("pointerup", () => this.actions.select(row.repo, true));
+      line.on("pointerup", () => {
+        this.actions.select(row.repo, true);
+        if (this.scale.width < 700) this.toggleCensus(false);
+      });
       this.census.add(line);
       this.censusRowsTexts.push(line);
-      void cx;
     });
     if (rows.length > visibleRows) {
-      const more = this.add.text((this.census.width || this.scale.width) - 16, H - 18, `${this.censusScroll + slice.length}/${rows.length}`, { fontFamily: FONT, fontSize: "10px", color: MUTED }).setOrigin(1, 1);
+      const more = this.add.text(W - CENSUS_PAD, H - 12, `${this.censusScroll + 1}–${this.censusScroll + slice.length} of ${rows.length}`, { fontFamily: FONT, fontSize: "10px", color: MUTED }).setOrigin(1, 1);
       this.census.add(more);
       this.censusHeader.push(more);
     }
@@ -809,9 +886,7 @@ export class HudScene extends Phaser.Scene {
     const index = Math.max(0, Math.min(this.censusVisible.length - 1, this.censusVisible.findIndex((r) => r.repo === this.selected?.lot.fullName) + delta));
     const row = this.censusVisible[index];
     if (!row) return undefined;
-    const rowH = 22,
-      H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420)),
-      visibleRows = Math.max(1, Math.floor((H - 70) / rowH));
+    const visibleRows = this.censusVisibleRows;
     if (index < this.censusScroll) this.censusScroll = index;
     if (index >= this.censusScroll + visibleRows) this.censusScroll = index - visibleRows + 1;
     this.renderCensus();
@@ -819,14 +894,34 @@ export class HudScene extends Phaser.Scene {
   }
 
   toast(message: string): void {
-    this.toastText.setText(message).setVisible(true);
-    this.toastBg.setVisible(true).setDisplaySize(Math.max(360, this.toastText.width + 36), 48);
+    this.toastText.setVisible(true);
+    this.toastBg.setVisible(true);
+    this.placeToast(message);
     this.toastTimer?.remove();
     this.toastTimer = this.time.delayedCall(3200, () => {
       this.toastText.setVisible(false);
       this.toastBg.setVisible(false);
     });
     this.emit("toast", message);
+  }
+
+  /**
+   * The toast wraps inside the viewport (a phone is narrower than its 360 px
+   * plaque) and the plaque grows with the text. On a phone it hangs under the
+   * MASS bar, because the bottom of the screen belongs to the card and census
+   * sheets; on a desktop it sits above the field notes.
+   */
+  private placeToast(message?: string): void {
+    const W = this.scale.width,
+      H = this.scale.height;
+    const small = W < 700;
+    const width = Math.min(360, W - 32);
+    this.toastText.setWordWrapWidth(width - 36);
+    if (message !== undefined) this.toastText.setText(message);
+    const height = Math.max(48, this.toastText.height + 24);
+    const bottom = small ? 222 + 44 + 12 + height : H - 70;
+    this.toastBg.setDisplaySize(Math.max(width, Math.min(W - 32, this.toastText.width + 36)), height).setPosition(W / 2, bottom);
+    this.toastText.setPosition(W / 2, bottom - 12);
   }
 
   showTag(repo: string, x: number, y: number): void {
@@ -844,12 +939,19 @@ export class HudScene extends Phaser.Scene {
    * so browser tests and the accessibility mirror can target the same element.
    */
   locate(name: string): { x: number; y: number; width: number; height: number } | null {
-    const object = this.buttons.get(name)?.container ?? (this.children.getByName(name) as Phaser.GameObjects.Container | null);
+    const object =
+      this.buttons.get(name)?.container ??
+      (this.children.getByName(name) as Phaser.GameObjects.Container | null) ??
+      (this.census.getByName(name) as Phaser.GameObjects.Container | null);
     if (!object) return null;
     for (let node: Phaser.GameObjects.GameObject | null = object; node; node = (node as Phaser.GameObjects.Container).parentContainer ?? null) {
       if (!(node as Phaser.GameObjects.Container).visible) return null;
     }
-    const f = frameOf(object);
+    // Plain plaques (the toast) are images with their own origin; containers draw from (0, 0).
+    const f =
+      object instanceof Phaser.GameObjects.Image
+        ? { x: object.x - object.originX * object.displayWidth, y: object.y - object.originY * object.displayHeight, width: object.displayWidth, height: object.displayHeight }
+        : frameOf(object);
     if (f.width <= 0 || f.height <= 0) return null;
     return { x: f.x + f.width / 2, y: f.y + f.height / 2, width: f.width, height: f.height };
   }
