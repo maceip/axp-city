@@ -1,10 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { parseLot } from "../parser/parseLot.js";
-import { lotGroup } from "../render/city.js";
-import { diamond } from "../render/iso.js";
+import { lotGroup, lotHitSvg } from "../render/city.js";
 import type { CityLot, RepoMetrics } from "../types.js";
-import { CONSTRUCTION_MS, LOT_D } from "../world/constants.js";
+import { CONSTRUCTION_MS } from "../world/constants.js";
 import { planCity } from "../world/layout.js";
 
 export interface LiveLot {
@@ -106,10 +105,7 @@ function mutationFor(
       props: [],
     },
     svg: lotGroup({ ...place, constructing: true }, index),
-    hit:
-      `<g class="lot-hit" data-repo="${escapeXml(lot.fullName)}">` +
-      diamond(place.x, place.y, 4, LOT_D, "rgba(0,0,0,0)", "rgba(0,0,0,0)") +
-      `</g>`,
+    hit: lotHitSvg(place),
   };
 }
 

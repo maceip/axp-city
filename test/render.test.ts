@@ -63,9 +63,11 @@ describe("renderCityHtml", () => {
     const html = renderCityHtml(lots, FIXED_NOW);
     expect(html).toContain('id="hover-tag"');
     expect(html).toContain("tag-pop");
-    // One transparent hit tile per lot, keyed by repo.
+    // One transparent hit tile per lot, keyed by repo. Include a vertical
+    // rect so building sprites (not just the pad diamond) receive clicks.
     expect(svg).toContain('class="lot-hit" data-repo="acme/alpha"');
     expect(svg).toContain('class="lot-hit" data-repo="acme/beta"');
+    expect(svg).toMatch(/class="lot-hit"[^>]*>[\s\S]*?<rect[^>]*fill="rgba\(0,0,0,0\)"/);
   });
 
   it("embeds pan/zoom/click behavior and per-lot data", () => {
@@ -251,7 +253,8 @@ describe("renderCityHtml", () => {
     expect(html).toContain("pinch");
     expect(html).toContain("/api/city/stream");
     expect(html).toContain("id=\"axp-city-plan\"");
-    expect(html).toContain("ontouchstart");
+    expect(html).toContain("g.lot");
+    expect(html).toContain("inspectFromEvent");
   });
 
   it("renders air traffic and weather over the city", () => {

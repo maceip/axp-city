@@ -150,7 +150,7 @@ export function mapClientScript(): string {
 
   var pointers = {};
   var pinch = null;
-  var dragging = false, lx = 0, ly = 0, moved = false;
+  var dragging = false, lx = 0, ly = 0, moved = false, downAt = 0, downX = 0, downY = 0;
   function pointerCount() { return Object.keys(pointers).length; }
 
   svg.addEventListener("pointerdown", function (e) {
@@ -170,8 +170,8 @@ export function mapClientScript(): string {
       return;
     }
     dragging = true; moved = false; lx = e.clientX; ly = e.clientY;
+    downAt = Date.now(); downX = e.clientX; downY = e.clientY;
     svg.style.cursor = "grabbing";
-    try { svg.setPointerCapture(e.pointerId); } catch (err) {}
   });
   svg.addEventListener("pointermove", function (e) {
     if (pointers[e.pointerId]) pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
@@ -188,14 +188,14 @@ export function mapClientScript(): string {
       return;
     }
     if (dragging) { hideTag(); return; }
-    var hit = e.target && e.target.closest ? e.target.closest(".lot-hit") : null;
+    var hit = e.target && e.target.closest ? (e.target.closest(".lot-hit") || e.target.closest("g.lot")) : null;
     if (!hit) { hideTag(); return; }
     showTag(hit.getAttribute("data-repo"), e.clientX, e.clientY);
   });
   svg.addEventListener("pointerleave", hideTag);
   window.addEventListener("pointermove", function (e) {
     if (!dragging || pinch) return;
-    if (!moved && Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 3) moved = true;
+    if (!moved && Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 10) moved = true;
     var s = meetScale();
     if (s) {
       view.x -= (e.clientX - lx) / s;
@@ -214,13 +214,22 @@ export function mapClientScript(): string {
   }
   window.addEventListener("pointerup", endDrag);
   window.addEventListener("pointercancel", endDrag);
-  svg.addEventListener("click", function (e) {
-    if (moved) return;
-    var hit = e.target && e.target.closest ? e.target.closest(".lot-hit") : null;
+  function lotEl(e) {
+    if (!e.target || !e.target.closest) return null;
+    return e.target.closest(".lot-hit") || e.target.closest("g.lot");
+  }
+  function inspectFromEvent(e) {
+    if (pinch) return;
+    var dist = Math.hypot((e.clientX || downX) - downX, (e.clientY || downY) - downY);
+    var tap = dist < 22 || (Date.now() - downAt) < 220;
+    if (moved && !tap) return;
+    var hit = lotEl(e);
     if (!hit) { hideCard(); return; }
     showCard(hit.getAttribute("data-repo"), hit);
     centerOn(hit);
-  });
+  }
+  svg.addEventListener("pointerup", inspectFromEvent);
+  svg.addEventListener("click", inspectFromEvent);
   svg.addEventListener("wheel", function (e) {
     e.preventDefault();
     stopGlide();

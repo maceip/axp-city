@@ -67,6 +67,7 @@ const hudCss = `
       touch-action: none;
     }
     .stage svg { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+    .lot { cursor: pointer; }
     .lot-hit { cursor: pointer; }
     .lot-hit:hover path { stroke: var(--gold); stroke-width: 2; }
     .lot-hit.selected path { stroke: var(--gold); stroke-width: 2.5; }

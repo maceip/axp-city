@@ -147,8 +147,16 @@ function escapeXml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function hitTile(place: LotPlacement): string {
-  return `<g class="lot-hit" data-repo="${escapeXml(place.lot.fullName)}">${diamond(place.x, place.y, 4, LOT_D, "rgba(0,0,0,0)", "rgba(0,0,0,0)")}</g>`;
+export function lotHitSvg(place: LotPlacement): string {
+  const c = project(place.x + LOT_W / 2, place.y + LOT_D / 2);
+  const h = place.lot.buildingBand === "L" ? 190 : place.lot.buildingBand === "M" ? 150 : 110;
+  const w = place.lot.buildingBand === "L" ? 90 : 72;
+  return (
+    `<g class="lot-hit" data-repo="${escapeXml(place.lot.fullName)}">` +
+    diamond(place.x, place.y, 4, LOT_D, "rgba(0,0,0,0)", "rgba(0,0,0,0)") +
+    `<rect x="${fmt(c.sx - w / 2)}" y="${fmt(c.sy - h)}" width="${fmt(w)}" height="${fmt(h)}" fill="rgba(0,0,0,0)"/>` +
+    `</g>`
+  );
 }
 
 export function lotGroup(place: LotPlacement, i: number): string {
@@ -285,7 +293,7 @@ export function renderPlannedCity(plan: CityPlan, generatedAt: string): string {
     </g>
     ${renderAirLayer(vbX, vbY, vbW, Math.min(120, vbH * 0.2))}
     <g class="hits">
-    ${sorted.map(hitTile).join("\n")}
+    ${sorted.map(lotHitSvg).join("\n")}
     </g>
   </g>
 </svg>`;
