@@ -88,6 +88,18 @@ function cropped(
 }
 
 function imageOp(op: ImageStamp, assetBase: string): string {
+  if (op.url)
+    return cropped(
+      op.url,
+      { width: op.box.w, height: op.box.h },
+      op.box,
+      op.sx,
+      op.sy,
+      op.scaleX,
+      op.scaleY,
+      (op.alpha ?? 1) * (op.dimmed ? 0.7 : 1),
+      op.repo,
+    );
   return cropped(
     `${assetBase}${op.sheet}`,
     sheetSize(op.sheet),
@@ -101,7 +113,30 @@ function imageOp(op: ImageStamp, assetBase: string): string {
   );
 }
 
+/** People and vehicles are generated in the client; the export draws a vector stand-in. */
+function figureOp(op: AnimStamp): string {
+  const hat = op.behaviour === "work" ? "#f0c14a" : "#d9e4ee";
+  const vest = op.behaviour === "carry" ? "#e85d04" : op.behaviour === "wave" ? "#2a9d8f" : "#3d5a80";
+  const arm =
+    op.behaviour === "wave"
+      ? `<rect x="4.2" y="-18" width="2.2" height="7" rx="1" fill="#e2b089" transform="rotate(-35 5 -14)"/>`
+      : `<rect x="-6.2" y="-15" width="2.2" height="7" rx="1" fill="#e2b089"/><rect x="4" y="-15" width="2.2" height="7" rx="1" fill="#e2b089"/>`;
+  const crate = op.behaviour === "carry" ? `<rect x="-4" y="-19" width="8" height="5" fill="#b8894c"/>` : "";
+  return (
+    `<g class="person" data-behaviour="${op.behaviour}" transform="translate(${num(op.sx)} ${num(op.sy)}) scale(${num(op.targetW / 18)})">` +
+    `<ellipse cx="0" cy="1" rx="6" ry="2.2" fill="rgba(40,40,40,0.28)"/>` +
+    `<rect x="-3.2" y="-7" width="3.1" height="7" rx="0.6" fill="#3a3f4b"/><rect x="0.4" y="-7" width="3.1" height="7" rx="0.6" fill="#3a3f4b"/>` +
+    `<rect x="-4.2" y="-16" width="8.4" height="10" rx="1.4" fill="${vest}"/>` +
+    `<circle cx="0" cy="-20" r="4.1" fill="#e2b089"/>` +
+    `<rect x="-5.6" y="-24.4" width="11.2" height="3" fill="${hat}"/>` +
+    arm +
+    crate +
+    `</g>`
+  );
+}
+
 function animOp(op: AnimStamp, assetBase: string, now: number): string {
+  if (op.anim.startsWith("human")) return figureOp(op);
   const sheet = op.sheet;
   const cellW = sheet.width / sheet.cols;
   const cellH = sheet.height / sheet.rows;
