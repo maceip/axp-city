@@ -291,6 +291,7 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
         assert lot["extraProps"] == ["lamp", "bench"] and lot["layout"]["bays"] == 3 and lot["rulesSource"] == "repository"
     # The rule change is visible in the drawn lot in both browsers, not only in the data.
     page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
+    page.wait_for_function("window.__AXP.drawnRenderKey('acme/forge') && window.__AXP.drawnRenderKey('acme/forge').includes('lamp') && window.__AXP.drawnRenderKey('acme/forge').includes('\"bays\":3')", timeout=15000)
     with_rules = rendered_change(page, "acme/forge", original, "catalog building 42 + three bays + decor props")
     other.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
     assert pixel_distance(lot_pixels(other, "acme/forge"), with_rules) < pixel_distance(lot_pixels(other, "acme/forge"), original)

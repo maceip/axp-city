@@ -128,7 +128,8 @@ export class CityScene extends Phaser.Scene {
       capture: () => this.capture(),
       toggleMotion: () => this.setReducedMotion(!this.reducedMotion),
     };
-    const restore = this.registry.get("restore") as { scrollX: number; scrollY: number; zoom: number; selected?: string } | undefined;
+    const restore = (this.registry.get("restore") as { scrollX: number; scrollY: number; zoom: number; selected?: string } | undefined)
+      ?? (window as unknown as { __AXP_RESTORE?: { scrollX: number; scrollY: number; zoom: number; selected?: string } }).__AXP_RESTORE;
     if (restore) {
       this.registry.remove("restore");
       this.restoreCamera = { scrollX: restore.scrollX, scrollY: restore.scrollY, zoom: restore.zoom };
@@ -172,16 +173,22 @@ export class CityScene extends Phaser.Scene {
     this.bindInput();
     this.bindSearch();
     this.connection.connect();
-    const onLost = () => this.registry.set("restore", { scrollX: this.cameras.main.scrollX, scrollY: this.cameras.main.scrollY, zoom: this.cameras.main.zoom, selected: this.selected });
+    const onLost = () => {
+      const payload = { scrollX: this.cameras.main.scrollX, scrollY: this.cameras.main.scrollY, zoom: this.cameras.main.zoom, selected: this.selected };
+      this.registry.set("restore", payload);
+      (window as unknown as { __AXP_RESTORE?: typeof payload }).__AXP_RESTORE = payload;
+    };
     const onRestored = () => {
       // Generated textures (terrain, people, vehicles) do not survive a context loss.
       this.scene.stop(SceneKeys.Hud);
       this.scene.start(SceneKeys.Preloader);
     };
     const renderer = this.game.renderer as unknown as Phaser.Events.EventEmitter;
+    this.game.canvas.addEventListener("webglcontextlost", onLost);
     renderer.on("losewebgl", onLost);
     renderer.on("restorewebgl", onRestored);
     this.events.once("shutdown", () => {
+      this.game.canvas.removeEventListener("webglcontextlost", onLost);
       renderer.off("losewebgl", onLost);
       renderer.off("restorewebgl", onRestored);
       // The restarted scene publishes a fresh handle; a stale one must not answer.
@@ -250,6 +257,11 @@ export class CityScene extends Phaser.Scene {
       construction: (repo: string) => {
         const view = this.lots.get(repo);
         return view ? planLot(view.place, true, this.now()).construction ?? null : null;
+      },
+      drawnRenderKey: (repo: string) => this.lots.get(repo)?.renderKey ?? null,
+      lotTags: (repo: string) => {
+        const place = this.city.plan.placements.find((p) => p.lot.fullName === repo);
+        return place ? planLot(place, true, this.now()).images.map((i) => i.tag ?? i.sheet) : [];
       },
       select: (repo: string | undefined) => this.select(repo, true),
       setReducedMotion: (on: boolean) => this.setReducedMotion(on),

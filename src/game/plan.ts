@@ -538,8 +538,8 @@ const DEFAULT_SLOTS: Record<string, { x: number; y: number }> = {
 
 const DECOR_BOXES: Record<DecorPropName, { box: SpriteBox; width: number }> = {
   cones: { box: GROUND_TILES.cone, width: 20 },
-  lamp: { box: GROUND_TILES.lampPost, width: 16 },
-  bench: { box: GROUND_TILES.benchProp, width: 40 },
+  lamp: { box: GROUND_TILES.lampPost, width: 22 },
+  bench: { box: GROUND_TILES.benchProp, width: 52 },
   tree: { box: GROUND_TILES.treeRoundA, width: 40 },
   bush: { box: GROUND_TILES.bushA, width: 38 },
   planter: { box: GROUND_TILES.sandTile, width: 34 },
@@ -602,7 +602,7 @@ function yardOps(
       const pallet = MATERIAL_PALLETS[(lot.buildingId + bay * 2) % MATERIAL_PALLETS.length];
       const a = project(p.x + 0.9 + bay * 0.42, p.y + 0.85 - bay * 0.38);
       images.push(
-        imageStamp(PROP_SHEETS.materials, pallet, a.sx, a.sy, 52, !lot.recentActivity, depth + 0.2, "world", {
+        imageStamp(PROP_SHEETS.materials, pallet, a.sx, a.sy, 70, !lot.recentActivity, depth + 0.2, "world", {
           repo: lot.fullName,
           tag: `bay:${bay + 1}`,
         }),
