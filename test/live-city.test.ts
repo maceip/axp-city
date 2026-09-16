@@ -1,14 +1,19 @@
-import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
-import { createWebhookServer, signBody } from "../src/webhooks/index.js";
+import { createWebhookServer, signBody, type WebhookServer } from "../src/webhooks/index.js";
 import { createCityStore } from "../src/live/cityStore.js";
+import { RepositoryUnavailableError } from "../src/ingest/github.js";
+import { IncompleteRefreshError } from "../src/ingest/merge.js";
 import { parseLot } from "../src/parser/parseLot.js";
 import { loadRepositoryRules } from "../src/rules/load.js";
 import { DEFAULT_RULES } from "../src/rules/cityFiles.js";
 import { metrics } from "./helpers.js";
+import type { RepoMetrics } from "../src/types.js";
+
 const secret = "city-integration-test";
+
 async function streamReader(url: string) {
   const controller = new AbortController();
   const response = await fetch(url, { signal: controller.signal });
@@ -16,59 +21,78 @@ async function streamReader(url: string) {
   let buffer = "";
   return {
     close: () => controller.abort(),
-    async next() {
-      while (!buffer.includes("\n\n")) {
-        const chunk = await reader.read();
-        if (chunk.done) throw new Error("stream ended");
-        buffer += new TextDecoder().decode(chunk.value);
+    async next(): Promise<{ event: string; data: any }> {
+      for (;;) {
+        while (!buffer.includes("\n\n")) {
+          const chunk = await reader.read();
+          if (chunk.done) throw new Error("stream ended");
+          buffer += new TextDecoder().decode(chunk.value);
+        }
+        const index = buffer.indexOf("\n\n");
+        const frame = buffer.slice(0, index);
+        buffer = buffer.slice(index + 2);
+        const lines = frame.split("\n");
+        const data = lines.find((line) => line.startsWith("data: "));
+        if (!data) continue; // heartbeat
+        return {
+          event: lines.find((l) => l.startsWith("event: "))?.slice(7) ?? "message",
+          data: JSON.parse(data.slice(6)),
+        };
       }
-      const index = buffer.indexOf("\n\n"),
-        frame = buffer.slice(0, index);
-      buffer = buffer.slice(index + 2);
-      return JSON.parse(
-        frame
-          .split("\n")
-          .find((line) => line.startsWith("data: "))!
-          .slice(6),
-      );
+    },
+    async until(type: string) {
+      for (;;) {
+        const frame = await this.next();
+        if (frame.event === type) return frame.data;
+      }
     },
   };
 }
+
+async function start(runtime: WebhookServer) {
+  await runtime.city.load();
+  await new Promise<void>((done) => runtime.server.listen(0, "127.0.0.1", done));
+  const port = (runtime.server.address() as { port: number }).port;
+  return `http://127.0.0.1:${port}`;
+}
+
+async function stop(runtime: WebhookServer) {
+  runtime.stopWorker();
+  runtime.server.closeAllConnections();
+  await new Promise<void>((done) => runtime.server.close(() => done()));
+  runtime.city.close();
+}
+
 describe("live city contract", () => {
-  it("applies signed changes to real lots, broadcasts JSON, deduplicates deliveries, and resynchronizes after reconnect", async () => {
+  it("applies signed changes to real lots, broadcasts JSON, deduplicates and retries deliveries, and resynchronizes after reconnect", async () => {
     const dir = await mkdtemp(join(tmpdir(), "axp-live-"));
-    let stars = 26000,
-      fail = false,
-      calls = 0;
+    let stars = 26000;
+    let fail = false;
+    let calls = 0;
     const runtime = createWebhookServer(
       {
         secret,
         adminToken: "admin",
-        logPath: join(dir, "events.jsonl"),
+        databasePath: join(dir, "city.sqlite"),
+        coalesceMs: 0,
         resolveRepository: async (fullName) => {
           calls++;
           if (fail) throw new Error("upstream unavailable");
-          return parseLot(
-            metrics({
-              fullName,
-              stars,
-              openPrs: 8,
-              openIssues: 5,
-              recentDefaultCommits: 2,
-            }),
-          );
+          const m = metrics({
+            fullName,
+            stars,
+            openPrs: 8,
+            openIssues: 5,
+            recentDefaultCommits: 2,
+            isPrivate: false,
+          });
+          return { lot: parseLot(m), metrics: m };
         },
       },
       0,
     );
-    await runtime.city.hydrate([
-      parseLot(metrics({ fullName: "acme/widget", stars: 100 })),
-    ]);
-    await new Promise<void>((done) =>
-      runtime.server.listen(0, "127.0.0.1", done),
-    );
-    const port = (runtime.server.address() as { port: number }).port,
-      base = `http://127.0.0.1:${port}`;
+    const base = await start(runtime);
+    await runtime.city.hydrate([parseLot(metrics({ fullName: "acme/widget", stars: 100 }))]);
     const post = async (id: string, repo = "acme/widget", signed = true) => {
       const body = JSON.stringify({
         ref: "refs/heads/main",
@@ -81,15 +105,15 @@ describe("live city contract", () => {
         headers: {
           "x-github-event": "push",
           "x-github-delivery": id,
-          "x-hub-signature-256": signed
-            ? signBody(Buffer.from(body), secret)
-            : "bad",
+          "x-hub-signature-256": signed ? signBody(Buffer.from(body), secret) : "bad",
         },
       });
     };
     const stream = await streamReader(`${base}/api/city/stream`);
     try {
-      const initial = await stream.next();
+      const initial = await stream.until("snapshot");
+      expect(initial.schema).toEqual({ snapshot: 2, layout: 1 });
+      expect(initial.freshness).toMatchObject({ lastSuccessfulRefreshAt: null });
       const first = initial.plan.placements[0];
       expect((await post("bad", "acme/widget", false)).status).toBe(401);
       expect(calls).toBe(0);
@@ -101,11 +125,9 @@ describe("live city contract", () => {
           })
         ).status,
       ).toBe(401);
-      expect((await post("update-1")).status).toBe(200);
-      const event = await stream.next();
-      expect(event.type).toBe("lot_updated");
+      expect((await post("update-1")).status).toBe(202);
+      const event = await stream.until("lot_updated");
       expect(event).not.toHaveProperty("svg");
-      expect(event).not.toHaveProperty("hit");
       expect(event.placement.lot).toMatchObject({
         stars: 26000,
         openPrs: 8,
@@ -114,88 +136,203 @@ describe("live city contract", () => {
         showMaterials: true,
         showCrew: true,
       });
-      expect([event.placement.x, event.placement.y]).toEqual([
-        first.x,
-        first.y,
-      ]);
-      const duplicates = await Promise.all([
-        post("update-1"),
-        post("update-1"),
-      ]);
+      expect([event.placement.x, event.placement.y]).toEqual([first.x, first.y]);
+      const status = await stream.until("status");
+      expect(status.freshness.lastSuccessfulRefreshAt).not.toBeNull();
+      const duplicates = await Promise.all([post("update-1"), post("update-1")]);
       expect(await duplicates[0].text()).toBe("duplicate");
       expect(calls).toBe(1);
+
+      // Upstream failure: the delivery is acknowledged, kept, and retried later;
+      // the lot keeps its last good state and freshness reports the error.
       fail = true;
-      expect((await post("retry")).status).toBe(500);
-      expect(runtime.store.has("retry")).toBe(false);
+      expect((await post("retry")).status).toBe(202);
+      await runtime.drainDeliveries();
+      expect(runtime.city.deliveryCounts()).toMatchObject({ pending: 1, done: 1 });
       expect(runtime.city.lots()[0].stars).toBe(26000);
+      const failing = await stream.until("status");
+      expect(failing.freshness.failingRepositories).toBe(1);
+      expect(failing.freshness.lastError).toContain("upstream unavailable");
       fail = false;
       stars = 32000;
-      expect((await post("retry")).status).toBe(200);
-      await stream.next();
-      expect((await post("new-1", "acme/new")).status).toBe(200);
-      const added = await stream.next();
-      expect(added.type).toBe("lot_added");
+      // Not due yet (backoff), so nothing happens...
+      expect(await runtime.drainDeliveries()).toBe(0);
+      // ...until the retry time arrives.
+      expect(await runtime.drainDeliveries("2999-01-01T00:00:00.000Z")).toBe(1);
+      expect(runtime.city.deliveryCounts()).toMatchObject({ pending: 0, done: 2 });
+      await stream.until("lot_updated");
+
+      // Admin enrollment of a new repository through the canonical resolver.
+      const enrolled = await fetch(`${base}/api/city/lots`, {
+        method: "POST",
+        headers: { authorization: "Bearer admin" },
+        body: JSON.stringify({ repo: "acme/new" }),
+      });
+      expect(enrolled.status).toBe(200);
+      const added = await stream.until("lot_added");
       expect(added.placement.lot.stars).toBe(32000);
       expect(added.geometry.features.length).toBeGreaterThan(0);
+      // Deliveries for enrolled lots publish events; unknown repositories do not.
+      expect((await post("new-1", "acme/new")).status).toBe(202);
+      await runtime.drainDeliveries();
+      expect(((await (await fetch(`${base}/events`)).json()) as Array<{ repo: string }>).map((e) => e.repo)).toEqual([
+        "acme/new",
+        "acme/widget",
+        "acme/widget",
+      ]);
       stream.close();
       const reconnected = await streamReader(`${base}/api/city/stream`);
-      const snapshot = await reconnected.next();
+      const snapshot = await reconnected.until("snapshot");
       reconnected.close();
       expect(snapshot.plan.placements).toHaveLength(2);
       expect(snapshot.plan.placements[0].lot.stars).toBe(32000);
       expect(snapshot.revision).toBe(runtime.city.snapshot().revision);
-      const restarted = createCityStore(join(dir, "city-map.json"));
+      const history = (await (await fetch(`${base}/api/city/history?repo=acme/new`)).json()) as {
+        history: Array<{ kind: string }>;
+      };
+      expect(history.history.map((h: { kind: string }) => h.kind)).toEqual(["added"]);
+      await stop(runtime);
+      const restarted = createCityStore(join(dir, "city.sqlite"));
       await restarted.load();
-      expect(
-        restarted
-          .snapshot()
-          .plan.placements.map((p) => [p.lot.fullName, p.x, p.y]),
-      ).toEqual(
-        snapshot.plan.placements.map(
-          (p: { lot: { fullName: string }; x: number; y: number }) => [
-            p.lot.fullName,
-            p.x,
-            p.y,
-          ],
-        ),
+      expect(restarted.snapshot().plan.placements.map((p) => [p.lot.fullName, p.x, p.y])).toEqual(
+        snapshot.plan.placements.map((p: { lot: { fullName: string }; x: number; y: number }) => [
+          p.lot.fullName,
+          p.x,
+          p.y,
+        ]),
       );
       expect(restarted.lots()[0].stars).toBe(32000);
+      restarted.close();
     } finally {
       stream.close();
-      runtime.server.closeAllConnections();
-      await new Promise<void>((done) => runtime.server.close(() => done()));
+      if (runtime.server.listening) await stop(runtime);
     }
   });
-  it("retains version-1 map addresses and never publishes a failed persistence write", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "axp-migrate-")),
-      path = join(dir, "map.json");
-    const lots = [
-      parseLot(metrics({ fullName: "acme/z" })),
-      parseLot(metrics({ fullName: "acme/a" })),
-    ];
-    await writeFile(
-      path,
-      JSON.stringify({
-        version: 1,
-        order: lots.map((l) => l.fullName),
-        lots,
-        addedAt: { "acme/z": "2020-01-01T00:00:00Z" },
-      }),
+
+  it("withdraws public data when a repository becomes private, unavailable, or is removed by an admin", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "axp-visibility-"));
+    let mode: "ok" | "private" | "gone" = "ok";
+    const runtime = createWebhookServer(
+      {
+        secret,
+        adminToken: "admin",
+        databasePath: join(dir, "city.sqlite"),
+        coalesceMs: 0,
+        resolveRepository: async (fullName) => {
+          if (mode === "gone") throw new RepositoryUnavailableError(fullName, "not_found");
+          const m = metrics({ fullName, isPrivate: mode !== "private" ? false : true });
+          if (mode === "private") throw new RepositoryUnavailableError(fullName, "forbidden", "private");
+          return { lot: parseLot(m), metrics: m };
+        },
+      },
+      0,
     );
-    const store = createCityStore(path);
-    await store.load();
-    const before = store.snapshot();
-    await mkdir(`${path}.tmp`);
-    await expect(
-      store.ensure("acme/fail", parseLot(metrics({ fullName: "acme/fail" }))),
-    ).rejects.toThrow();
-    expect(store.snapshot().plan.placements).toEqual(before.plan.placements);
-    expect(JSON.parse(await readFile(path, "utf8")).order).toEqual([
-      "acme/z",
-      "acme/a",
-    ]);
+    const base = await start(runtime);
+    try {
+      for (const name of ["acme/a", "acme/b", "acme/c"]) await runtime.refreshRepository(name);
+      const before = runtime.city.snapshot().plan.placements.map((p) => [p.lot.fullName, p.x, p.y]);
+      const stream = await streamReader(`${base}/api/city/stream`);
+      await stream.until("snapshot");
+      const send = async (id: string, repo: string, event = "push", payload: Record<string, unknown> = {}) => {
+        const body = JSON.stringify({ ref: "refs/heads/main", repository: { full_name: repo }, ...payload });
+        return fetch(`${base}/webhooks/github`, {
+          method: "POST",
+          body,
+          headers: {
+            "x-github-event": event,
+            "x-github-delivery": id,
+            "x-hub-signature-256": signBody(Buffer.from(body), secret),
+          },
+        });
+      };
+      await send("b-1", "acme/b");
+      await runtime.drainDeliveries();
+      expect(((await (await fetch(`${base}/events`)).json()) as Array<{ repo: string }>).map((e) => e.repo)).toEqual(["acme/b"]);
+      // b becomes private: the next refresh withdraws it and its events vanish.
+      mode = "private";
+      await send("b-2", "acme/b");
+      await runtime.drainDeliveries();
+      const removed = await stream.until("lot_removed");
+      expect(removed.fullName).toBe("acme/b");
+      const snapshot = (await (await fetch(`${base}/api/city`)).json()) as {
+        plan: { placements: Array<{ lot: { fullName: string }; x: number; y: number }> };
+      };
+      expect(snapshot.plan.placements.map((p) => [p.lot.fullName, p.x, p.y])).toEqual([
+        before[0],
+        before[2],
+      ]);
+      expect(await (await fetch(`${base}/events`)).json()).toEqual([]);
+      expect((await fetch(`${base}/api/city/history?repo=acme/b`)).status).toBe(404);
+      const svg = await (await fetch(`${base}/api/city/export.svg`)).text();
+      expect(svg).toContain('data-repo="acme/a"');
+      expect(svg).not.toContain("acme/b");
+      // A private repository cannot be enrolled by an admin either.
+      const denied = await fetch(`${base}/api/city/lots`, {
+        method: "POST",
+        headers: { authorization: "Bearer admin" },
+        body: JSON.stringify({ repo: "acme/b" }),
+      });
+      expect(denied.status).toBe(422);
+      // Deletion event withdraws immediately without a fetch.
+      mode = "ok";
+      await send("c-del", "acme/c", "repository", { action: "deleted" });
+      await runtime.drainDeliveries();
+      expect(runtime.city.lots().map((l) => l.fullName)).toEqual(["acme/a"]);
+      // Admin removal.
+      const gone = await fetch(`${base}/api/city/lots/acme%2Fa`, {
+        method: "DELETE",
+        headers: { authorization: "Bearer admin" },
+      });
+      expect(gone.status).toBe(200);
+      expect(runtime.city.lots()).toEqual([]);
+      expect(runtime.city.rows()).toHaveLength(3);
+      stream.close();
+    } finally {
+      await stop(runtime);
+    }
+  });
+
+  it("keeps last good values when a refresh cannot measure a field (finding A)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "axp-partial-"));
+    let unknown: RepoMetrics["unknownFields"] = [];
+    let previousSeen: RepoMetrics | undefined;
+    const runtime = createWebhookServer(
+      {
+        secret,
+        databasePath: join(dir, "city.sqlite"),
+        coalesceMs: 0,
+        resolveRepository: async (fullName, previous) => {
+          previousSeen = previous;
+          const fresh = metrics({ fullName, openIssues: unknown?.length ? 0 : 9, unknownFields: unknown, isPrivate: false });
+          if (unknown?.length) {
+            if (!previous) throw new IncompleteRefreshError(fullName, unknown);
+            const carried = { ...fresh, openIssues: previous.openIssues, unknownFields: [] };
+            return {
+              lot: parseLot(carried, { carried: { fields: unknown, from: previous.fetchedAt } }),
+              metrics: carried,
+            };
+          }
+          return { lot: parseLot(fresh), metrics: fresh };
+        },
+      },
+      0,
+    );
+    await start(runtime);
+    try {
+      await runtime.refreshRepository("acme/w");
+      expect(runtime.city.lots()[0].openIssues).toBe(9);
+      unknown = ["openIssues"];
+      await runtime.refreshRepository("acme/w");
+      expect(previousSeen?.openIssues).toBe(9);
+      const lot = runtime.city.lots()[0];
+      expect(lot.openIssues).toBe(9);
+      expect(lot.partial?.carriedFields).toEqual(["openIssues"]);
+    } finally {
+      await stop(runtime);
+    }
   });
 });
+
 describe("repository-owned rules", () => {
   it("fetches repository JSON and actually changes both the building and loading zone", async () => {
     const request = (async (input: string | URL | Request) =>
@@ -211,19 +348,9 @@ describe("repository-owned rules", () => {
         ),
         { status: 200 },
       )) as typeof fetch;
-    const config = await loadRepositoryRules(
-      "acme/widget",
-      DEFAULT_RULES,
-      undefined,
-      request,
-    );
+    const config = await loadRepositoryRules("acme/widget", DEFAULT_RULES, undefined, request);
     const lot = parseLot(
-      metrics({
-        stars: 100,
-        openPrs: 20,
-        openIssues: 4,
-        recentDefaultCommits: 3,
-      }),
+      metrics({ stars: 100, openPrs: 20, openIssues: 4, recentDefaultCommits: 3 }),
       { rules: config.rules },
     );
     expect(config.source).toBe("repository");
@@ -235,33 +362,19 @@ describe("repository-owned rules", () => {
       showDrone: false,
     });
   });
+
   it("uses defaults only for absent/invalid rules; auth and transport failures fail the refresh", async () => {
-    const absent = (async () =>
-      new Response(null, { status: 404 })) as typeof fetch;
-    expect(
-      (
-        await loadRepositoryRules(
-          "acme/widget",
-          DEFAULT_RULES,
-          undefined,
-          absent,
-        )
-      ).source,
-    ).toBe("default");
-    const invalid = (async () =>
-      new Response('{"buildingId":999}', { status: 200 })) as typeof fetch;
-    const result = await loadRepositoryRules(
-      "acme/widget",
-      DEFAULT_RULES,
-      undefined,
-      invalid,
+    const absent = (async () => new Response(null, { status: 404 })) as typeof fetch;
+    expect((await loadRepositoryRules("acme/widget", DEFAULT_RULES, undefined, absent)).source).toBe(
+      "default",
     );
+    const invalid = (async () => new Response('{"buildingId":999}', { status: 200 })) as typeof fetch;
+    const result = await loadRepositoryRules("acme/widget", DEFAULT_RULES, undefined, invalid);
     expect(result.warning).toContain("buildingId");
     expect(result.rules.building.buildingId).toBeUndefined();
-    const limited = (async () =>
-      new Response(null, { status: 403 })) as typeof fetch;
-    await expect(
-      loadRepositoryRules("acme/widget", DEFAULT_RULES, undefined, limited),
-    ).rejects.toThrow("403");
+    const limited = (async () => new Response(null, { status: 403 })) as typeof fetch;
+    await expect(loadRepositoryRules("acme/widget", DEFAULT_RULES, undefined, limited)).rejects.toThrow(
+      "403",
+    );
   });
 });

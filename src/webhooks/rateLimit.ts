@@ -1,3 +1,37 @@
+export const LOOPBACK_PROXIES: readonly string[] = [
+  "127.0.0.1",
+  "::1",
+  "::ffff:127.0.0.1",
+];
+
+/**
+ * Client identity for rate limiting behind a reverse proxy. The socket
+ * address is authoritative unless it belongs to a trusted proxy; then the
+ * rightmost `X-Forwarded-For` hop that is not itself a trusted proxy is the
+ * client. Headers from untrusted peers are ignored, so a direct caller cannot
+ * spoof another client's identity, and a trusted proxy always contributes the
+ * hop it observed, so a client cannot hide behind a fabricated chain.
+ */
+export function clientAddress(
+  remoteAddress: string | undefined,
+  forwardedFor: string | string[] | undefined,
+  trustedProxies: readonly string[] = LOOPBACK_PROXIES,
+): string {
+  const remote = remoteAddress ?? "unknown";
+  if (!trustedProxies.includes(remote)) return remote;
+  const header = Array.isArray(forwardedFor)
+    ? forwardedFor.join(",")
+    : (forwardedFor ?? "");
+  const hops = header
+    .split(",")
+    .map((hop) => hop.trim())
+    .filter(Boolean);
+  for (let i = hops.length - 1; i >= 0; i--) {
+    if (!trustedProxies.includes(hops[i])) return hops[i];
+  }
+  return remote;
+}
+
 export interface RateLimitOptions {
   /** Window length in milliseconds. */
   windowMs: number;

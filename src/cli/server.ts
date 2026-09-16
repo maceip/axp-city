@@ -1,14 +1,51 @@
-import { readFile, mkdir } from "node:fs/promises";
+import { readFile, mkdir, readdir, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { parseArgs } from "./args.js";
+import { parseArgs, parseRepoLine } from "./args.js";
 import { parseLot } from "../parser/parseLot.js";
 import { loadLocalRules, repoName } from "../rules/load.js";
-import { resolveRepository } from "../live/repository.js";
-import { createWebhookServer } from "../webhooks/server.js";
+import { loadArtworkApprovals } from "../rules/artwork.js";
+import {
+  resolveRepository,
+  type ResolvedRepository,
+} from "../live/repository.js";
+import { createReconciler, httpAlerter } from "../live/reconcile.js";
+import { tokenProviderFromEnv } from "../ingest/githubApp.js";
+import { consoleLogger, createWebhookServer } from "../webhooks/server.js";
+import { LOOPBACK_PROXIES } from "../webhooks/rateLimit.js";
 import type { RepoMetrics } from "../types.js";
 
-export async function runServer(argv = process.argv.slice(2)): Promise<void> {
+export interface ServerConfig {
+  dev: boolean;
+  offline: boolean;
+  host: string;
+  port: number;
+  dataDir: string;
+  rulesDir: string;
+  allowUnsigned: boolean;
+  rateLimitMax: number;
+  rateLimitWindowMs: number;
+  trustedProxies: string[];
+  staleAfterMs: number;
+  refreshIntervalMs: number;
+  enrollFile: string | undefined;
+  backupDir: string | undefined;
+  alertUrl: string | undefined;
+  webhookSecretSet: boolean;
+  adminTokenSet: boolean;
+  githubCredential: "github-app" | "github-token" | "github-anonymous" | "fixture";
+}
+
+function numberEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0)
+    throw new Error(`${name} must be a positive number, got ${raw}`);
+  return value;
+}
+
+export function resolveConfig(argv: string[]): ServerConfig {
   const args = parseArgs(argv);
   const dev = argv.includes("--dev");
   const offline = args.offline || process.env.CITY_OFFLINE === "1";
@@ -16,43 +53,94 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
   const port = argv.includes("--port")
     ? args.port
     : Number(process.env.PORT ?? (dev ? 5173 : 43174));
-  const dataDir = process.env.CITY_DATA_DIR ?? "data";
-  const rulesDir = process.env.CITY_RULES_DIR ?? ".city";
-  const secret = process.env.GITHUB_WEBHOOK_SECRET ?? "";
-  const allowUnsigned = argv.includes("--allow-unsigned");
-  if (allowUnsigned && !["127.0.0.1", "localhost", "::1"].includes(host))
+  // Live and fixture state never share a database.
+  const dataDir =
+    process.env.CITY_DATA_DIR ?? (offline ? join("data", "offline") : "data");
+  const trustedProxies = (process.env.CITY_TRUSTED_PROXIES ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const enrollIndex = argv.indexOf("--enroll");
+  const provider = offline ? "fixture" : tokenProviderFromEnv().kind;
+  return {
+    dev,
+    offline,
+    host,
+    port,
+    dataDir,
+    rulesDir: process.env.CITY_RULES_DIR ?? ".city",
+    allowUnsigned: argv.includes("--allow-unsigned"),
+    rateLimitMax: argv.includes("--rate-limit-max")
+      ? args.rateLimitMax
+      : numberEnv("CITY_RATE_LIMIT_MAX", args.rateLimitMax),
+    rateLimitWindowMs: argv.includes("--rate-limit-window-ms")
+      ? args.rateLimitWindowMs
+      : numberEnv("CITY_RATE_LIMIT_WINDOW_MS", args.rateLimitWindowMs),
+    trustedProxies: trustedProxies.length ? trustedProxies : [...LOOPBACK_PROXIES],
+    staleAfterMs: numberEnv("CITY_STALE_AFTER_MS", 45 * 60_000),
+    refreshIntervalMs: numberEnv("CITY_REFRESH_INTERVAL_MS", 15 * 60_000),
+    enrollFile:
+      enrollIndex >= 0 && argv[enrollIndex + 1]
+        ? argv[enrollIndex + 1]
+        : process.env.CITY_ENROLL_FILE,
+    backupDir: process.env.CITY_BACKUP_DIR,
+    alertUrl: process.env.CITY_ALERT_URL,
+    webhookSecretSet: Boolean(process.env.GITHUB_WEBHOOK_SECRET),
+    adminTokenSet: Boolean(process.env.CITY_ADMIN_TOKEN),
+    githubCredential: provider,
+  };
+}
+
+async function readFixture(path: string): Promise<RepoMetrics[]> {
+  const raw = JSON.parse(await readFile(path, "utf8"));
+  const rows: RepoMetrics[] = Array.isArray(raw) ? raw : raw.metrics;
+  if (!Array.isArray(rows)) throw new Error(`Fixture ${path} has no metrics array`);
+  return rows;
+}
+
+export async function runServer(argv = process.argv.slice(2)): Promise<void> {
+  const config = resolveConfig(argv);
+  const args = parseArgs(argv);
+  const log = consoleLogger;
+  if (config.allowUnsigned && !["127.0.0.1", "localhost", "::1"].includes(config.host))
     throw new Error("Unsigned development webhooks require a loopback host");
-  let metrics: RepoMetrics[] = [];
-  const seedPath =
-    process.env.CITY_FIXTURE_PATH ??
-    (offline ? args.snapshotPath : join(args.outDir, "metrics.json"));
-  try {
-    const data = JSON.parse(await readFile(seedPath, "utf8"));
-    metrics = Array.isArray(data) ? data : data.metrics;
-    if (!Array.isArray(metrics)) throw new Error("Expected metrics array");
-  } catch (error) {
-    if (offline || (error as NodeJS.ErrnoException).code !== "ENOENT")
-      throw error;
-  }
-  const resolveLot = async (name: string) => {
+  if (!config.offline && !config.webhookSecretSet && !config.allowUnsigned)
+    log("warn", "GITHUB_WEBHOOK_SECRET is not set; webhook deliveries will be rejected (reconciliation polling still runs)");
+  if (!config.adminTokenSet)
+    log("warn", "CITY_ADMIN_TOKEN is not set; administrative enrollment/removal is disabled");
+
+  const fixturePath = process.env.CITY_FIXTURE_PATH ?? args.snapshotPath;
+  const defaults = await loadLocalRules(config.rulesDir);
+  const approvals = await loadArtworkApprovals(config.rulesDir);
+  const provider = tokenProviderFromEnv();
+  const artworkDir = join(config.dataDir, "artwork");
+
+  const resolveLot = async (
+    name: string,
+    previous?: RepoMetrics,
+  ): Promise<ResolvedRepository> => {
     repoName(name);
-    if (!offline) return resolveRepository(name, rulesDir);
-    // Explicit offline mode re-reads its fixture so local demos can exercise updates.
-    const raw = JSON.parse(await readFile(seedPath, "utf8"));
-    const rows: RepoMetrics[] = Array.isArray(raw) ? raw : raw.metrics;
-    const row = rows.find(
-      (item) => item.fullName.toLowerCase() === name.toLowerCase(),
-    );
+    if (!config.offline)
+      return resolveRepository(name, {
+        rulesDir: config.rulesDir,
+        token: await provider.token(),
+        previous,
+        approvals,
+        artworkCacheDir: artworkDir,
+        defaults,
+      });
+    // Explicit fixture mode re-reads its file so local demos can exercise updates.
+    const rows = await readFixture(fixturePath);
+    const row = rows.find((item) => item.fullName.toLowerCase() === name.toLowerCase());
     if (!row) throw new Error(`Offline fixture has no repository ${name}`);
+    const metrics: RepoMetrics = { ...row, source: "fixture", isPrivate: row.isPrivate ?? false };
     return {
-      ...parseLot(
-        { ...row, source: "fixture" },
-        { rules: await loadLocalRules(rulesDir) },
-      ),
-      rulesSource: "default" as const,
+      lot: { ...parseLot(metrics, { rules: defaults }), rulesSource: "default" },
+      metrics,
     };
   };
-  const vite = dev
+
+  const vite = config.dev
     ? await (
         await import("vite")
       ).createServer({
@@ -63,92 +151,158 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     : undefined;
   let buildRevision = "development";
   try {
-    buildRevision = JSON.parse(
-      await readFile("dist/build-info.json", "utf8"),
-    ).commit;
+    buildRevision = JSON.parse(await readFile("dist/build-info.json", "utf8")).commit;
   } catch {
     /* dev has no build */
   }
+  await mkdir(config.dataDir, { recursive: true });
   const runtime = createWebhookServer(
     {
-      secret,
-      allowUnsigned,
-      offline,
+      secret: process.env.GITHUB_WEBHOOK_SECRET ?? "",
+      allowUnsigned: config.allowUnsigned,
+      offline: config.offline,
       buildRevision,
-      logPath: join(dataDir, "city-events.jsonl"),
-      cityMapPath: join(dataDir, "city-map.json"),
+      databasePath: join(config.dataDir, "city.sqlite"),
+      logPath: join(config.dataDir, "city-events.jsonl"),
+      cityMapPath: join(config.dataDir, "city-map.json"),
       adminToken: process.env.CITY_ADMIN_TOKEN ?? "",
       spritesRoot: resolve("assets/city-sprites"),
+      artworkRoot: resolve(artworkDir),
       clientRoot: resolve("dist/game"),
+      rateLimitMax: config.rateLimitMax,
+      rateLimitWindowMs: config.rateLimitWindowMs,
+      trustedProxies: config.trustedProxies,
+      staleAfterMs: config.staleAfterMs,
+      source: config.offline ? "fixture" : provider.kind,
       resolveRepository: resolveLot,
+      log,
       frontend: vite
         ? (req, res, next) => {
-            if (
-              ["/city", "/city/", "/city.html"].includes(
-                (req.url ?? "").split("?")[0],
-              )
-            )
+            if (["/city", "/city/", "/city.html"].includes((req.url ?? "").split("?")[0]))
               req.url = "/";
             vite.middlewares(req, res, next);
           }
         : undefined,
     },
-    port,
+    config.port,
   );
-  await mkdir(dataDir, { recursive: true });
-  await runtime.store.load();
-  await runtime.city.load();
-  const defaults = await loadLocalRules(rulesDir);
-  // Bootstrap once. A server restart must never overwrite newer persisted lots with an old export.
-  if (runtime.city.lots().length === 0 && metrics.length)
+  const { migrated } = await runtime.city.load();
+  if (migrated) log("info", "imported legacy JSON city state into SQLite", { dataDir: config.dataDir });
+
+  // Fixture mode seeds an empty city from the fixture; the live city is only
+  // ever populated through the canonical resolver (enrollment), never from a
+  // stale metrics export.
+  if (config.offline && runtime.city.lots().length === 0) {
+    const rows = await readFixture(fixturePath);
     await runtime.city.hydrate(
-      metrics.map((row) => parseLot(row, { rules: defaults })),
+      rows.map((row) => parseLot({ ...row, source: "fixture" }, { rules: defaults })),
+      {},
+      rows.map((row) => ({ ...row, source: "fixture" as const, isPrivate: row.isPrivate ?? false })),
     );
+  }
+
   await new Promise<void>((done, reject) => {
     runtime.server.once("error", reject);
-    runtime.server.listen(port, host, done);
+    runtime.server.listen(config.port, config.host, done);
   });
-  console.log(
-    `AXP City · Phaser 4 · ${offline ? "OFFLINE FIXTURES" : "LIVE"} · http://${host}:${port}/city`,
-  );
-  // Signed events remain the immediate update path. Authenticated reconciliation also ages quiet lots.
-  let refreshing = false;
-  const reconcile = async () => {
-    if (refreshing || offline || !process.env.GITHUB_TOKEN) return;
-    refreshing = true;
-    try {
-      for (const lot of runtime.city.lots()) {
-        try {
-          await runtime.refreshRepository(lot.fullName);
-        } catch (error) {
-          console.error(
-            `[refresh] ${lot.fullName}: ${error instanceof Error ? error.message : "failed"}`,
-          );
-        }
-      }
-    } finally {
-      refreshing = false;
-    }
+  const effective = {
+    ...config,
+    ...runtime.effectiveConfig,
+    databasePath: runtime.city.path,
+    buildRevision,
   };
-  const timer = setInterval(() => {
-    void reconcile();
-  }, 15 * 60_000);
-  void reconcile();
+  log("info", `AXP City · Phaser 4 · ${config.offline ? "OFFLINE FIXTURES" : "LIVE"} · http://${config.host}:${config.port}/city`);
+  log("info", "effective configuration", effective as unknown as Record<string, unknown>);
+
+  // Enrollment: repositories listed in the enroll file join the city through
+  // the resolver. Already enrolled lots are refreshed, not re-added.
+  const enrollFile =
+    config.enrollFile ??
+    (!config.offline && runtime.city.lots().length === 0 ? "repos.txt" : undefined);
+  if (enrollFile && !config.offline) {
+    let lines: string[] = [];
+    try {
+      lines = (await readFile(enrollFile, "utf8")).split("\n");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      log("warn", `enroll file ${enrollFile} not found`);
+    }
+    for (const line of lines) {
+      const parsed = parseRepoLine(line);
+      if (!parsed) continue;
+      const name = `${parsed.owner}/${parsed.name}`;
+      if (runtime.city.row(name)) continue;
+      try {
+        await runtime.refreshRepository(name);
+        log("info", `enrolled ${name}`);
+      } catch (error) {
+        log("warn", `enrollment of ${name} failed`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  const reconciler = createReconciler({
+    city: runtime.city,
+    refresh: (name) => runtime.refreshRepository(name),
+    intervalMs: config.refreshIntervalMs,
+    spacingMs: 250,
+    log,
+    enabled: !config.offline,
+    alert: async (alert) => {
+      log(alert.kind === "recovered" ? "info" : "warn", `ALERT ${alert.kind}: ${alert.message}`);
+      if (config.alertUrl) await httpAlerter(config.alertUrl, fetch, log)(alert);
+    },
+  });
+  runtime.startWorker();
+  reconciler.start();
+
+  const housekeeping = setInterval(() => {
+    void (async () => {
+      try {
+        const pruned = runtime.city.prune();
+        if (pruned.events || pruned.deliveries) log("info", "pruned retention", pruned);
+        if (config.backupDir) {
+          const stamp = new Date().toISOString().replaceAll(":", "").slice(0, 15);
+          await runtime.city.backup(join(config.backupDir, `city-${stamp}.sqlite`));
+          const files = (await readdir(config.backupDir))
+            .filter((f) => /^city-.*\.sqlite$/.test(f))
+            .sort();
+          for (const old of files.slice(0, Math.max(0, files.length - 14)))
+            await rm(join(config.backupDir, old));
+        }
+      } catch (error) {
+        log("error", "housekeeping failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })();
+  }, 6 * 3_600_000);
+  housekeeping.unref();
+
+  let stopping = false;
   const stop = () => {
-    clearInterval(timer);
+    if (stopping) return;
+    stopping = true;
+    reconciler.stop();
+    runtime.stopWorker();
+    clearInterval(housekeeping);
     runtime.server.closeAllConnections();
     runtime.server.close(() => {
-      void vite?.close().finally(() => process.exit(0));
-      if (!vite) process.exit(0);
+      const finish = () => {
+        runtime.city.close();
+        process.exit(0);
+      };
+      if (vite) void vite.close().finally(finish);
+      else finish();
     });
   };
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
 }
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
-) {
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   runServer().catch((error) => {
     console.error(error);
     process.exit(1);
