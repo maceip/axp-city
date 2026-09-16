@@ -400,11 +400,13 @@ export class HudScene extends Phaser.Scene {
     } else {
       const kitW = 118;
       const kitX = W - mapW - 22 - kitW - 14;
-      const kitY = H - mapH - 46;
+      const kitH = toolbar.length * 42;
+      // Bottom-align with the minimap so Follow stays on-screen.
+      const kitY = H - 46 - kitH;
       for (const name of toolbar) this.buttons.get(name)!.container.setScale(1);
       this.kitRail.setVisible(true);
       this.kitRail.setPosition(kitX - 8, kitY - 10);
-      this.kitRail.setDisplaySize(kitW + 16, toolbar.length * 42 + 18);
+      this.kitRail.setDisplaySize(kitW + 16, kitH + 18);
       let y = kitY;
       for (const name of toolbar) {
         const b = this.buttons.get(name)!;
