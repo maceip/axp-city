@@ -462,6 +462,21 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     );
     if (marker.kind === "office") {
       placeName(a.sx, a.sy + 18, "CITY OFFICE", 0x45614e, 13);
+      for (const [dx, dy, sprite, w] of [
+        [-0.95, 0.88, "plant-0", 68],
+        [1.05, 0.92, "plant-1", 68],
+        [0.1, 1.28, "plant-5", 54],
+      ] as const) {
+        const pot = CIVIC_SPRITES[sprite];
+        const at = project(marker.x + dx, marker.y + dy);
+        objects.push(
+          scene.add
+            .image(at.sx, at.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, pot))
+            .setOrigin(0.5, 1)
+            .setDisplaySize(w, w * (pot.h / pot.w))
+            .setDepth(at.sy + 22),
+        );
+      }
     }
   }
   return objects;
