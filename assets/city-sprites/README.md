@@ -123,8 +123,8 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   (odd unused buildings), attached construction stages (pad→posts→roof→shell,
   never the finished bank), parking, gates, bank, isometric plants from the
   v5 ground kit, and iso bike/road diamonds from SimCity tiles after restyle.
-- `hud-kit-k1.png` — forest+gold panels painted to Jane's chrome sizes;
-  leftover orange HUD is not used on screen.
+- `hud-kit-k1.png` — olive-slate + gold panels painted to Jane's chrome sizes
+  so the overlay matches the catalog vibe; leftover orange HUD is not used.
 
 Rejected on sight: waterfall photo from Jane's map pack, FarmVille rooms,
 photoreal apple tree icons, robot/vehicle sheets that clash at lot scale.

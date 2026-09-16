@@ -330,6 +330,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     odd: 120,
     parking: 138,
     gate: 100,
+    road: 54,
   };
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];
@@ -368,9 +369,9 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
         scene.add
           .image(a.sx, a.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, box))
           .setOrigin(0.5, 1)
-          .setDisplaySize(34, 34 * (box.h / box.w))
-          .setDepth(-99_997)
-          .setAlpha(0.92),
+        .setDisplaySize(52, 52 * (box.h / box.w))
+        .setDepth(-99_997)
+        .setAlpha(0.96),
       );
     }
   }

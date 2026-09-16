@@ -327,7 +327,7 @@ export const CIVIC_ODD = [
   CIVIC_SPRITES["city-hall"],
 ];
 
-/** Restyled HUD chrome (Jane's Realty gold panels shifted to forest + gold). */
+/** Restyled HUD chrome (Jane's Realty gold panels shifted to olive-slate + gold). */
 export const HUD_SHEET: PropSheet = {
   file: "hud-kit-k1.png",
   width: 1024,

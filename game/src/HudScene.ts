@@ -135,7 +135,7 @@ export class HudScene extends Phaser.Scene {
     for (const listener of this.listeners) listener(event, detail);
   }
 
-  /** Restyled forest/gold chrome from the civic HUD kit. */
+  /** Restyled olive-slate/gold chrome from the civic HUD kit. */
   private hudPanel(frame: keyof typeof HUD_FRAMES, width: number, height: number): Phaser.GameObjects.Image {
     const box = HUD_FRAMES[frame];
     const img = this.add.image(0, 0, HUD_SHEET.file, ensureFrame(this, HUD_SHEET.file, box));

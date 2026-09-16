@@ -247,6 +247,11 @@ export class CityScene extends Phaser.Scene {
         office: this.city.plan.civics?.find((c) => c.kind === "office") ?? null,
         officeStampWidth: OFFICE_STAMP_WIDTH,
         civicCount: this.city.plan.civics?.length ?? 0,
+        civicByKind: (this.city.plan.civics ?? []).reduce<Record<string, number>>((acc, civic) => {
+          acc[civic.kind] = (acc[civic.kind] ?? 0) + 1;
+          return acc;
+        }, {}),
+        hasBikeLane: Boolean(this.city.plan.features.some((f) => f.kind === "bike")),
         uniqueFacades: new Set(
           this.city.plan.placements.map((p) => `${p.lot.buildingId}:${p.lot.facadeTint}:${p.lot.dressingProp}`),
         ).size,

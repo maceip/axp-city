@@ -192,6 +192,8 @@ describe("civic and HUD kits", () => {
     }
     expect(CIVIC_SPRITES.office.w).toBeGreaterThan(400);
     expect(CIVIC_SPRITES["plant-0"].h).toBeGreaterThan(60);
+    expect(CIVIC_SPRITES["road-0"].w).toBeGreaterThan(40);
+    expect(CIVIC_SPRITES["bike-0"].w).toBeGreaterThan(40);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);
   });

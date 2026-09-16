@@ -31,8 +31,11 @@ HQ = Path("/tmp/tilesets/CENTER_OF_MAP_HQ.png")
 # Existing city walls/roofs sit in a muted olive-cream-slate range.
 TARGET_SAT = 0.72
 GOLD = (246, 221, 145)
-FOREST = (21, 37, 32)
+# Olive-slate plate — same family as lot grass / cream walls, not raw black HUD.
+FOREST = (78, 98, 80)
 INK = (242, 239, 226)
+CREAM = (232, 224, 198)
+SLATE = (92, 98, 92)
 
 
 def open_rgba(path: Path) -> Image.Image:
@@ -244,7 +247,7 @@ def extract_construction(sheet: Image.Image, bg: str) -> list[Image.Image]:
         # Finished $ bank sits at the bottom of the attached column.
         if b[1] > keyed.height * 0.72:
             continue
-        stages.append(restyle(trim(b[4]), sat=0.7))
+        stages.append(outline(restyle(trim(b[4]), sat=0.78, contrast=1.16)))
     return stages
 
 
@@ -297,7 +300,7 @@ def extract_bike_road() -> list[Image.Image]:
         blobs = components(keyed, min_px=40)
         for b in blobs:
             if 16 < b[2] < 90 and 10 < b[3] < 70:
-                tiles.append(restyle(trim(b[4]), sat=0.55, contrast=1.1))
+                tiles.append(outline(restyle(trim(b[4]), sat=0.62, contrast=1.18)))
     return tiles[:48]
 
 
@@ -403,9 +406,9 @@ def recolor_gold_widget(im: Image.Image) -> Image.Image:
             if r > 170 and g > 120 and b < 110:
                 px[x, y] = (GOLD[0], GOLD[1], GOLD[2], a)
             elif r > 140 and g > 90 and b < 90:
-                px[x, y] = (36, 58, 48, a)
+                px[x, y] = (72, 92, 74, a)
             elif r > 90 and g > 55 and b < 70:
-                px[x, y] = (21, 37, 32, a)
+                px[x, y] = FOREST + (a,)
     return restyle(keyed, sat=0.8, contrast=1.04)
 
 
@@ -416,8 +419,8 @@ def hud_kit(hud: Image.Image) -> tuple[Image.Image, dict]:
     draw = ImageDraw.Draw(kit)
 
     def forest_panel(name, x, y, w, h, r=12):
-        draw.rounded_rectangle((x, y, x + w, y + h), r, fill=(21, 37, 32, 235), outline=GOLD + (210,), width=2)
-        draw.rounded_rectangle((x + 3, y + 3, x + w - 3, y + h - 3), max(4, r - 4), outline=(80, 110, 90, 80), width=1)
+        draw.rounded_rectangle((x, y, x + w, y + h), r, fill=FOREST + (236,), outline=GOLD + (220,), width=2)
+        draw.rounded_rectangle((x + 3, y + 3, x + w - 3, y + h - 3), max(4, r - 4), outline=CREAM + (70,), width=1)
         boxes[name] = {"x": x, "y": y, "w": w, "h": h}
 
     forest_panel("plate", 8, 8, 250, 78, 10)
@@ -432,7 +435,7 @@ def hud_kit(hud: Image.Image) -> tuple[Image.Image, dict]:
     forest_panel("btn-sq", 580, 196, 46, 46, 8)
     forest_panel("dpad", 740, 100, 150, 150, 12)
     # Compass disc.
-    draw.ellipse((910, 8, 1010, 108), fill=(21, 37, 32, 235), outline=GOLD + (220,), width=2)
+    draw.ellipse((910, 8, 1010, 108), fill=FOREST + (236,), outline=GOLD + (220,), width=2)
     draw.polygon([(960, 28), (972, 52), (960, 48)], fill=GOLD)
     boxes["compass"] = {"x": 910, "y": 8, "w": 100, "h": 100}
     # Recolored Jane's pills — isolated, not the map chrome.
@@ -606,6 +609,53 @@ def write_civic_and_hud() -> tuple[dict, dict]:
     return civic_boxes, hud_boxes
 
 
+# Measured civic-kit boxes that arrived too pale after the first sat crush.
+READABILITY_BOXES = {
+    "scaffold-0": (1142, 8, 87, 73),
+    "scaffold-1": (1237, 8, 75, 99),
+    "scaffold-2": (1320, 8, 88, 110),
+    "scaffold-3": (1416, 8, 95, 110),
+    "road-0": (321, 507, 72, 47),
+    "road-1": (401, 507, 71, 48),
+    "bike-0": (480, 507, 66, 38),
+    "bike-1": (554, 507, 66, 38),
+}
+
+
+def boost_civic_readability(path: Path = OUT / "civic-kit-k1.png") -> None:
+    """Regrade washed-out scaffolds / road diamonds in place; boxes stay put."""
+    kit = open_rgba(path)
+    for name, (x, y, w, h) in READABILITY_BOXES.items():
+        crop = kit.crop((x, y, x + w, y + h)).copy()
+        px = crop.load()
+        for yy in range(crop.height):
+            for xx in range(crop.width):
+                r, g, b, a = px[xx, yy]
+                if a < 16:
+                    continue
+                luma = (r + g + b) / 3
+                if name.startswith("scaffold"):
+                    # Ghost-white frames → cream timber + slate posts.
+                    if luma > 210:
+                        px[xx, yy] = (214, 202, 168, a)
+                    elif luma > 160:
+                        px[xx, yy] = (168, 156, 128, a)
+                    else:
+                        px[xx, yy] = (98, 92, 78, a)
+                else:
+                    # Pale road/bike diamonds → slate asphalt with cream edge.
+                    if luma > 200:
+                        px[xx, yy] = (210, 204, 186, a)
+                    elif luma > 80:
+                        px[xx, yy] = (86, 92, 88, a)
+                    else:
+                        px[xx, yy] = (58, 64, 60, a)
+        crop = outline(crop, (52, 58, 50, 230))
+        kit.paste(crop, (x, y))
+    kit.save(path)
+    print("boosted", ", ".join(READABILITY_BOXES), "on", path)
+
+
 def fill_band(needed: int, primary: list[Image.Image], *pools: list[Image.Image]) -> list[Image.Image]:
     out = []
     seen = set()
@@ -683,7 +733,7 @@ def main() -> None:
                 "ChatGPT family trios",
                 "CENTER_OF_MAP_HQ office compound",
                 "Attached construction / parking / gates / bank, restyled",
-                "Jane's Realty HUD gold panels recolored to forest+gold",
+                "Jane's Realty HUD gold panels recolored to olive-slate+gold",
                 "Jane's houses only after saturation crush",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
@@ -716,7 +766,19 @@ def main() -> None:
 if __name__ == "__main__":
     import sys
 
-    if "--civic-only" in sys.argv:
+    if "--hud-only" in sys.argv:
+        hud_src = SRC2 / "PC _ Computer - Jane's Realty - Interface - HUD Graphics.png"
+        kit, hud_boxes = hud_kit(open_rgba(hud_src))
+        kit.save(OUT / "hud-kit-k1.png")
+        existing = {}
+        if MANIFEST.joinpath("tileset-manifest.json").exists():
+            existing = json.loads(MANIFEST.joinpath("tileset-manifest.json").read_text())
+        existing["hud"] = hud_boxes
+        MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
+        print("hud", len(hud_boxes), OUT / "hud-kit-k1.png")
+    elif "--boost-civic" in sys.argv:
+        boost_civic_readability()
+    elif "--civic-only" in sys.argv:
         civic_boxes, hud_boxes = write_civic_and_hud()
         existing = {}
         if MANIFEST.joinpath("tileset-manifest.json").exists():
@@ -725,6 +787,7 @@ if __name__ == "__main__":
         existing["hud"] = hud_boxes
         MANIFEST.mkdir(parents=True, exist_ok=True)
         MANIFEST.joinpath("tileset-manifest.json").write_text(json.dumps(existing, indent=2))
+        boost_civic_readability()
         print("civic", len(civic_boxes), "hud", len(hud_boxes))
         for k, v in civic_boxes.items():
             print(k, v)

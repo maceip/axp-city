@@ -68,7 +68,7 @@ export interface VacantPlot {
 }
 
 /** Non-repo objects the Phaser scene stamps from the shared plan. */
-export type CivicKind = "office" | "odd" | "plant" | "parking" | "gate";
+export type CivicKind = "office" | "odd" | "plant" | "parking" | "gate" | "road";
 
 export interface CivicMarker {
   kind: CivicKind;
@@ -385,6 +385,21 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
   const streetRows = [...new Set(placements.map((p) => p.row))].sort(
     (a, b) => a - b,
   );
+  // Restyled road diamonds live on the street south of each occupied row —
+  // same plan the Phaser scene stamps, never a reserved lot slot.
+  for (const row of streetRows) {
+    for (let sx = minSx; sx <= maxSx; sx += 2) {
+      if (isReservedSlot(sx, row)) continue;
+      const origin = slotOrigin(sx, row);
+      civics.push({
+        kind: "road",
+        id: `road-${sx}-${row}`,
+        x: origin.x + LOT_W * 0.55,
+        y: origin.y + LOT_D + SHOULDER + 0.48,
+        sprite: ((sx + row) & 1) === 0 ? "road-0" : "road-1",
+      });
+    }
+  }
 
   const radius = Math.max(
     Math.abs(minSx),

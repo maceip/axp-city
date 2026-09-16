@@ -52,12 +52,20 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert info["office"] and info["office"]["sprite"] == "office"
         assert info["officeStampWidth"] >= 400
         assert info["civicCount"] > 8
+        kinds = info["civicByKind"]
+        assert kinds.get("office", 0) >= 1
+        assert kinds.get("plant", 0) >= 4, f"missing park/vacant plants: {kinds}"
+        assert kinds.get("odd", 0) >= 1, f"missing unused odd buildings: {kinds}"
+        assert kinds.get("road", 0) >= 4, f"restyled roads not in the plan: {kinds}"
+        assert kinds.get("gate", 0) >= 1
+        assert info["hasBikeLane"], "bike-lane feature missing from the city plan"
         assert info["uniqueFacades"] >= 12, f"repo lots still look cloned: {info['uniqueFacades']} unique facades"
 
         click_hud(page, "zoom-out")
         click_hud(page, "zoom-out")
         page.wait_for_timeout(400)
         page.screenshot(path=str(SHOTS / "tileset-city-overview.png"), full_page=False)
+        page.screenshot(path=str(SHOTS / "tileset-roads-bikes-civics.png"), full_page=False)
 
         click_hud(page, "home")
         page.wait_for_timeout(500)
