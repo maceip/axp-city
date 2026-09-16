@@ -144,7 +144,7 @@ def test_production_routes_use_phaser_and_resolve_all_assets(browser, server, ba
     quiet = lot_pixels(page, "acme/quiet")
     assert pixel_distance(drawn, quiet) > 6
     page.screenshot(path=str(SHOTS / "desktop.png"))
-    (SHOTS / "backend.json").write_text(json.dumps(backend.describe(), indent=2))
+    (SHOTS / f"backend-{backend.kind}.json").write_text(json.dumps(backend.describe(), indent=2))
     assert not errors and not failed, (errors, failed)
     page.close()
 
