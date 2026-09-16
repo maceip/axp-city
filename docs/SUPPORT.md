@@ -33,6 +33,8 @@ Results are from the automated suite (`e2e/test_support.py`, `e2e/test_city_visu
 
 ## Keyboard and assistive technology
 
+- Key handling is frame-rate independent: Phaser dispatches queued DOM key events as they arrive but clears the queue only on the next game step, so on a slow device a keyup could re-dispatch the keydown before it. `CityScene` acts on each DOM event once; this is exercised by the SwiftShader CI leg, where the effect reproduces.
+
 - Every HUD action has a keyboard path: `/` search, digits jump to lots, `C` census, `F` follow, `M` reduced motion, `Esc` clears, WASD/arrows pan, `+`/`-` zoom.
 - `game/src/a11y.ts` mirrors status, the selected lot and the census into a visually hidden live region (`#a11y`) with real buttons, so screen readers announce state changes and can select repositories.
 - Reduced motion (`M` or the HUD button) freezes crews, traffic and weather; the setting is announced.
