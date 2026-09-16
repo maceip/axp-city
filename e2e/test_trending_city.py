@@ -60,6 +60,11 @@ def test_trending_city_is_the_default_and_pads_match_buildings(backend, tmp_path
         assert status["trending"]["source"] == "test-fixture"
 
         ready(page, server.url)
+        for _ in range(4):
+            point = page.evaluate("window.__AXP.hudPoint('zoom-out')")
+            assert point
+            page.mouse.click(point["x"], point["y"])
+        page.wait_for_timeout(500)
         info = page.evaluate("window.__AXP.diagnostics()")
         assert info["cityName"] == "Trending City"
         assert info["cityKind"] == "trending"
@@ -72,6 +77,7 @@ def test_trending_city_is_the_default_and_pads_match_buildings(backend, tmp_path
 
         page.wait_for_timeout(400)
         page.screenshot(path=str(SHOTS / "trending-city-home.png"), full_page=False)
+        page.screenshot(path=str(SHOTS / "trending-city-districts.png"), full_page=False)
 
         page.evaluate("window.__AXP.home && window.__AXP.home()")
         page.wait_for_timeout(300)
@@ -79,10 +85,20 @@ def test_trending_city_is_the_default_and_pads_match_buildings(backend, tmp_path
 
         page.evaluate("repo => window.__AXP.select(repo)", "trend/daily-one")
         page.wait_for_function("window.__AXP.diagnostics().selected === 'trend/daily-one'")
-        page.wait_for_timeout(350)
+        page.wait_for_timeout(600)
         card = page.locator("#a11y-selection").inner_text()
-        assert "trend/daily-one" in card.lower() or "daily" in card.lower() or True
+        assert "daily" in card.lower()
         page.screenshot(path=str(SHOTS / "trending-city-daily-lot.png"), full_page=False)
+
+        page.evaluate("repo => window.__AXP.select(repo)", "trend/weekly-one")
+        page.wait_for_function("window.__AXP.diagnostics().selected === 'trend/weekly-one'")
+        page.wait_for_timeout(500)
+        page.screenshot(path=str(SHOTS / "trending-city-weekly-lot.png"), full_page=False)
+
+        page.evaluate("repo => window.__AXP.select(repo)", "trend/monthly-one")
+        page.wait_for_function("window.__AXP.diagnostics().selected === 'trend/monthly-one'")
+        page.wait_for_timeout(500)
+        page.screenshot(path=str(SHOTS / "trending-city-monthly-lot.png"), full_page=False)
 
         second = browser.new_page(viewport=dict(width=1600, height=1000))
         ready(second, server.url)
