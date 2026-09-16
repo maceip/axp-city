@@ -248,6 +248,7 @@ export class CityScene extends Phaser.Scene {
         censusOpen: this.hudReady && this.hud.censusIsOpen,
         censusFrame: this.hudReady ? this.hud.censusFrame() : null,
         cardVisible: this.hudReady && this.hud.cardVisible,
+        cardFrame: this.hudReady ? this.hud.cardFrame() : null,
         office: this.city.plan.civics?.find((c) => c.kind === "office") ?? null,
         officeStampWidth: OFFICE_STAMP_WIDTH,
         roadStampWidth: ROAD_STAMP_WIDTH,
@@ -312,6 +313,7 @@ export class CityScene extends Phaser.Scene {
         if (!this.hudReady) return null;
         return this.hud.labelText(name);
       },
+      censusPaintedCrew: () => (this.hudReady ? this.hud.censusPaintedCrew() : []),
       bikeMarkScreens: () => {
         const view = this.view();
         const zoom = this.cameras.main.zoom;

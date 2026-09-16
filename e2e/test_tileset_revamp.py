@@ -275,9 +275,13 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.wait_for_function("window.__AXP.diagnostics().censusOpen === true")
         census = page.evaluate("window.__AXP.diagnostics()")
         frame = census["censusFrame"]
-        assert frame and frame["width"] <= 460, f"census still curtains the city ({frame})"
+        assert frame and frame["width"] <= 530, f"census still curtains the city ({frame})"
         assert frame["height"] <= 560, f"census still runs the full viewport ({frame})"
         assert census["cardVisible"] is False, "inspect card must yield while the census sheet is open"
+        crews = page.evaluate("window.__AXP.censusPaintedCrew()")
+        assert crews, "census painted no crew cells"
+        assert all("…" not in c for c in crews), f"crew column still clips: {crews[:8]}"
+        assert "HUMAN CREW" in crews and "QUIET LOT" in crews, crews
         page.screenshot(path=str(SHOTS / "tileset-hud-census.png"), full_page=False)
         ledger = SHOTS / "tileset-hud-census-ledger.png"
         page.screenshot(path=str(ledger), clip={"x": 16, "y": 98, "width": int(frame["width"]), "height": 200})
@@ -294,6 +298,8 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.screenshot(path=str(SHOTS / "tileset-lot-inspect.png"), full_page=False)
         assert hud(page, "card")
         assert hud(page, "close-card")
+        card = page.evaluate("window.__AXP.diagnostics().cardFrame")
+        assert card and card["y"] >= 400, f"inspect card still covers the upper-right ({card})"
 
         second = browser.new_page(viewport=dict(width=1600, height=1000))
         ready(second, server.url)

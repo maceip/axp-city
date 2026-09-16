@@ -38,10 +38,11 @@ const MUTED = "#b9c4b3";
 const KIT_BTN_W = 96;
 const KIT_BTN_H = 28;
 const KIT_GAP = 6;
-const CARD_W = 330;
-const CENSUS_MIN_W = 392;
-const CENSUS_MAX_W = 448;
+const CARD_W = 300;
+const CENSUS_MIN_W = 500;
+const CENSUS_MAX_W = 520;
 const CENSUS_MAX_H = 540;
+const CARD_SKYLINE = 480;
 
 function tint(color: string): number {
   return Number.parseInt(color.replace("#", ""), 16);
@@ -150,6 +151,7 @@ export class HudScene extends Phaser.Scene {
   private listeners = new Set<(event: string, detail?: unknown) => void>();
   private constructionStamp?: string;
   private lastView?: Rect;
+  private paintedCrew: string[] = [];
   motion = true;
 
   constructor() {
@@ -190,6 +192,7 @@ export class HudScene extends Phaser.Scene {
     this.censusOpen = false;
     this.censusScroll = 0;
     this.censusVisible = [];
+    this.paintedCrew = [];
     this.selected = undefined;
     this.toastTimer = undefined;
     this.lastView = undefined;
@@ -441,7 +444,7 @@ export class HudScene extends Phaser.Scene {
       const kitX = W - mapW - 22 - kitW - 10;
       const kitH = toolbar.length * (KIT_BTN_H + KIT_GAP) - KIT_GAP;
       // Bottom-align with the minimap so Follow stays on-screen.
-      const kitY = H - 46 - kitH;
+      const kitY = this.desktopKitTop(H);
       this.massContainer.setVisible(false);
       this.compass.setPosition(W - 64, kitY - 8);
       const hideDock = this.censusOpen;
@@ -627,7 +630,7 @@ export class HudScene extends Phaser.Scene {
     this.constructionStamp = `${site.stage}:${Math.round(site.progress * 50)}`;
     const lines: Array<[string, string, string?]> = [
       [`${place.district.toUpperCase()} · ${lot.buildingBand} BUILDING · SLOT ${place.col},${place.row}`, GOLD, "10px"],
-      [lot.name, INK, "20px"],
+      [lot.name, INK, "16px"],
       [`${lot.owner} / ${lot.name}`, MUTED, "11px"],
       [`STARS ${lot.stars.toLocaleString()}    ISSUES ${lot.openIssues}    OPEN PRS ${lot.openPrs}`, INK, "12px"],
       [site.stage !== "complete" ? `UNDER CONSTRUCTION · ${constructionLabel(site).toUpperCase()} · ${Math.round(site.progress * 100)}%` : yardLabel(lot.yard).toUpperCase(), GOLD, "11px"],
@@ -641,14 +644,15 @@ export class HudScene extends Phaser.Scene {
       [`${lot.rulesSource === "repository" ? "Repository rules" : "City default rules"}${lot.artwork ? " · approved artwork" : ""}${lot.rulesWarning ? ` · ${lot.rulesWarning}` : ""}`, lot.rulesWarning ? "#f2b36b" : MUTED, "10px"],
     ];
     const width = this.cardWidth();
-    let y = 44;
+    let y = 36;
     for (const [text, color, size] of lines) {
-      const t = ink(this, 16, y, text, { fontSize: size ?? "12px", color, wordWrap: { width: width - 32 } });
+      const fontSize = Number.parseInt(size ?? "12", 10);
+      const t = ink(this, 16, y, this.clipCell(text, width - 32, fontSize), { fontSize: size ?? "12px", color });
       this.card.add(t);
       this.cardTexts.push(t);
-      y += t.height + 6;
+      y += t.height + 3;
     }
-    this.card.setData("height", y + 52);
+    this.card.setData("height", y + 48);
     this.card.setVisible(!this.censusOpen);
     if (this.card.visible) this.layoutCard();
     else this.layout();
@@ -659,15 +663,29 @@ export class HudScene extends Phaser.Scene {
     return this.scale.width < 700 ? this.scale.width - 24 : CARD_W;
   }
 
+  private desktopKitTop(H = this.scale.height): number {
+    const kitH = ["census", "capture", "svg", "motion", "follow"].length * (KIT_BTN_H + KIT_GAP) - KIT_GAP;
+    return H - 46 - kitH;
+  }
+
+  cardFrame(): { x: number; y: number; width: number; height: number } | null {
+    if (!this.card.visible) return null;
+    return frameOf(this.card);
+  }
+
   private layoutCard(): void {
     if (!this.card.visible) return;
     const W = this.scale.width,
       H = this.scale.height,
       small = W < 700;
     const width = this.cardWidth();
-    const height = (this.card.getData("height") as number) ?? 200;
+    const natural = (this.card.getData("height") as number) ?? 200;
+    const kitTop = this.desktopKitTop(H);
+    const skyline = Math.min(CARD_SKYLINE, Math.round(H * 0.48));
+    const height = small ? natural : Math.min(natural, Math.max(120, kitTop - skyline - 12));
     const x = small ? 12 : W - width - 16;
-    const y = small ? Math.max(90, H - height - 12) : 150;
+    // Desktop: dock above the kit so the upper-right city stays open.
+    const y = small ? Math.max(90, H - height - 12) : kitTop - height - 12;
     this.card.setPosition(x, y).setSize(width, height);
     this.cardBg.setDisplaySize(width, height);
     this.buttons.get("close-card")!.container.setPosition(width - 40, 8);
@@ -707,6 +725,10 @@ export class HudScene extends Phaser.Scene {
     return frameOf(this.census);
   }
 
+  censusPaintedCrew(): string[] {
+    return [...this.paintedCrew];
+  }
+
   setCensusFilter(query: string): void {
     this.censusFilter = query;
     this.censusScroll = 0;
@@ -730,7 +752,7 @@ export class HudScene extends Phaser.Scene {
       this.censusBg.setDisplaySize(W, height);
       this.buttons.get("close-census")!.container.setPosition(W - 44, 8);
     } else {
-      const width = Math.min(CENSUS_MAX_W, Math.max(CENSUS_MIN_W, Math.round(W * 0.28)));
+      const width = Math.min(CENSUS_MAX_W, Math.max(CENSUS_MIN_W, Math.round(W * 0.32)));
       const height = Math.min(H - 120, CENSUS_MAX_H);
       this.census.setPosition(16, 98).setSize(width, height);
       this.censusBg.setDisplaySize(width, height);
@@ -752,11 +774,11 @@ export class HudScene extends Phaser.Scene {
         ]
       : [
           { key: "repo", label: "Repository", width: 148 },
-          { key: "district", label: "District", width: 80 },
+          { key: "district", label: "District", width: 100 },
           { key: "stars", label: "Stars", width: 52 },
           { key: "prs", label: "PRs", width: 36 },
           { key: "band", label: "Bld", width: 32 },
-          { key: "crew", label: "Crew", width: 72 },
+          { key: "crew", label: "Crew", width: 118 },
         ];
   }
 
@@ -778,6 +800,7 @@ export class HudScene extends Phaser.Scene {
     this.censusMarks = [];
     const rows = sortCensus(filterCensus(censusRows(this.snapshot.plan, this.now()), this.censusFilter), this.censusSort.key, this.censusSort.descending);
     this.censusVisible = rows;
+    this.paintedCrew = [];
     const H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420));
     const width = Math.max(280, this.census.width || 580);
     const { rowH, font, head, headerY } = this.censusMetrics();
@@ -829,7 +852,9 @@ export class HudScene extends Phaser.Scene {
       let cx = 18;
       const inkColor = selected ? GOLD : INK;
       for (const column of this.columns()) {
-        const label = ink(this, cx, y, this.clipCell(String(cellValue(row, column.key)), column.width, font), {
+        const painted = this.clipCell(String(cellValue(row, column.key)), column.width, font);
+        if (column.key === "crew") this.paintedCrew.push(painted);
+        const label = ink(this, cx, y, painted, {
           fontSize: `${font}px`,
           color: inkColor,
         });
