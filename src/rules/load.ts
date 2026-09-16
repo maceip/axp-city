@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { GITHUB_API_URL } from "../ingest/github.js";
 import {
   DEFAULT_RULES,
   CityRulesError,
@@ -141,7 +142,7 @@ function githubRuleReader(
 ): RuleFileReader {
   return async function read(file: string): Promise<unknown | undefined> {
     const response = await request(
-      `https://api.github.com/repos/${fullName}/contents/.city/${file}`,
+      `${GITHUB_API_URL}/repos/${fullName}/contents/.city/${file}`,
       {
         headers: {
           Accept: "application/vnd.github.raw+json",
