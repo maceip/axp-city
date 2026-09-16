@@ -414,6 +414,60 @@ describe("repository-owned rules", () => {
     }
   });
 
+  it("bounds a slow GitHub response: the published lot stays, freshness records the failure, the delivery retries", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "axp-slow-"));
+    let slow = true;
+    let calls = 0;
+    const runtime = createWebhookServer(
+      {
+        secret,
+        databasePath: join(dir, "city.sqlite"),
+        coalesceMs: 0,
+        refreshTimeoutMs: 150,
+        resolveRepository: async (fullName) => {
+          calls++;
+          if (slow) await new Promise((r) => setTimeout(r, 600));
+          const m = metrics({ fullName, stars: 777, isPrivate: false });
+          return { lot: parseLot(m), metrics: m };
+        },
+      },
+      0,
+    );
+    const base = await start(runtime);
+    await runtime.city.hydrate([parseLot(metrics({ fullName: "acme/widget", stars: 1 }))]);
+    const body = JSON.stringify({ ref: "refs/heads/main", repository: { full_name: "acme/widget" }, sender: { login: "human" } });
+    try {
+      const response = await fetch(`${base}/webhooks/github`, {
+        method: "POST",
+        body,
+        headers: { "x-github-event": "push", "x-github-delivery": "slow-1", "x-hub-signature-256": signBody(Buffer.from(body), secret) },
+      });
+      expect(response.status).toBe(202);
+      await runtime.drainDeliveries();
+      expect(calls).toBe(1);
+      // The old lot is still published and nothing pretended to be fresh.
+      expect(runtime.city.lots()[0].stars).toBe(1);
+      const status = (await (await fetch(`${base}/api/city/status`)).json()) as {
+        freshness: { lastError: string | null; lastSuccessfulRefreshAt: string | null; failingRepositories: number };
+        deliveries: { pending: number; done: number; failed: number };
+      };
+      expect(status.freshness.lastError).toMatch(/timed out after 150 ms/);
+      expect(status.freshness.lastSuccessfulRefreshAt).toBeNull();
+      expect(status.freshness.failingRepositories).toBe(1);
+      // Retry is scheduled from the local queue (attempt 1 → 30 s), not dropped and not marked done.
+      expect(status.deliveries).toMatchObject({ pending: 1, done: 0, failed: 0 });
+      const later = new Date(Date.now() + 31_000).toISOString();
+      slow = false;
+      await runtime.drainDeliveries(later);
+      expect(calls).toBe(2);
+      expect(runtime.city.lots()[0].stars).toBe(777);
+      expect(runtime.city.deliveryCounts()).toMatchObject({ pending: 0, done: 1, failed: 0 });
+      expect(runtime.city.freshness().failingRepositories).toBe(0);
+    } finally {
+      await stop(runtime);
+    }
+  });
+
   it("uses defaults only for absent/invalid rules; auth and transport failures fail the refresh", async () => {
     const absent = (async () => new Response(null, { status: 404 })) as typeof fetch;
     expect((await loadRepositoryRules("acme/widget", DEFAULT_RULES, undefined, absent)).source).toBe(
