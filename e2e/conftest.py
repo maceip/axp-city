@@ -198,17 +198,16 @@ def ready(page, url):
 def settled(page, timeout=10000):
     """Wait until the camera has stopped moving (a key press still pans the frame after
     it resolves on a slow renderer), then return the diagnostics of that resting state."""
-    page.wait_for_function(
-        """() => new Promise(resolve => {
-            const d = window.__AXP.diagnostics();
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                const e = window.__AXP.diagnostics();
-                resolve(d.scrollX === e.scrollX && d.scrollY === e.scrollY && d.zoom === e.zoom);
-            }));
-        })""",
-        timeout=timeout,
-    )
-    return page.evaluate("window.__AXP.diagnostics()")
+    read = "() => { const c = window.__AXP.scene.cameras.main; return [c.scrollX, c.scrollY, c.zoom, c.panEffect.isRunning || c.zoomEffect.isRunning]; }"
+    deadline = time.monotonic() + timeout / 1000
+    previous = None
+    while time.monotonic() < deadline:
+        current = page.evaluate(read)
+        if current == previous and not current[3]:
+            return page.evaluate("window.__AXP.diagnostics()")
+        previous = current
+        page.wait_for_timeout(250)
+    raise TimeoutError(f"camera still moving after {timeout} ms: {previous}")
 
 
 def webgl_available(page):

@@ -164,7 +164,16 @@ export class CityScene extends Phaser.Scene {
     this.bindInput();
     this.bindSearch();
     this.connection.connect();
-    const onLost = () => this.registry.set("restore", { scrollX: this.cameras.main.scrollX, scrollY: this.cameras.main.scrollY, zoom: this.cameras.main.zoom, selected: this.selected });
+    const onLost = () => {
+      const c = this.cameras.main;
+      // A pan that was still gliding when the context went finishes now, so the
+      // restored scene lands where the visitor was heading, not on a random frame.
+      if (c.panEffect.isRunning) {
+        c.centerOn(c.panEffect.destination.x, c.panEffect.destination.y);
+        c.panEffect.reset();
+      }
+      this.registry.set("restore", { scrollX: c.scrollX, scrollY: c.scrollY, zoom: c.zoom, selected: this.selected });
+    };
     const onRestored = () => {
       // Generated textures (terrain, people, vehicles) do not survive a context loss.
       this.scene.stop(SceneKeys.Hud);
