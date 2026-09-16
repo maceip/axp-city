@@ -232,13 +232,19 @@ def test_actors_persist_across_viewport_travel_and_ambient_life_moves(page):
     # Layering follows movement: a drawn actor's depth is its current foot position, so it
     # passes behind and in front of neighbouring buildings and props as it moves.
     poses = []
-    for _ in range(4):
+    deadline = time.time() + 15
+    while time.time() < deadline:
         poses.append(page.evaluate("id => window.__AXP.actor(id)", walker))
+        drawn = [p for p in poses if p.get("spriteDepth") is not None]
+        # A walker pauses between legs and the simulation clock is clamped per frame, so
+        # sample until it has been drawn at two different spots rather than a fixed count.
+        if len(drawn) >= 2 and len({(round(p["sx"]), round(p["sy"])) for p in drawn}) > 1:
+            break
         page.wait_for_timeout(250)
     drawn = [p for p in poses if p.get("spriteDepth") is not None]
     assert drawn, "walker was never drawn"
     assert all(abs(p["spriteDepth"] - p["sy"]) < 12 for p in drawn), drawn
-    assert len({round(p["sy"]) for p in drawn}) > 1 or len({round(p["sx"]) for p in drawn}) > 1, "walker did not move"
+    assert len({(round(p["sx"]), round(p["sy"])) for p in drawn}) > 1, ("walker did not move", drawn)
     # Travel until the lot leaves the screen: its sprite is detached but its timeline continues.
     page.keyboard.down("D")
     try:
@@ -361,7 +367,9 @@ def test_new_lot_construction_progresses_through_stages_without_reload(page, ser
     seen = []
     drawn = {}
     noise = {}
-    deadline = time.time() + 55
+    # The site takes CONSTRUCTION_MS (45 s); sampling and screenshots on a software
+    # renderer can add tens of seconds on top, and the loop ends at "complete" anyway.
+    deadline = time.time() + 120
     while time.time() < deadline:
         site = page.evaluate("window.__AXP.construction('acme/newcomer')")
         stage = site["stage"] if site else "complete"
