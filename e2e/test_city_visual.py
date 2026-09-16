@@ -70,6 +70,38 @@ def rendered_change(page, repo, before, label, settle_ms=400):
     return after
 
 
+SITE_OBSERVER_JS = """
+r => {
+  const s = (window.__SITE = { seen: [], drawn: {}, again: {}, crane: false, announced: false, pending: null, done: false });
+  const tick = async () => {
+    const c = window.__AXP.construction(r);
+    const d = window.__AXP.drawn(r);
+    const stage = c ? c.stage : "complete";
+    if (!s.seen.length || s.seen[s.seen.length - 1] !== stage) s.seen.push(stage);
+    if (stage === "framing" || stage === "cladding") {
+      if (window.__AXP.lotActors(r).some((a) => a.anim === "craneArm")) s.crane = true;
+      if ((document.querySelector("#a11y-selection")?.innerText ?? "").includes("UNDER CONSTRUCTION")) s.announced = true;
+    }
+    // Sample mid-stage (scaffold half raised, cladding half opaque), once the on-screen
+    // objects were built for this stage with every sheet loaded.
+    const ready = d && d.stage === stage && !d.incomplete && window.__AXP.diagnostics().assetsInflight === 0 && (!c || c.stageProgress >= 0.5);
+    if (ready && !(stage in s.drawn) && !s.pending) {
+      s.pending = stage;
+      const first = await window.__AXP.lotPixels(r);
+      await new Promise((f) => setTimeout(f, 300));
+      const second = await window.__AXP.lotPixels(r);
+      s.drawn[stage] = first;
+      s.again[stage] = second;
+      s.pending = null;
+    }
+    if (stage === "complete" && "complete" in s.drawn) s.done = true;
+    else setTimeout(tick, 200);
+  };
+  tick();
+}
+"""
+
+
 PINCH_JS = """
 ([kind, points]) => {
   const canvas = document.querySelector('#game canvas');
@@ -375,45 +407,30 @@ def test_new_lot_construction_progresses_through_stages_without_reload(page, ser
     # Hold traffic and crews still so the samples measure the site itself, not passing cars.
     page.keyboard.press("m")
     page.wait_for_function("window.__AXP.diagnostics().reducedMotion")
-    seen = []
-    drawn = {}
-    noise = {}
-    # The site takes CONSTRUCTION_MS (45 s); sampling and screenshots on a software
-    # renderer can add tens of seconds on top, and the loop ends at "complete" anyway.
+    # The browser is the observer: a page-side ticker records every stage the plan and the
+    # drawn objects go through and samples each one mid-stage, so a slow test runner (a
+    # SwiftShader screenshot can take seconds) cannot miss a 14 s stage.
+    page.evaluate(SITE_OBSERVER_JS, "acme/newcomer")
+    shot = set()
+    # The site takes CONSTRUCTION_MS (45 s); screenshots are best effort from here.
     deadline = time.time() + 120
     while time.time() < deadline:
-        site = page.evaluate("window.__AXP.construction('acme/newcomer')")
-        stage = site["stage"] if site else "complete"
-        if not seen or seen[-1] != stage:
-            seen.append(stage)
-            # Sample mid-stage (scaffold half raised, cladding half opaque) rather than at the
-            # instant a stage begins, when it still looks like the end of the previous one...
-            if stage != "complete":
-                page.wait_for_function(
-                    "s => { const c = window.__AXP.construction('acme/newcomer'); return !c || c.stage !== s || c.stageProgress >= 0.5; }",
-                    arg=stage,
-                    timeout=30000,
-                )
-            # ...and only once the objects on screen were built for this stage with every sheet
-            # loaded, not merely once the plan says so.
-            page.wait_for_function(
-                "s => { const d = window.__AXP.drawn('acme/newcomer'); return d && d.stage === s && !d.incomplete && window.__AXP.diagnostics().assetsInflight === 0; }",
-                arg=stage,
-                timeout=10000,
-            )
-            page.wait_for_timeout(250)
-            drawn[stage] = lot_pixels(page, "acme/newcomer")
-            page.wait_for_timeout(300)
-            noise[stage] = pixel_distance(drawn[stage], lot_pixels(page, "acme/newcomer"))  # crew/drone animation only
-            page.screenshot(path=str(SHOTS / f"construction-{len(seen)}-{stage}.png"))
-            if stage == "framing":
-                assert any(a["anim"] == "craneArm" for a in page.evaluate("window.__AXP.lotActors('acme/newcomer')"))
-                assert "UNDER CONSTRUCTION" in a11y(page, "#a11y-selection")
-        if stage == "complete":
+        site = page.evaluate("window.__SITE")
+        for stage in site["seen"]:
+            if stage in site["drawn"] and stage not in shot:  # sampled mid-stage; the screenshot follows as soon as we notice
+                shot.add(stage)
+                page.screenshot(path=str(SHOTS / f"construction-{site['seen'].index(stage) + 1}-{stage}.png"))
+        if site["done"]:
             break
-        page.wait_for_timeout(700)
+        page.wait_for_timeout(500)
+    site = page.evaluate("window.__SITE")
+    seen, drawn, noise = site["seen"], site["drawn"], {k: pixel_distance(site["drawn"][k], v) for k, v in site["again"].items()}
+    assert site["done"], seen
     assert seen[-1] == "complete", seen
     assert seen[:-1] == [s for s in ["grading", "framing", "cladding", "finishing"] if s in seen], seen
+    assert set(drawn) == set(seen), (sorted(drawn), seen)
+    assert site["crane"], "no crane arm was drawn during framing/cladding"
+    assert site["announced"], "the inspect card never said UNDER CONSTRUCTION"
     assert "framing" in seen and "cladding" in seen
     # Each stage the visitor saw was drawn differently: the transition is visible, not just a field.
     # With motion held, a finished lot is a still frame; in-stage "noise" is the scaffold and
