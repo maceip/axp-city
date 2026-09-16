@@ -695,12 +695,12 @@ def iso_diamond(
         draw.line([(cx - width * 0.22, cy - 2), (cx + width * 0.22, cy + 2)], fill=dash + (240,), width=4)
         draw.line([(cx - width * 0.18, cy + 6), (cx + width * 0.18, cy + 10)], fill=dash + (180,), width=2)
     if chevrons and dash:
-        for t in (0.32, 0.50, 0.68):
-            px = cx + (t - 0.5) * width * 0.42
-            py = cy + (t - 0.5) * height * 0.18
+        for t in (0.28, 0.50, 0.72):
+            px = cx + (t - 0.5) * width * 0.48
+            py = cy + (t - 0.5) * height * 0.2
             draw.polygon(
-                [(px - 11, py + 1), (px - 1, py - 6), (px + 12, py + 1), (px - 1, py + 7)],
-                fill=dash + (235,),
+                [(px - 15, py + 2), (px - 1, py - 8), (px + 16, py + 2), (px - 1, py + 10)],
+                fill=dash + (240,),
             )
     return im
 
@@ -719,9 +719,9 @@ def pack_large_street_tiles(civic_boxes: dict | None = None, path: Path = OUT / 
     road1 = restyle(trim(ground.crop((190, 181, 190 + 144, 181 + 97))), sat=0.62, contrast=1.08)
     kit.paste(road0, (8, 640 + 96 - road0.height))
     kit.paste(road1, (162, 640 + 97 - road1.height))
-    # Packed olive-khaki haul path + cream chevrons (catalog vibe, not neon lime).
-    bike0 = iso_diamond(120, 70, (118, 112, 86), CREAM, (214, 206, 168), chevrons=True)
-    bike1 = iso_diamond(120, 70, (102, 98, 76), (220, 212, 184), (214, 206, 168), chevrons=True)
+    # Packed catalog khaki haul path + cream chevrons (0x948e60 family, not neon lime).
+    bike0 = iso_diamond(120, 70, (148, 142, 96), CREAM, (236, 227, 184), chevrons=True)
+    bike1 = iso_diamond(120, 70, (132, 126, 86), (232, 224, 198), (236, 227, 184), chevrons=True)
     kit.paste(bike0, (320, 640), bike0)
     kit.paste(bike1, (448, 640), bike1)
     kit.save(path)

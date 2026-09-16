@@ -13,6 +13,7 @@ import {
   CIVIC_SHEET,
   CIVIC_SPRITES,
   BIKE_STAMP_WIDTH,
+  HUD_FONT,
   OFFICE_STAMP_WIDTH,
   ROAD_STAMP_WIDTH,
 } from "../../src/render/sprites.js";
@@ -28,7 +29,7 @@ const COLORS: Record<string, number> = {
   lot: 0x8a9c72,
   vacant: 0x8ea070,
   street: 0x5e6662,
-  bike: 0x767056,
+  bike: 0x948e60,
   grass: 0x84966c,
   dirt: 0xb7ae80,
   water: 0x7a9a90,
@@ -218,23 +219,23 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
         g.lineBetween(p.sx + width / 2 - 10, p.sy + 16, p.sx + width / 2 + 10, p.sy + 26);
       }
       if (kind === "bike") {
-        g.fillStyle(0x767056, 1);
+        g.fillStyle(0x948e60, 1);
         g.fillPoints(
           [
-            { x: p.sx + width / 2, y: p.sy + 2 },
-            { x: p.sx + width / 2 + 28, y: p.sy + 16 },
-            { x: p.sx + width / 2, y: p.sy + 30 },
-            { x: p.sx + width / 2 - 28, y: p.sy + 16 },
+            { x: p.sx + width / 2, y: p.sy + 1 },
+            { x: p.sx + width / 2 + 34, y: p.sy + 17 },
+            { x: p.sx + width / 2, y: p.sy + 33 },
+            { x: p.sx + width / 2 - 34, y: p.sy + 17 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
-        g.fillStyle(0xd6cea8, 0.95);
+        g.fillStyle(0xece3b8, 0.96);
         g.fillPoints(
           [
-            { x: p.sx + width / 2 - 6, y: p.sy + 10 },
-            { x: p.sx + width / 2 + 2, y: p.sy + 14 },
-            { x: p.sx + width / 2 - 6, y: p.sy + 18 },
-            { x: p.sx + width / 2 + 10, y: p.sy + 16 },
+            { x: p.sx + width / 2 - 10, y: p.sy + 10 },
+            { x: p.sx + width / 2 + 4, y: p.sy + 16 },
+            { x: p.sx + width / 2 - 10, y: p.sy + 22 },
+            { x: p.sx + width / 2 + 16, y: p.sy + 18 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
@@ -359,26 +360,26 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const x = plan.slotBounds.minSx * STRIDE_X;
     const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
     const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
-    diamond(x, streetY + BIKE_BAND, w, 0.58, 0x5e6662, 0.96);
-    diamond(x, streetY, w, BIKE_BAND, 0x767056, 0.98);
-    diamond(x, streetY + BIKE_BAND - 0.08, w, 0.1, 0xd4cbb0, 0.96);
+    diamond(x, streetY + BIKE_BAND, w, 0.32, 0x5e6662, 0.96);
+    diamond(x, streetY, w, BIKE_BAND, 0x948e60, 1);
+    diamond(x, streetY + BIKE_BAND - 0.12, w, 0.16, 0xe4d8a8, 0.98);
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      diamond(laneX + 0.55, streetY + 0.12, 1.55, 0.42, 0xd6cea8, 0.96);
-      diamond(laneX + 2.35, streetY + 0.28, 1.15, 0.32, 0xd6cea8, 0.88);
+      diamond(laneX + 0.3, streetY + 0.16, 2.2, 0.58, 0xece3b8, 0.98);
+      diamond(laneX + 2.5, streetY + 0.4, 1.65, 0.44, 0xe4d8a8, 0.92);
     }
-    const labelAt = project(x + 1.6, streetY + BIKE_BAND * 0.42);
-    objects.push(
-      scene.add
-        .text(labelAt.sx, labelAt.sy, "BIKE LANE", {
-          fontFamily: "monospace",
-          fontSize: "12px",
-          color: "#d6cea8",
-          letterSpacing: 2,
-        })
-        .setOrigin(0.5)
-        .setDepth(-90_000),
-    );
+    const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
+    const step = span > 10 ? 4 : 3;
+    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += step) {
+      const labelAt = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.8, streetY + BIKE_BAND * 0.42);
+      objects.push(
+        scene.add
+          .bitmapText(labelAt.sx, labelAt.sy, HUD_FONT.face, "BIKE LANE", 15)
+          .setTint(0xece3b8)
+          .setOrigin(0.5)
+          .setDepth(-90_000),
+      );
+    }
   }
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];

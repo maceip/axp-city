@@ -80,6 +80,8 @@ describe("planCity", () => {
     expect(small.placements[0].y).toBe(large.placements[0].y);
     const street = large.placements[0];
     expect(tileKind(street.x, street.y + 2.85, large)).toBe("bike");
+    expect(tileKind(street.x, street.y + 3.55, large)).toBe("bike");
+    expect(large.features.find((f) => f.kind === "bike")!.h).toBeGreaterThanOrEqual(1.05);
   });
 
   it("grows freeway and tram with the lot set, without moving plots", () => {

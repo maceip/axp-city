@@ -305,7 +305,7 @@ export const OFFICE_STAMP_WIDTH = 480;
 
 /** Street / bike-lane stamps — sized to read at overview and home zoom. */
 export const ROAD_STAMP_WIDTH = 176;
-export const BIKE_STAMP_WIDTH = 200;
+export const BIKE_STAMP_WIDTH = 220;
 
 export const CONSTRUCTION_STAGES: Record<string, SpriteBox> = {
   grading: CIVIC_SPRITES["scaffold-0"],

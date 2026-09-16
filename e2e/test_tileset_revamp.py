@@ -23,6 +23,28 @@ def hud(page, name):
     return point
 
 
+def street_lane_share(path: Path, box):
+    """Last-audit classifier: khaki only after asphalt-grey, so 0x767056 used to read as ~1%."""
+    image = Image.open(path).convert("RGB")
+    x0, y0, x1, y1 = box
+    n = khaki = cream = lime = 0
+    pix = image.load()
+    for y in range(y0, y1, 2):
+        for x in range(x0, x1, 2):
+            r, g, b = pix[x, y]
+            n += 1
+            sat = max(r, g, b) - min(r, g, b)
+            if g > r + 28 and g > b + 20 and sat > 55:
+                lime += 1
+            if 70 < r < 140 and 70 < g < 140 and 70 < b < 140 and abs(r - g) < 18:
+                continue
+            if 90 < r < 165 and 95 < g < 155 and 60 < b < 120 and g >= r - 8 and r - b > 16:
+                khaki += 1
+            elif r > 190 and g > 175 and 140 < b < 210 and abs(r - g) < 30:
+                cream += 1
+    return khaki / n, cream / n, lime / n
+
+
 def click_hud(page, name):
     p = hud(page, name)
     page.mouse.click(p["x"], p["y"])
@@ -113,11 +135,18 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.wait_for_timeout(400)
         page.screenshot(path=str(SHOTS / "tileset-city-overview.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-roads-bikes-civics.png"), full_page=False)
+        khaki, cream, lime = street_lane_share(SHOTS / "tileset-city-overview.png", (200, 470, 900, 560))
+        assert khaki >= 0.06, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
+        assert khaki + cream >= 0.09, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
+        assert lime < 0.12, f"overview bike paint drifted to neon lime ({lime:.3f})"
 
         click_hud(page, "home")
         page.wait_for_timeout(500)
         page.screenshot(path=str(SHOTS / "tileset-center-office.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-street-home.png"), full_page=False)
+        home_k, _home_c, home_lime = street_lane_share(SHOTS / "tileset-street-home.png", (200, 520, 1000, 600))
+        assert home_k >= 0.05, f"home-zoom bike corridor still recedes ({home_k:.3f} khaki)"
+        assert home_lime < 0.12, f"home-zoom bike paint drifted to neon lime ({home_lime:.3f})"
 
         def sample_lot(name):
             page.evaluate("repo => window.__AXP.select(repo)", name)
