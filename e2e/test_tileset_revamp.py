@@ -38,7 +38,7 @@ def street_lane_share(path: Path, box):
                 lime += 1
             if 70 < r < 140 and 70 < g < 140 and 70 < b < 140 and abs(r - g) < 18:
                 continue
-            if 90 < r < 165 and 95 < g < 155 and 60 < b < 120 and g >= r - 8 and r - b > 16:
+            if 90 < r < 190 and 95 < g < 175 and 60 < b < 140 and g >= r - 16 and r - b > 18 and g - r < 8:
                 khaki += 1
             elif r > 190 and g > 175 and 140 < b < 210 and abs(r - g) < 30:
                 cream += 1

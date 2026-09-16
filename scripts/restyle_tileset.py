@@ -720,8 +720,8 @@ def pack_large_street_tiles(civic_boxes: dict | None = None, path: Path = OUT / 
     kit.paste(road0, (8, 640 + 96 - road0.height))
     kit.paste(road1, (162, 640 + 97 - road1.height))
     # Packed catalog khaki haul path + cream chevrons (0x948e60 family, not neon lime).
-    bike0 = iso_diamond(120, 70, (148, 142, 96), CREAM, (236, 227, 184), chevrons=True)
-    bike1 = iso_diamond(120, 70, (132, 126, 86), (232, 224, 198), (236, 227, 184), chevrons=True)
+    bike0 = iso_diamond(120, 70, (168, 156, 104), CREAM, (236, 227, 184), chevrons=True)
+    bike1 = iso_diamond(120, 70, (150, 140, 92), (232, 224, 198), (236, 227, 184), chevrons=True)
     kit.paste(bike0, (320, 640), bike0)
     kit.paste(bike1, (448, 640), bike1)
     kit.save(path)

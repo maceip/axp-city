@@ -29,7 +29,7 @@ const COLORS: Record<string, number> = {
   lot: 0x8a9c72,
   vacant: 0x8ea070,
   street: 0x5e6662,
-  bike: 0x948e60,
+  bike: 0xa89c68,
   grass: 0x84966c,
   dirt: 0xb7ae80,
   water: 0x7a9a90,
@@ -219,7 +219,7 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
         g.lineBetween(p.sx + width / 2 - 10, p.sy + 16, p.sx + width / 2 + 10, p.sy + 26);
       }
       if (kind === "bike") {
-        g.fillStyle(0x948e60, 1);
+        g.fillStyle(0xa89c68, 1);
         g.fillPoints(
           [
             { x: p.sx + width / 2, y: p.sy + 1 },
@@ -356,12 +356,8 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     road: ROAD_STAMP_WIDTH,
     bike: BIKE_STAMP_WIDTH,
   };
-  for (const row of plan.streetRows) {
-    const x = plan.slotBounds.minSx * STRIDE_X;
-    const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
-    const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
-    diamond(x, streetY + BIKE_BAND, w, 0.32, 0x5e6662, 0.96);
-    diamond(x, streetY, w, BIKE_BAND, 0x948e60, 1);
+  const paintBikeBand = (x: number, streetY: number, w: number) => {
+    diamond(x, streetY, w, BIKE_BAND, 0xa89c68, 1);
     diamond(x, streetY + BIKE_BAND - 0.12, w, 0.16, 0xe4d8a8, 0.98);
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
@@ -380,7 +376,16 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
           .setDepth(-90_000),
       );
     }
+  };
+  for (const row of plan.streetRows) {
+    const x = plan.slotBounds.minSx * STRIDE_X;
+    const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
+    const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
+    diamond(x, streetY + BIKE_BAND, w, 0.32, 0x5e6662, 0.96);
+    paintBikeBand(x, streetY, w);
   }
+  const freewayBike = plan.features.find((f) => f.id === "freeway-bike-lane");
+  if (freewayBike) paintBikeBand(freewayBike.x, freewayBike.y, freewayBike.w);
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];
     if (!box) continue;

@@ -348,6 +348,14 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       w: (maxSx - minSx + 1) * STRIDE_X,
       h: BIKE_BAND,
     },
+    {
+      kind: "bike",
+      id: "freeway-bike-lane",
+      x: freewayOrigin.x,
+      y: freewayOrigin.y + STRIDE_Y - BIKE_BAND - 0.12,
+      w: (maxSx - minSx + 1) * STRIDE_X,
+      h: BIKE_BAND,
+    },
   ];
 
   const parkCx = parkOrigin.x + parkW / 2;
