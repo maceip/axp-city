@@ -238,6 +238,8 @@ repos.txt → ingest/ (GitHub metrics + fixtures)
 
 Key files: `src/parser/thresholds.ts`, `src/parser/parseLot.ts`, `docs/PARSER.md`.
 
+The SVG renderer is the current implementation of this contract, not the long-term engine. The redo decision (Phaser 4, not melonJS or Bevy/Tiled as the city source) is [`docs/ENGINE.md`](ENGINE.md).
+
 Demo repos exercised through the pipeline included: LegadoTeam/legado, maxrave-dev/SimpMusic, gkd-kit/gkd, RikkaApps/Shizuku, bmax121/APatch, JunkFood02/Seal, 2dust/v2rayNG, ReVanced/revanced-manager, ankidroid/Anki-Android, libre-tube/LibreTube, tharunbirla/LibreCuts, caillette/Oak (dormant control).
 
 ---
