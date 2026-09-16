@@ -344,20 +344,22 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
     const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
     diamond(x, streetY + 0.42, w, 0.62, 0x5e6662, 0.96);
-    diamond(x, streetY, w, 0.4, 0x8fbc6a, 0.94);
+    diamond(x, streetY, w, 0.4, 0x5f7d44, 0.96);
+    diamond(x, streetY + 0.13, w, 0.14, 0xf0e6b0, 0.9);
   }
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];
     if (!box) continue;
     const width = civicWidth[marker.kind] ?? 100;
     const a = project(marker.x, marker.y);
-    const pavement = marker.kind === "road" || marker.kind === "bike";
+    const depth =
+      marker.kind === "bike" ? -99_994 : marker.kind === "road" ? -99_996 : a.sy + (marker.kind === "office" ? 8 : 0);
     objects.push(
       scene.add
         .image(a.sx, a.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, box))
         .setOrigin(0.5, 1)
         .setDisplaySize(width, width * (box.h / box.w))
-        .setDepth(pavement ? -99_996 : a.sy + (marker.kind === "office" ? 8 : 0)),
+        .setDepth(depth),
     );
     if (marker.kind === "office") {
       objects.push(

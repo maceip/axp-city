@@ -415,7 +415,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
         kind: "bike",
         id: `bike-${sx}-${row}`,
         x: origin.x + LOT_W * 0.55,
-        y: origin.y + LOT_D + SHOULDER + 0.22,
+        y: origin.y + LOT_D + SHOULDER + 0.08,
         sprite: ((sx + row) & 1) === 0 ? "bike-0" : "bike-1",
       });
     }
