@@ -13,7 +13,7 @@ import { ActorSystem } from "./actors.js";
 import { AssetLoader } from "./assets.js";
 import { SceneKeys } from "./Boot.js";
 import { CityConnection, type ConnectionState } from "./connection.js";
-import { downloadCapture } from "./export.js";
+import { downloadCapture, samplePixels } from "./export.js";
 import { HudScene } from "./HudScene.js";
 import { graphicsPool, imagePool, type ObjectPool } from "./pool.js";
 import { diamondContains, drawDiamond, ensureFrame, stampEllipse } from "./stamps.js";
@@ -244,10 +244,43 @@ export class CityScene extends Phaser.Scene {
         const view = this.view();
         return { x: (b.x + b.width / 2 - view.x) * this.cameras.main.zoom, y: (b.y + b.height * 0.6 - view.y) * this.cameras.main.zoom };
       },
+      screenRect: (repo: string) => this.screenRect(repo),
+      pixels: (x: number, y: number, width: number, height: number, grid?: number) => samplePixels(this.game, x, y, width, height, grid),
+      lotPixels: (repo: string, grid?: number) => {
+        const rect = this.screenRect(repo);
+        if (!rect) return Promise.reject(new Error(`${repo} is not in the city`));
+        return samplePixels(this.game, rect.x, rect.y, rect.width, rect.height, grid);
+      },
       hudPoint: (name: string) => {
         if (!this.hudReady) return null;
         return this.hud.locate(name);
       },
+    };
+  }
+
+  /** Screen-space rectangle (CSS pixels) covering a lot's building and yard. */
+  private screenRect(repo: string): { x: number; y: number; width: number; height: number } | null {
+    const p = this.city.plan.placements.find((p) => p.lot.fullName === repo);
+    if (!p) return null;
+    // Union of the building sprite box and the projected lot diamond (yard included).
+    const b = lotBounds(p);
+    const corners = [
+      project(p.x, p.y),
+      project(p.x + LOT_W, p.y),
+      project(p.x, p.y + LOT_D),
+      project(p.x + LOT_W, p.y + LOT_D),
+    ];
+    const xs = [b.x, b.x + b.width, ...corners.map((c) => c.sx)];
+    const ys = [b.y, b.y + b.height, ...corners.map((c) => c.sy)];
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    const view = this.view();
+    const zoom = this.cameras.main.zoom;
+    return {
+      x: (left - view.x) * zoom,
+      y: (top - view.y) * zoom,
+      width: (Math.max(...xs) - left) * zoom,
+      height: (Math.max(...ys) - top) * zoom,
     };
   }
 

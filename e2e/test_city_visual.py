@@ -39,6 +39,32 @@ def a11y(page, selector):
     return page.locator(selector).inner_text()
 
 
+def lot_pixels(page, repo, grid=8):
+    """Coarse colour grid of what is actually drawn for one lot (building + yard)."""
+    return page.evaluate("([repo, grid]) => window.__AXP.lotPixels(repo, grid)", [repo, grid])
+
+
+def pixel_distance(a, b):
+    """Mean per-cell RGB distance between two samples of the same rectangle."""
+    assert len(a["cells"]) == len(b["cells"])
+    total = 0.0
+    for ca, cb in zip(a["cells"], b["cells"]):
+        total += sum((x - y) ** 2 for x, y in zip(ca, cb)) ** 0.5
+    return total / len(a["cells"])
+
+
+def rendered_change(page, repo, before, label, settle_ms=400):
+    """Assert the lot's rendered pixels changed far more than the animation noise floor."""
+    page.wait_for_timeout(settle_ms)
+    after = lot_pixels(page, repo)
+    page.wait_for_timeout(settle_ms)
+    again = lot_pixels(page, repo)
+    noise = pixel_distance(after, again)
+    change = pixel_distance(before, after)
+    assert change > max(6.0, 2.5 * noise), f"{label}: rendered lot did not change (Δ={change:.1f}, animation noise={noise:.1f})"
+    return after
+
+
 def test_production_routes_use_phaser_and_resolve_all_assets(browser, server, backend):
     page = browser.new_page(viewport=dict(width=1600, height=1000))
     errors = []
@@ -62,6 +88,12 @@ def test_production_routes_use_phaser_and_resolve_all_assets(browser, server, ba
     assert state["freshness"]["source"] == "fixture"
     assert "fixture" in a11y(page, "#a11y-status").lower()
     page.wait_for_timeout(1500)
+    # The canvas holds a drawn city, not a clear colour: a lot's building and
+    # yard region contains many colours, and a quiet lot differs from an active one.
+    drawn = lot_pixels(page, "acme/forge")
+    assert drawn["distinct"] > 60, drawn["distinct"]
+    quiet = lot_pixels(page, "acme/quiet")
+    assert pixel_distance(drawn, quiet) > 6
     page.screenshot(path=str(SHOTS / "desktop.png"))
     (SHOTS / "backend.json").write_text(json.dumps(backend.describe(), indent=2))
     assert not errors and not failed, (errors, failed)
@@ -186,6 +218,8 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
     ready(other, server.url)
     second = other.context
     first_pos = server.get("/api/city")["plan"]["placements"][0]
+    page.wait_for_timeout(600)
+    original = lot_pixels(page, "acme/forge")
     server.metrics[0].update(stars=42000, openPrs=0, openIssues=9)
     server.save()
     # The repository's own .city rules (version 2): catalog building, three bays, decor props.
@@ -196,15 +230,24 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
         lot = tab.evaluate("window.__AXP.snapshot().plan.placements[0].lot")
         assert lot["stars"] == 42000 and lot["openIssues"] == 9 and lot["showMaterials"] and not lot["showBlueprint"]
         assert lot["extraProps"] == ["lamp", "bench"] and lot["layout"]["bays"] == 3 and lot["rulesSource"] == "repository"
+    # The rule change is visible in the drawn lot in both browsers, not only in the data.
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
+    with_rules = rendered_change(page, "acme/forge", original, "catalog building 42 + three bays + decor props")
+    other.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
+    assert pixel_distance(lot_pixels(other, "acme/forge"), with_rules) < pixel_distance(lot_pixels(other, "acme/forge"), original)
     select(page)
     assert "3 bays" in a11y(page, "#a11y-selection") and "lamp" in a11y(page, "#a11y-selection") and "Repository rules" in a11y(page, "#a11y-selection")
     page.screenshot(path=str(SHOTS / "rules-v2.png"))
+    page.keyboard.press("Escape")
+    page.wait_for_function("!window.__AXP.diagnostics().cardVisible")
     # A malformed rule file never breaks the lot: validated defaults apply and the card says why.
     server.repo_rules("acme/forge", loading_zone='{"version": 2, "props": {"issues": ["volcano"]}}')
     assert server.webhook("acme/forge", "bad-rules") == 202
     page.wait_for_function("window.__AXP.snapshot().plan.placements[0].lot.buildingId === 42 && !window.__AXP.snapshot().plan.placements[0].lot.layout")
     lot = page.evaluate("window.__AXP.snapshot().plan.placements[0].lot")
     assert "loading-zone.json" in lot["rulesWarning"] and lot.get("extraProps", []) == []
+    # Falling back to default yard rules redraws the yard (bays and decor gone) while the building stays.
+    rendered_change(page, "acme/forge", with_rules, "malformed loading-zone falls back to validated defaults")
     select(page)
     assert "loading-zone.json" in a11y(page, "#a11y-selection")
     page.screenshot(path=str(SHOTS / "rules-malformed-fallback.png"))
@@ -237,12 +280,16 @@ def test_new_lot_construction_progresses_through_stages_without_reload(page, ser
     page.wait_for_function("window.__AXP.diagnostics().totalLots === 9")
     select(page, "acme/newcomer")
     seen = []
+    drawn = {}
     deadline = time.time() + 55
     while time.time() < deadline:
         site = page.evaluate("window.__AXP.construction('acme/newcomer')")
         stage = site["stage"] if site else "complete"
         if not seen or seen[-1] != stage:
             seen.append(stage)
+            page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
+            page.wait_for_timeout(250)
+            drawn[stage] = lot_pixels(page, "acme/newcomer")
             page.screenshot(path=str(SHOTS / f"construction-{len(seen)}-{stage}.png"))
             if stage == "framing":
                 assert any(a["anim"] == "craneArm" for a in page.evaluate("window.__AXP.lotActors('acme/newcomer')"))
@@ -253,6 +300,10 @@ def test_new_lot_construction_progresses_through_stages_without_reload(page, ser
     assert seen[-1] == "complete", seen
     assert seen[:-1] == [s for s in ["grading", "framing", "cladding", "finishing"] if s in seen], seen
     assert "framing" in seen and "cladding" in seen
+    # Each stage the visitor saw was drawn differently: the transition is visible, not just a field.
+    for earlier, later in zip(seen, seen[1:]):
+        assert pixel_distance(drawn[earlier], drawn[later]) > 6, (earlier, later, pixel_distance(drawn[earlier], drawn[later]))
+    assert pixel_distance(drawn[seen[0]], drawn["complete"]) > 12, "finished building looks like the graded site"
     assert "UNDER CONSTRUCTION" not in a11y(page, "#a11y-selection")
     assert server.get("/api/city")["plan"]["placements"][-1]["constructing"] is False
 
