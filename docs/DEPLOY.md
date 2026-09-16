@@ -55,7 +55,7 @@ bash scripts/rollback.sh devuser@secure.build            # release recorded in p
 bash scripts/rollback.sh devuser@secure.build <commit>   # a specific ~/axp-city-releases/<commit>
 ```
 
-The script backs up the store, records where it is rolling back from, switches the drop-in and symlink, restarts, waits for health and readiness with the target's revision, and verifies the public path. City data written since the failed deploy is kept; **rolling back code never restores an older database**. Restoring a backup (`~/axp-city/backups/city-<time>.sqlite` or a release's `city.before.sqlite`) is a deliberate, separate step: stop the service, copy the backup to `~/axp-city/data/city.sqlite`, remove any `-wal`/`-shm` files, start, and verify — accepting that events after the backup are lost. Restoring to another host is the same copy plus the env file and `npm run build` artifacts.
+The script backs up the store, records where it is rolling back from, switches the drop-in and symlink, restarts, waits for health and readiness with the target's revision, and verifies the public path. City data written since the failed deploy is kept; **rolling back code never restores an older database**. Restoring a backup (`~/axp-city/backups/city-<time>.sqlite` or a release's `city.before.sqlite`) is a deliberate, separate step: stop the service, copy the backup to `~/axp-city/data/city.sqlite`, remove any `-wal`/`-shm` files, start, and verify — accepting that events after the backup are lost. Restoring to another host is the same copy plus the env file and `npm run build` artifacts. `e2e/test_operations.py` rehearses exactly this copy-and-start restore against a second server and checks the city, history and delivery memory match.
 
 ## Backups and retention
 
