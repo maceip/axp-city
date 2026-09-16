@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Replace only the existing demo.glint.sh block, validate, and reload Caddy."""
-import hashlib
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 path=Path("/etc/caddy/Caddyfile")
@@ -38,9 +38,10 @@ stamp=time.strftime("%Y%m%dT%H%M%SZ",time.gmtime())
 backup=path.with_name(f"Caddyfile.before-axp-{stamp}")
 shutil.copy2(path,backup)
 backup.chmod(0o600)
-candidate=path.with_name(".Caddyfile.axp-candidate")
-candidate.write_text(updated)
-candidate.chmod(0o644)
+metadata=path.stat()
+with tempfile.NamedTemporaryFile(mode="w",prefix=".Caddyfile.axp-",dir=path.parent,delete=False) as output:
+    output.write(updated)
+    candidate=Path(output.name)
 check=subprocess.run(["caddy","validate","--config",str(candidate),"--adapter","caddyfile"],capture_output=True,text=True)
 if check.returncode:
     candidate.unlink()
@@ -48,6 +49,10 @@ if check.returncode:
 if path.read_text()!=original:
     candidate.unlink()
     raise SystemExit("Caddy changed concurrently; retry from its current contents")
+# Retain the existing config's ownership and access, including protected secrets
+# for unrelated sites. Temporary candidates are private until validation finishes.
+os.chown(candidate,metadata.st_uid,metadata.st_gid)
+candidate.chmod(metadata.st_mode & 0o777)
 os.replace(candidate,path)
 try:
     subprocess.run(["systemctl","reload","caddy"],check=True,capture_output=True)
