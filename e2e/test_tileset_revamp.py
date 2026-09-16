@@ -152,8 +152,8 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert clip["width"] > 40 and clip["height"] > 16, f"freeway bike clip off-screen: {clip}"
         page.screenshot(path=str(SHOTS / "tileset-freeway-bike.png"), clip=clip)
         fw_k, fw_c, fw_lime = street_lane_share(SHOTS / "tileset-freeway-bike.png", (0, 0, int(clip["width"]), int(clip["height"])))
-        assert fw_k >= 0.10, f"freeway bike clip still recedes ({fw_k:.3f} khaki)"
-        assert fw_k + fw_c >= 0.16, f"freeway bike clip khaki+chevron still thin ({fw_k + fw_c:.3f})"
+        assert fw_k >= 0.14, f"freeway bike clip still recedes ({fw_k:.3f} khaki)"
+        assert fw_k + fw_c >= 0.20, f"freeway bike clip khaki+chevron still thin ({fw_k + fw_c:.3f})"
         assert fw_lime < 0.12, f"freeway bike clip drifted to neon lime ({fw_lime:.3f})"
 
         click_hud(page, "home")
