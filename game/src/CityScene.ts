@@ -74,6 +74,21 @@ export class CityScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Scenes are singletons: a restart after a graphics-context loss re-enters
+    // create() on the same instance, so per-run state starts clean here.
+    this.hudReady = false;
+    this.mirror = undefined;
+    this.lots = new Map();
+    this.civics = [];
+    this.selected = undefined;
+    this.followActor = undefined;
+    this.drag = undefined;
+    this.pinch = undefined;
+    this.move = { x: 0, y: 0 };
+    this.lastRefresh = -Infinity;
+    this.lastCamera = "";
+    this.frameTimes = [];
+    this.connectionState = "connecting";
     this.city = this.registry.get("snapshot");
     this.reducedMotion = this.registry.get("reducedMotion") ?? matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.assets = new AssetLoader(this);
@@ -184,6 +199,7 @@ export class CityScene extends Phaser.Scene {
         cachedChunks: this.terrain.cached,
         generatedChunks: this.terrain.generated,
         objects: this.children.length,
+        activeObjects: this.children.length - this.images.parked - this.shapes.parked - this.actors.parked,
         pooledImages: this.images.parked,
         actors: this.actors.count,
         drawnActors: this.actors.drawn,
@@ -492,8 +508,11 @@ export class CityScene extends Phaser.Scene {
     if (this.hudReady) this.hud.toast(`Following ${who?.behaviour === "fly" ? "the delivery drone" : who?.behaviour === "carry" ? "a carrier" : "a crew member"} on ${this.selected}. Press F or drag to stop.`);
   }
 
+  /** Any direct camera input takes over from following and from a running pan. */
   private stopFollowing(): void {
     this.followActor = undefined;
+    const pan = this.cameras.main.panEffect;
+    if (pan.isRunning) pan.reset();
   }
 
   private home(): void {
@@ -721,7 +740,7 @@ export class CityScene extends Phaser.Scene {
       const x = this.move.x + (this.keys.D?.isDown || this.keys.RIGHT?.isDown ? 1 : 0) - (this.keys.A?.isDown || this.keys.LEFT?.isDown ? 1 : 0);
       const y = this.move.y + (this.keys.S?.isDown || this.keys.DOWN?.isDown ? 1 : 0) - (this.keys.W?.isDown || this.keys.UP?.isDown ? 1 : 0);
       if (x || y) {
-        this.followActor = undefined;
+        this.stopFollowing();
         c.scrollX += (((x * 420) / c.zoom) * elapsed) / 1000;
         c.scrollY += (((y * 420) / c.zoom) * elapsed) / 1000;
       }

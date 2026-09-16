@@ -133,6 +133,18 @@ export class HudScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Same instance after a restart (context loss): drop references to objects
+    // the previous display list destroyed.
+    this.buttons = new Map();
+    this.cardTexts = [];
+    this.censusRowsTexts = [];
+    this.censusHeader = [];
+    this.censusOpen = false;
+    this.censusScroll = 0;
+    this.censusVisible = [];
+    this.selected = undefined;
+    this.toastTimer = undefined;
+    this.lastView = undefined;
     this.cameras.main.setRoundPixels(true);
     this.plate = this.add.container(16, 16);
     const plateBg = this.add.graphics();

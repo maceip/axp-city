@@ -81,6 +81,9 @@ export class ActorSystem {
   get drawn(): number {
     return this.pool.live;
   }
+  get parked(): number {
+    return this.pool.parked;
+  }
 
   /** Replace the actors for one lot, keeping timelines of actors that still exist. */
   setLotActors(repo: string, anims: AnimStamp[]): void {
