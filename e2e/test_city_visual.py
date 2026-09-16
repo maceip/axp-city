@@ -243,7 +243,12 @@ def test_hud_pick_pan_zoom_keyboard_inspect_mass_and_census(page):
     page.wait_for_function("window.__AXP.diagnostics().selected !== 'acme/robots'")
     page.locator("#repo-search").fill("acme/pl")
     page.wait_for_function("document.querySelectorAll('#a11y-census tr').length === 2")
+    # Escape in the field clears the filter and leaves the field; it does not also
+    # close the census the visitor was filtering (the key used to bubble on after
+    # the blur and act a second time at the window).
     page.locator("#repo-search").press("Escape")
+    page.wait_for_function("document.querySelectorAll('#a11y-census tr').length === 9 && document.activeElement !== document.querySelector('#repo-search')")
+    assert diag(page)["censusOpen"] and diag(page)["selected"] is not None
     page.wait_for_timeout(200)
     page.screenshot(path=str(SHOTS / "census.png"))
     page.keyboard.press("Escape")

@@ -763,7 +763,11 @@ export class CityScene extends Phaser.Scene {
         input.value = "";
         if (this.hudReady) this.hud.setCensusFilter("");
         input.blur();
-      }
+      } else return;
+      // The field has acted on the key. Once it is blurred the same keydown would
+      // reach the window shortcuts with no control focused, and Escape would also
+      // close the census (or clear the selection) the visitor was filtering.
+      event.stopPropagation();
     };
   }
 

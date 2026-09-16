@@ -115,6 +115,8 @@ export class HudScene extends Phaser.Scene {
   private censusFilter = "";
   private censusVisible: CensusRow[] = [];
   private censusVisibleRows = 1;
+  /** Height the layout allows the census; the plaque is drawn to its rows within it. */
+  private censusMaxHeight = 0;
   private toastText!: Phaser.GameObjects.Text;
   private toastBg!: Phaser.GameObjects.Image;
   private toastTimer?: Phaser.Time.TimerEvent;
@@ -756,6 +758,7 @@ export class HudScene extends Phaser.Scene {
       this.censusBg.setDisplaySize(width, height);
       this.buttons.get("close-census")!.container.setPosition(width - 44, 8);
     }
+    this.censusMaxHeight = this.census.height;
     this.census.setDepth(45);
     this.renderCensus();
   }
@@ -810,7 +813,7 @@ export class HudScene extends Phaser.Scene {
     this.censusVisible = rows;
     const small = this.scale.width < 700;
     const W = this.census.width || this.scale.width;
-    const H = Math.max(160, this.census.height || Math.min(this.scale.height * 0.5, 420));
+    const H = Math.max(160, this.censusMaxHeight || Math.min(this.scale.height * 0.5, 420));
     const wrap = W - CENSUS_PAD - 60; // room for the close button
     const title = this.add.text(CENSUS_PAD, 10, `LOT CENSUS · ${rows.length} of ${this.snapshot.plan.placements.length} repositories${this.censusFilter ? ` matching “${this.censusFilter}”` : ""}`, {
       fontFamily: FONT,
@@ -872,8 +875,13 @@ export class HudScene extends Phaser.Scene {
       this.census.add(line);
       this.censusRowsTexts.push(line);
     });
+    // A desktop plaque ends under its last row instead of spanning the window for
+    // eight repositories; a phone sheet keeps its fixed height so it does not jump.
+    const fit = small ? H : Math.min(H, rowsTop + Math.max(1, slice.length) * CENSUS_ROW_H + (rows.length > visibleRows ? 30 : 14));
+    this.census.setSize(W, fit);
+    this.censusBg.setDisplaySize(W, fit);
     if (rows.length > visibleRows) {
-      const more = this.add.text(W - CENSUS_PAD, H - 12, `${this.censusScroll + 1}–${this.censusScroll + slice.length} of ${rows.length}`, { fontFamily: FONT, fontSize: "10px", color: MUTED }).setOrigin(1, 1);
+      const more = this.add.text(W - CENSUS_PAD, fit - 12, `${this.censusScroll + 1}–${this.censusScroll + slice.length} of ${rows.length}`, { fontFamily: FONT, fontSize: "10px", color: MUTED }).setOrigin(1, 1);
       this.census.add(more);
       this.censusHeader.push(more);
     }
