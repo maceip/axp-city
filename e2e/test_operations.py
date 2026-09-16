@@ -77,6 +77,46 @@ def test_backup_of_the_running_store_restores_the_whole_city_elsewhere(server, t
         keep_server_log(restored, request)
 
 
+def test_secrets_stay_out_of_logs_public_responses_and_the_bundle(server):
+    """Handoff item 7: the webhook secret and admin token are used on every code path this
+    exercise touches (accepted, rejected and malformed webhooks; authorized, denied and failing
+    admin calls) and must appear nowhere an operator or visitor can read."""
+    import urllib.error
+    import urllib.request
+    from conftest import SECRET
+    assert server.webhook("acme/forge", "sec-1") == 202
+    try:
+        urllib.request.urlopen(urllib.request.Request(server.url + "/webhooks/github", data=b"{}", headers={"X-GitHub-Event": "push", "X-GitHub-Delivery": "sec-2", "X-Hub-Signature-256": "sha256=deadbeef"}), timeout=5)
+    except urllib.error.HTTPError as denied:
+        assert denied.code == 401
+    for token, expected in ((ADMIN, (200, 502)), ("wrong-token", (401,)), (None, (401,))):
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        try:
+            with urllib.request.urlopen(urllib.request.Request(server.url + "/api/city/lots", data=json.dumps(dict(repo="acme/nowhere")).encode(), headers=headers), timeout=20) as response:
+                assert response.status in expected
+        except urllib.error.HTTPError as response:
+            assert response.code in expected, (token, response.code)
+    wait_for(lambda: server.get("/api/city/status")["deliveries"]["done"] >= 1, what="delivery processed")
+    server.log.flush()
+    secrets = [SECRET, ADMIN]
+    log_text = (server.root / "server.log").read_text()
+    # The log did cover the exercised paths (so the check below is not vacuous)…
+    assert "effective configuration" in log_text and '"webhookSecretSet":true' in log_text and '"adminTokenSet":true' in log_text
+    assert "admin enrollment of acme/nowhere failed" in log_text
+    public = [log_text]
+    for path in ("/healthz", "/readyz", "/api/city/status", "/api/city", "/events", "/status"):
+        with urllib.request.urlopen(server.url + path, timeout=5) as response:
+            public.append(response.read().decode("utf8", "replace"))
+    for asset in (REPO / "dist" / "game").rglob("*"):
+        if asset.is_file() and asset.suffix in (".js", ".html", ".css", ".json"):
+            public.append(asset.read_text("utf8", "replace"))
+    for text in public:
+        for secret in secrets:
+            assert secret not in text, f"secret {secret!r} leaked"
+
+
 def test_backup_refuses_a_missing_or_corrupt_store(tmp_path):
     missing = subprocess.run(["node", "scripts/backup-city.mjs", str(tmp_path / "nowhere"), str(tmp_path / "out.sqlite")], cwd=REPO, capture_output=True, text=True)
     assert missing.returncode == 3 and not (tmp_path / "out.sqlite").exists()
