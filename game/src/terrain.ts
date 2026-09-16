@@ -462,6 +462,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     );
     if (marker.kind === "office") {
       placeName(a.sx, a.sy + 18, "CITY OFFICE", 0x45614e, 13);
+      dressOfficeCourtyard(scene, objects, a.sx, a.sy, depth);
       for (const [dx, dy, sprite, w] of [
         [-0.95, 0.88, "plant-0", 68],
         [1.05, 0.92, "plant-1", 68],
@@ -547,6 +548,57 @@ function paintIsoChevron(scene: Phaser.Scene, wx: number, wy: number, glance: bo
   g.setData("markW", Math.max(...xs) - Math.min(...xs));
   g.setData("markH", Math.max(...ys) - Math.min(...ys));
   return g;
+}
+
+/** Overlay lawn/path/fountain on the HQ stamp's stone pad. Does not replace the building. */
+function dressOfficeCourtyard(
+  scene: Phaser.Scene,
+  objects: Phaser.GameObjects.GameObject[],
+  ox: number,
+  oy: number,
+  officeDepth: number,
+): void {
+  const g = scene.add.graphics().setDepth(officeDepth + 6);
+  const p = (x: number, y: number) => new Phaser.Math.Vector2(ox + x, oy + y);
+  g.fillStyle(0x7a9460, 0.9);
+  g.fillPoints([p(0, -52), p(112, -108), p(0, -164), p(-112, -108)], true);
+  g.fillStyle(0xdccfa7, 0.94);
+  g.fillPoints([p(0, -64), p(78, -108), p(0, -152), p(-78, -108)], true);
+  g.fillStyle(0x8a9c70, 0.92);
+  g.fillPoints([p(0, -80), p(50, -108), p(0, -136), p(-50, -108)], true);
+  g.fillStyle(0xdcd5b7, 1);
+  g.fillEllipse(ox, oy - 110, 48, 24);
+  g.fillStyle(0x6a9094, 1);
+  g.fillEllipse(ox, oy - 112, 34, 16);
+  g.fillStyle(0xc5ddd8, 0.9);
+  g.fillEllipse(ox, oy - 114, 14, 7);
+  objects.push(g);
+  for (const [dx, dy] of [
+    [-72, -96],
+    [72, -96],
+  ] as const) {
+    objects.push(
+      scene.add
+        .image(ox + dx, oy + dy, GROUND_SHEET.file, ensureFrame(scene, GROUND_SHEET.file, DECOR_BENCH))
+        .setOrigin(0.5, 1)
+        .setDisplaySize(30, 30 * (DECOR_BENCH.h / DECOR_BENCH.w))
+        .setDepth(officeDepth + 8),
+    );
+  }
+  for (const [dx, dy, sprite, w] of [
+    [-88, -128, "plant-2", 42],
+    [90, -130, "plant-3", 42],
+    [0, -148, "plant-5", 36],
+  ] as const) {
+    const pot = CIVIC_SPRITES[sprite];
+    objects.push(
+      scene.add
+        .image(ox + dx, oy + dy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, pot))
+        .setOrigin(0.5, 1)
+        .setDisplaySize(w, w * (pot.h / pot.w))
+        .setDepth(officeDepth + 10),
+    );
+  }
 }
 
 function bikeLanePlaque(scene: Phaser.Scene, sx: number, sy: number, glance: boolean): Phaser.GameObjects.Container {
