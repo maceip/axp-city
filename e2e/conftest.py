@@ -74,10 +74,26 @@ class CityServer:
     def get(self, path):
         with urllib.request.urlopen(self.url + path, timeout=5) as response: return json.load(response)
 
+    def enroll(self, repo):
+        """Administrative enrollment: the only way a new repository joins the city."""
+        body = json.dumps(dict(repo=repo)).encode()
+        request = urllib.request.Request(self.url + "/api/city/lots", data=body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {ADMIN}"})
+        with urllib.request.urlopen(request, timeout=20) as response: return response.status
+
+    def repo_rules(self, repo, **files):
+        """Repository rule files (`.city/*.json`) for fixture mode, under <rules>/repos/<owner>/<name>/."""
+        folder = self.rules / "repos" / repo
+        folder.mkdir(parents=True, exist_ok=True)
+        for name, value in files.items():
+            (folder / f"{name.replace('_', '-')}.json").write_text(value if isinstance(value, str) else json.dumps(value))
+
     def webhook(self, repo, delivery="test-1"):
-        body = json.dumps(dict(ref="refs/heads/main", repository=dict(full_name=repo), sender=dict(login="human"))).encode()
+        return self.webhook_event("push", dict(ref="refs/heads/main", repository=dict(full_name=repo), sender=dict(login="human")), delivery)
+
+    def webhook_event(self, event, payload, delivery):
+        body = json.dumps(payload).encode()
         signature = "sha256=" + hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
-        request = urllib.request.Request(self.url + "/webhooks/github", data=body, headers={"Content-Type":"application/json", "X-GitHub-Event":"push", "X-GitHub-Delivery":delivery, "X-Hub-Signature-256":signature})
+        request = urllib.request.Request(self.url + "/webhooks/github", data=body, headers={"Content-Type":"application/json", "X-GitHub-Event":event, "X-GitHub-Delivery":delivery, "X-Hub-Signature-256":signature})
         with urllib.request.urlopen(request, timeout=10) as response: return response.status
 
 
