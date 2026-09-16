@@ -50,6 +50,32 @@ def click_hud(page, name):
     page.mouse.click(p["x"], p["y"])
 
 
+def overview_arrow_groups(path: Path, box) -> tuple[int, int]:
+    """Cream-on-asphalt blobs in the full overview freeway strip, not a crop."""
+    image = Image.open(path).convert("RGB")
+    x0, y0, x1, y1 = box
+    pix = image.load()
+    cream = []
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            r, g, b = pix[x, y]
+            if not (r > 220 and g > 200 and 150 < b < 225 and abs(r - g) < 32 and r - b > 20):
+                continue
+            dark = 0
+            for dx, dy in ((-10, 0), (10, 0), (0, -7), (0, 7)):
+                xx, yy = x + dx, y + dy
+                if x0 <= xx < x1 and y0 <= yy < y1:
+                    rr, gg, bb = pix[xx, yy]
+                    if rr < 145 and gg < 140 and bb < 155:
+                        dark += 1
+            if dark >= 2:
+                cream.append((x, y))
+    if not cream:
+        return 0, 0
+    groups = {x // 160 for x, _y in cream}
+    return len(cream), len(groups)
+
+
 def cream_ink_width(path: Path) -> int:
     """Width of cream or brass HUD lettering. SwiftShader fillText grows this past the word."""
     image = Image.open(path).convert("RGB")
@@ -141,6 +167,11 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert khaki >= 0.05, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
         assert khaki + cream >= 0.10, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
         assert lime < 0.12, f"overview bike paint drifted to neon lime ({lime:.3f})"
+        arrow_px, arrow_groups = overview_arrow_groups(SHOTS / "tileset-city-overview.png", (80, 160, 1520, 320))
+        assert arrow_groups >= 3, (
+            f"full overview PNG still hides painted arrows ({arrow_px} cream-on-asphalt px, {arrow_groups} groups)"
+        )
+        assert arrow_px >= 900, f"full overview arrows still too thin ({arrow_px} cream-on-asphalt px)"
         marks = page.evaluate("window.__AXP.bikeMarkScreens()")
         on_screen = [
             m

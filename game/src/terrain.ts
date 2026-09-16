@@ -394,18 +394,18 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       }
     }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
-    const chevronStep = glance ? 2 : Math.max(2, Math.ceil(span / 6));
-    const labelStep = glance ? 2 : Math.max(3, Math.ceil(span / 4));
+    const chevronStep = glance ? 3 : Math.max(2, Math.ceil(span / 6));
+    const labelStep = glance ? 3 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      objects.push(paintIsoChevron(scene, laneX + (glance ? 1.6 : 2.0), streetY + band * 0.5, glance));
+      objects.push(paintIsoChevron(scene, laneX + (glance ? 1.1 : 2.0), streetY + band * 0.5, glance));
     }
-    for (let sx = plan.slotBounds.minSx + 1; sx <= plan.slotBounds.maxSx; sx += labelStep) {
+    for (let sx = plan.slotBounds.minSx + 2; sx <= plan.slotBounds.maxSx; sx += labelStep) {
       const at = project(
-        x + (sx - plan.slotBounds.minSx) * STRIDE_X + (glance ? 1.05 : 1.6),
-        streetY + band * (glance ? 0.88 : 0.55),
+        x + (sx - plan.slotBounds.minSx) * STRIDE_X + (glance ? 1.2 : 1.6),
+        streetY + band * (glance ? 1.12 : 0.55),
       );
-      objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 8 : 6), glance));
+      objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 6 : 6), glance));
     }
   };
   for (const row of plan.streetRows) {
@@ -454,24 +454,24 @@ function isoChevronWorld(wx: number, wy: number, ox: number, len: number, half: 
 }
 
 function paintIsoChevron(scene: Phaser.Scene, wx: number, wy: number, glance: boolean): Phaser.GameObjects.Graphics {
-  const len = glance ? 2.45 : 0.95;
-  const half = glance ? 0.86 : 0.38;
-  const notch = glance ? 0.62 : 0.26;
-  const gap = glance ? 1.65 : 0.7;
+  const len = glance ? 5.1 : 0.95;
+  const half = glance ? 1.42 : 0.38;
+  const notch = glance ? 1.2 : 0.26;
+  const gap = glance ? 2.7 : 0.7;
   const mid = project(wx + gap * 0.5 + len * 0.4, wy);
   const g = scene.add.graphics();
   const local = (p: { sx: number; sy: number }) => new Phaser.Math.Vector2(p.sx - mid.sx, p.sy - mid.sy);
   const draw = (ox: number, extraLen: number, extraHalf: number) =>
     g.fillPoints(isoChevronWorld(wx, wy, ox, len + extraLen, half + extraHalf, notch).map(local), true);
-  g.fillStyle(0x2a2820, 1);
-  draw(-0.16, 0.32, 0.2);
-  draw(gap - 0.16, 0.32, 0.2);
+  g.fillStyle(0x1a1814, 1);
+  draw(-0.22, 0.42, 0.28);
+  draw(gap - 0.22, 0.42, 0.28);
   g.fillStyle(0xece3b8, 1);
   draw(0, 0, 0);
   draw(gap, 0, 0);
-  g.fillStyle(0xfff6dc, 1);
-  draw(0.32, -0.62, -0.28);
-  draw(gap + 0.32, -0.62, -0.28);
+  g.fillStyle(0xfff8e0, 1);
+  draw(0.42, -0.9, -0.38);
+  draw(gap + 0.42, -0.9, -0.38);
   const pts = [
     ...isoChevronWorld(wx, wy, -0.12, len + 0.24, half + 0.16, notch),
     ...isoChevronWorld(wx, wy, gap - 0.12, len + 0.24, half + 0.16, notch),
