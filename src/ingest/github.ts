@@ -1,9 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { RECENT_ACTIVITY_DAYS } from "../parser/thresholds.js";
-import type { RepoMetrics } from "../types.js";
+import type { MetricField, RepoMetrics } from "../types.js";
 import {
   fromGraphQl,
   fromRest,
+  REST_COMMIT_SAMPLE,
+  REST_PR_AUTHOR_SAMPLE,
   type GraphQlRepository,
   type RestRepo,
 } from "./normalize.js";
@@ -16,6 +18,8 @@ export interface FetchOptions {
   token?: string;
   now?: Date;
   recentDays?: number;
+  /** Injected for tests; defaults to global fetch. */
+  request?: typeof fetch;
 }
 
 export class GitHubHttpError extends Error {
@@ -26,6 +30,24 @@ export class GitHubHttpError extends Error {
   ) {
     super(message);
     this.name = "GitHubHttpError";
+  }
+}
+
+/**
+ * The repository itself is not readable: it was deleted, renamed away, became
+ * private, or the credential lost access. Callers withdraw published data
+ * instead of retrying blindly.
+ */
+export class RepositoryUnavailableError extends Error {
+  constructor(
+    readonly fullName: string,
+    readonly reason: "not_found" | "forbidden",
+    detail = "",
+  ) {
+    super(
+      `Repository ${fullName} is ${reason === "not_found" ? "not found" : "not accessible"}${detail ? `: ${detail}` : ""}`,
+    );
+    this.name = "RepositoryUnavailableError";
   }
 }
 
@@ -46,6 +68,8 @@ const REPO_FIELDS = `
   nameWithOwner
   url
   description
+  databaseId
+  isPrivate
   stargazerCount
   forkCount
   diskUsage
@@ -78,6 +102,31 @@ const REPO_FIELDS = `
   }
 `;
 
+interface GraphQlError {
+  message: string;
+  type?: string;
+  path?: Array<string | number>;
+}
+
+/** Group GraphQL field errors by repository alias, as dotted paths below it. */
+export function groupFieldErrors(
+  errors: GraphQlError[] | undefined,
+): Map<string, { paths: Set<string>; root?: GraphQlError }> {
+  const out = new Map<string, { paths: Set<string>; root?: GraphQlError }>();
+  for (const error of errors ?? []) {
+    const [alias, ...rest] = error.path ?? [];
+    if (typeof alias !== "string") continue;
+    const entry = out.get(alias) ?? { paths: new Set<string>() };
+    if (rest.length === 0) entry.root = error;
+    else
+      entry.paths.add(
+        rest.filter((segment) => typeof segment === "string").join("."),
+      );
+    out.set(alias, entry);
+  }
+  return out;
+}
+
 export async function fetchViaGraphQl(
   repos: Array<{ owner: string; name: string }>,
   options: FetchOptions = {},
@@ -86,6 +135,7 @@ export async function fetchViaGraphQl(
   if (!token) {
     throw new Error("GraphQL ingest requires GITHUB_TOKEN");
   }
+  const request = options.request ?? fetch;
   const now = options.now ?? new Date();
   const since = isoDaysAgo(now, options.recentDays ?? RECENT_ACTIVITY_DAYS);
   const aliases = repos.map((repo, i) => {
@@ -95,7 +145,7 @@ export async function fetchViaGraphQl(
   });
   const query = `query($since: GitTimestamp!) { ${aliases.join("\n")} } fragment F on Repository { ${REPO_FIELDS} }`;
 
-  const response = await fetch(GRAPHQL_URL, {
+  const response = await request(GRAPHQL_URL, {
     method: "POST",
     signal: AbortSignal.timeout(10_000),
     headers: {
@@ -114,23 +164,35 @@ export async function fetchViaGraphQl(
   }
   const payload = JSON.parse(text) as {
     data?: Record<string, GraphQlRepository | null>;
-    errors?: Array<{ message: string }>;
+    errors?: GraphQlError[];
   };
   if (payload.errors?.length && !payload.data) {
     throw new Error(
       `GraphQL errors: ${payload.errors.map((e) => e.message).join("; ")}`,
     );
   }
+  const errors = groupFieldErrors(payload.errors);
   const fetchedAt = now.toISOString();
   const out: RepoMetrics[] = [];
   for (let i = 0; i < repos.length; i++) {
-    const row = payload.data?.[`r${i}`];
+    const alias = `r${i}`;
+    const row = payload.data?.[alias];
+    const fullName = `${repos[i].owner}/${repos[i].name}`;
+    const failure = errors.get(alias);
     if (!row) {
-      throw new Error(
-        `Repository not found: ${repos[i].owner}/${repos[i].name}`,
+      const type = failure?.root?.type;
+      throw new RepositoryUnavailableError(
+        fullName,
+        type === "FORBIDDEN" ? "forbidden" : "not_found",
+        failure?.root?.message,
       );
     }
-    out.push(fromGraphQl(row, fetchedAt));
+    out.push(
+      fromGraphQl(row, fetchedAt, {
+        since,
+        erroredPaths: failure?.paths ?? [],
+      }),
+    );
   }
   return out;
 }
@@ -138,8 +200,9 @@ export async function fetchViaGraphQl(
 async function restJson<T>(
   path: string,
   token?: string,
+  request: typeof fetch = fetch,
 ): Promise<{ data: T; remaining: number | null; lastPage: number }> {
-  const response = await fetch(`${REST_URL}${path}`, {
+  const response = await request(`${REST_URL}${path}`, {
     headers: authHeaders(token),
     signal: AbortSignal.timeout(10_000),
   });
@@ -169,32 +232,70 @@ async function fetchOneRest(
   options: FetchOptions,
 ): Promise<RepoMetrics> {
   const token = options.token;
+  const request = options.request ?? fetch;
   const now = options.now ?? new Date();
   const since = isoDaysAgo(now, options.recentDays ?? RECENT_ACTIVITY_DAYS);
-  const repoRes = await restJson<RestRepo>(`/repos/${owner}/${name}`, token);
-  const pullsRes = await restJson<
-    Array<{ user?: { login?: string; type?: string } | null }>
-  >(`/repos/${owner}/${name}/pulls?state=open&per_page=100`, token);
-  let openPrs = pullsRes.data.length;
-  if (pullsRes.lastPage > 1) {
-    const last = await restJson<unknown[]>(
-      `/repos/${owner}/${name}/pulls?state=open&per_page=100&page=${pullsRes.lastPage}`,
-      token,
-    );
-    openPrs = (pullsRes.lastPage - 1) * 100 + last.data.length;
+  const fullName = `${owner}/${name}`;
+  let repoRes: Awaited<ReturnType<typeof restJson<RestRepo>>>;
+  try {
+    repoRes = await restJson<RestRepo>(`/repos/${owner}/${name}`, token, request);
+  } catch (error) {
+    if (error instanceof GitHubHttpError) {
+      if (error.status === 404)
+        throw new RepositoryUnavailableError(fullName, "not_found");
+      // 403 with remaining quota is an authorization failure; exhausted quota is transient.
+      if (
+        (error.status === 403 || error.status === 401) &&
+        !/rate limit/i.test(error.body)
+      )
+        throw new RepositoryUnavailableError(fullName, "forbidden");
+    }
+    throw error;
+  }
+  const unknown = new Set<MetricField>();
+  let openPrs = 0;
+  let prAuthors: Array<{ login: string; type: string }> = [];
+  let prAuthorsInspected = 0;
+  try {
+    const pullsRes = await restJson<
+      Array<{ user?: { login?: string; type?: string } | null }>
+    >(`/repos/${owner}/${name}/pulls?state=open&per_page=100`, token, request);
+    openPrs = pullsRes.data.length;
+    if (pullsRes.lastPage > 1) {
+      const last = await restJson<unknown[]>(
+        `/repos/${owner}/${name}/pulls?state=open&per_page=100&page=${pullsRes.lastPage}`,
+        token,
+        request,
+      );
+      openPrs = (pullsRes.lastPage - 1) * 100 + last.data.length;
+    }
+    prAuthors = pullsRes.data
+      .map((p) => ({
+        login: p.user?.login ?? "",
+        type: p.user?.type ?? "User",
+      }))
+      .filter((a) => a.login);
+    prAuthorsInspected = pullsRes.data.length;
+  } catch {
+    // Open issues are derived from open_issues_count minus PRs, so both are unknown.
+    unknown.add("openPrs");
+    unknown.add("prAuthors");
+    unknown.add("openIssues");
   }
   let languageBytes: Record<string, number> = {};
   try {
     const langs = await restJson<Record<string, number>>(
       `/repos/${owner}/${name}/languages`,
       token,
+      request,
     );
     languageBytes = langs.data;
   } catch {
-    languageBytes = {};
+    unknown.add("languageBytes");
   }
   let recentDefaultCommits = 0;
   let recentAuthors: string[] = [];
+  let recentCommitsInspected = 0;
   try {
     const commits = await restJson<
       Array<{
@@ -202,10 +303,12 @@ async function fetchOneRest(
         author?: { login?: string; type?: string } | null;
       }>
     >(
-      `/repos/${owner}/${name}/commits?since=${encodeURIComponent(since)}&per_page=30`,
+      `/repos/${owner}/${name}/commits?since=${encodeURIComponent(since)}&per_page=${REST_COMMIT_SAMPLE}`,
       token,
+      request,
     );
     recentDefaultCommits = commits.data.length;
+    recentCommitsInspected = commits.data.length;
     recentAuthors = [
       ...new Set(
         commits.data
@@ -214,14 +317,9 @@ async function fetchOneRest(
       ),
     ];
   } catch {
-    recentDefaultCommits = 0;
+    unknown.add("recentDefaultCommits");
+    unknown.add("recentAuthors");
   }
-  const prAuthors = pullsRes.data
-    .map((p) => ({
-      login: p.user?.login ?? "",
-      type: p.user?.type ?? "User",
-    }))
-    .filter((a) => a.login);
 
   return fromRest({
     repo: repoRes.data,
@@ -231,6 +329,16 @@ async function fetchOneRest(
     recentAuthors,
     prAuthors,
     fetchedAt: now.toISOString(),
+    unknownFields: [...unknown],
+    authorSample: {
+      prAuthorsInspected,
+      recentCommitsInspected,
+      complete:
+        !unknown.has("prAuthors") &&
+        !unknown.has("recentAuthors") &&
+        openPrs <= REST_PR_AUTHOR_SAMPLE &&
+        recentDefaultCommits < REST_COMMIT_SAMPLE,
+    },
   });
 }
 
@@ -255,6 +363,7 @@ export async function fetchRepoMetrics(
     try {
       return await fetchViaGraphQl(repos, merged);
     } catch (error) {
+      if (error instanceof RepositoryUnavailableError) throw error;
       console.warn(
         `[ingest] GraphQL failed (${error instanceof Error ? error.message : error}); falling back to REST`,
       );

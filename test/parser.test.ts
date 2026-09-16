@@ -2,16 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   HIGH_PR_COUNT,
   RECENT_ACTIVITY_DAYS,
-  STAR_BAND_MEDIUM_MAX,
-  STAR_BAND_SMALL_MAX,
   buildingBandFromStars,
+  classifyCrew,
   hasRecentActivity,
   isBotLogin,
   parseCity,
   parseLot,
   pickBuildingId,
 } from "../src/parser/index.js";
+import { DEFAULT_RULES } from "../src/rules/cityFiles.js";
 import { FIXED_NOW, metrics } from "./helpers.js";
+
+const STAR_BAND_SMALL_MAX = DEFAULT_RULES.building.bands.S.maxStarsExclusive!;
+const STAR_BAND_MEDIUM_MAX = DEFAULT_RULES.building.bands.M.maxStarsExclusive!;
 
 const opts = { now: FIXED_NOW, recentDays: RECENT_ACTIVITY_DAYS };
 
@@ -203,8 +206,8 @@ describe("isBotLogin", () => {
   });
 });
 
-describe("uniquifyBuildingIds", () => {
-  it("keeps silhouettes unique inside a band without using repo names", () => {
+describe("silhouette policy", () => {
+  it("is stable per repository, stays inside the band, and honours explicit overrides", () => {
     const lots = parseCity(
       [
         metrics({ fullName: "a/one", owner: "a", name: "one", stars: 25_000 }),
@@ -214,8 +217,59 @@ describe("uniquifyBuildingIds", () => {
       opts,
     );
     const ids = lots.map((l) => l.buildingId);
-    expect(new Set(ids).size).toBe(3);
     expect(ids.every((id) => id >= 35 && id <= 50)).toBe(true);
+    expect(parseCity(lots.map((l) => metrics({ fullName: l.fullName, stars: 25_000 })), opts).map((l) => l.buildingId)).toEqual(ids);
+    const forced = parseLot(metrics({ stars: 25_000 }), {
+      ...opts,
+      rules: { ...DEFAULT_RULES, building: { ...DEFAULT_RULES.building, buildingId: 40 } },
+    });
+    expect(forced.buildingId).toBe(40);
+  });
+});
+
+describe("crew classification (finding B)", () => {
+  it("labels mixed, robot, human, unknown, and none with a written basis", () => {
+    const active = { pushedAt: "2026-09-10T00:00:00.000Z", openPrs: 2 };
+    const mixed = parseLot(
+      metrics({ ...active, recentAuthors: ["alice"], prAuthors: [{ login: "renovate[bot]", type: "Bot" }] }),
+      opts,
+    );
+    expect(mixed.occupantClass).toBe("mixed");
+    expect(mixed.crewBasis).toMatch(/human accounts \(1\)/);
+    const robot = parseLot(metrics({ ...active, recentAuthors: ["dependabot[bot]"] }), opts);
+    expect(robot.occupantClass).toBe("robot");
+    expect(robot.crewBasis).toContain("heuristic");
+    const human = parseLot(metrics({ ...active, recentAuthors: ["alice"] }), opts);
+    expect(human.occupantClass).toBe("human");
+    const unknown = parseLot(
+      metrics({ ...active, unknownFields: ["recentAuthors", "prAuthors"] }),
+      opts,
+    );
+    expect(unknown.occupantClass).toBe("unknown");
+    expect(unknown.crewBasis).toContain("not available");
+    expect(parseLot(metrics(), opts).occupantClass).toBe("none");
+    const sampled = classifyCrew(
+      metrics({
+        ...active,
+        recentAuthors: ["alice"],
+        authorSample: { prAuthorsInspected: 20, recentCommitsInspected: 15, complete: false },
+      }),
+      true,
+      false,
+      opts,
+    );
+    expect(sampled.crewBasis).toContain("more exist");
+  });
+
+  it("marks carried fields as partial instead of presenting them as fresh", () => {
+    const lot = parseLot(metrics(), {
+      ...opts,
+      carried: { fields: ["openIssues"], from: "2026-09-10T00:00:00.000Z" },
+    });
+    expect(lot.partial).toEqual({
+      carriedFields: ["openIssues"],
+      carriedFrom: "2026-09-10T00:00:00.000Z",
+    });
   });
 });
 
