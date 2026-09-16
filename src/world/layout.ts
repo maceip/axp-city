@@ -358,6 +358,19 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     y: parkCy + 0.15,
     sprite: "office",
   });
+  // Dense lot sets can miss the plaza-roll; keep unused odd buildings on vacant plots.
+  if (!civics.some((c) => c.kind === "odd")) {
+    const oddSprites = ["odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"];
+    for (const v of vacancies.slice(0, 3)) {
+      civics.push({
+        kind: "odd",
+        id: `odd-spare-${v.sx}-${v.sy}`,
+        x: v.x + 1.1,
+        y: v.y + 1.0,
+        sprite: oddSprites[Math.floor(hash01(v.sx, v.sy, 7) * oddSprites.length)],
+      });
+    }
+  }
   for (const [dx, dy, sprite] of [
     [-3.4, -2.4, "plant-0"],
     [3.2, -2.3, "plant-1"],
