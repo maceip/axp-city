@@ -305,7 +305,7 @@ export const OFFICE_STAMP_WIDTH = 480;
 
 /** Street / bike-lane stamps — sized to read at overview and home zoom. */
 export const ROAD_STAMP_WIDTH = 176;
-export const BIKE_STAMP_WIDTH = 112;
+export const BIKE_STAMP_WIDTH = 156;
 
 export const CONSTRUCTION_STAGES: Record<string, SpriteBox> = {
   grading: CIVIC_SPRITES["scaffold-0"],
@@ -331,7 +331,7 @@ export const CIVIC_ODD = [
   CIVIC_SPRITES["city-hall"],
 ];
 
-/** Restyled HUD chrome (Jane's Realty gold panels shifted to olive-slate + gold). */
+/** Construction-city HUD: beveled wood/slate plaques with brass rivets. */
 export const HUD_SHEET: PropSheet = {
   file: "hud-kit-k1.png",
   width: 1024,
@@ -351,10 +351,7 @@ export const HUD_FRAMES: Record<string, SpriteBox> = {
   "btn-sq": { x: 580, y: 196, w: 46, h: 46 },
   dpad: { x: 740, y: 100, w: 150, h: 150 },
   compass: { x: 910, y: 8, w: 100, h: 100 },
-  pills: { x: 8, y: 580, w: 880, h: 64 },
-  bars: { x: 8, y: 660, w: 400, h: 48 },
-  "mass-track": { x: 430, y: 668, w: 300, h: 16 },
-  "mass-fill": { x: 430, y: 668, w: 160, h: 16 },
+  rail: { x: 740, y: 260, w: 130, h: 220 },
 };
 
 export const GROUND_TILES: Record<string, SpriteBox> = {

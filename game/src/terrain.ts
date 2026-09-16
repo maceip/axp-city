@@ -28,7 +28,7 @@ const COLORS: Record<string, number> = {
   lot: 0x9daf7c,
   vacant: 0x96b776,
   street: 0x5e6662,
-  bike: 0x8fbc6a,
+  bike: 0x5f9a32,
   grass: 0x91b477,
   dirt: 0xb7ae80,
   water: 0x89b49b,
@@ -218,10 +218,19 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
         g.lineBetween(p.sx + width / 2 - 10, p.sy + 16, p.sx + width / 2 + 10, p.sy + 26);
       }
       if (kind === "bike") {
-        g.lineStyle(2.4, 0xf4efc2, 0.95);
-        g.lineBetween(p.sx + width / 2 - 12, p.sy + 13, p.sx + width / 2 + 12, p.sy + 25);
-        g.lineStyle(1.6, 0x3f6d44, 0.7);
-        g.lineBetween(p.sx + width / 2 - 14, p.sy + 17, p.sx + width / 2 + 10, p.sy + 29);
+        g.fillStyle(0x5f9a32, 0.95);
+        g.fillPoints(
+          [
+            { x: p.sx + width / 2, y: p.sy + 8 },
+            { x: p.sx + width / 2 + 16, y: p.sy + 16 },
+            { x: p.sx + width / 2, y: p.sy + 24 },
+            { x: p.sx + width / 2 - 16, y: p.sy + 16 },
+          ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
+          true,
+        );
+        g.lineStyle(2.6, 0xf4efc2, 0.98);
+        g.lineBetween(p.sx + width / 2 - 10, p.sy + 12, p.sx + width / 2 + 4, p.sy + 19);
+        g.lineBetween(p.sx + width / 2 - 2, p.sy + 15, p.sx + width / 2 + 12, p.sy + 22);
       }
       if (kind === "river" && hash01(wx, wy, 29) < 0.3) {
         g.lineStyle(1, 0xc1e0d4, 0.4);
@@ -343,9 +352,12 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const x = plan.slotBounds.minSx * STRIDE_X;
     const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
     const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
-    diamond(x, streetY + 0.42, w, 0.62, 0x5e6662, 0.96);
-    diamond(x, streetY, w, 0.4, 0x5f7d44, 0.96);
-    diamond(x, streetY + 0.13, w, 0.14, 0xf0e6b0, 0.9);
+    diamond(x, streetY + 0.55, w, 0.55, 0x5e6662, 0.96);
+    diamond(x, streetY, w, 0.58, 0x4e8628, 0.98);
+    diamond(x, streetY + 0.18, w, 0.22, 0xf4efc2, 0.94);
+    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
+      diamond(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.15, streetY + 0.12, 0.85, 0.28, 0xfff6cd, 0.95);
+    }
   }
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];

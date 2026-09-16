@@ -197,7 +197,7 @@ describe("civic and HUD kits", () => {
     expect(CIVIC_SPRITES["road-0"].w).toBeGreaterThan(120);
     expect(CIVIC_SPRITES["bike-0"].w).toBeGreaterThan(100);
     expect(ROAD_STAMP_WIDTH).toBeGreaterThanOrEqual(140);
-    expect(BIKE_STAMP_WIDTH).toBeGreaterThanOrEqual(90);
+    expect(BIKE_STAMP_WIDTH).toBeGreaterThanOrEqual(140);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);
   });

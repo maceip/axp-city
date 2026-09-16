@@ -4,7 +4,7 @@
 Raw packs mix FarmVille pixel interiors, SimCity 2000, cartoon HUD, and
 photoreal plants. This script keeps only isometric pieces that can be shifted
 onto the existing construction-city palette (olive ground, cream/slate walls,
-gold HUD), keys their backgrounds, and writes measured atlases the Phaser
+brass-riveted survey HUD), keys their backgrounds, and writes measured atlases the Phaser
 renderer stamps. Repo lots do not receive raw mismatched art.
 """
 
@@ -412,43 +412,96 @@ def recolor_gold_widget(im: Image.Image) -> Image.Image:
     return restyle(keyed, sat=0.8, contrast=1.04)
 
 
-def hud_kit(hud: Image.Image) -> tuple[Image.Image, dict]:
-    """Forest/gold HUD kit. Jane's widgets are recolored; map chrome is dropped."""
+WOOD = (118, 90, 54)
+WOOD_DK = (72, 54, 32)
+WOOD_LT = (168, 136, 82)
+SLATE_DK = (40, 48, 42)
+SLATE_LT = (98, 110, 96)
+BRASS = (196, 162, 78)
+BRASS_DK = (132, 102, 46)
+PULP = (228, 218, 186)
+RIVET = (216, 186, 102)
+
+
+def _rivet(draw: ImageDraw.ImageDraw, x: int, y: int, r: int = 3) -> None:
+    draw.ellipse((x - r, y - r, x + r, y + r), fill=RIVET + (255,), outline=BRASS_DK + (255,))
+    draw.point((x - 1, y - 1), fill=(238, 216, 148, 255))
+
+
+def _chamfer(x: int, y: int, w: int, h: int, c: int = 7) -> list[tuple[int, int]]:
+    return [
+        (x + c, y),
+        (x + w - c, y),
+        (x + w, y + c),
+        (x + w, y + h - c),
+        (x + w - c, y + h),
+        (x + c, y + h),
+        (x, y + h - c),
+        (x, y + c),
+    ]
+
+
+def hud_kit(_hud: Image.Image | None = None) -> tuple[Image.Image, dict]:
+    """Construction-city survey kit: beveled wood/slate plaques, brass rivets.
+
+    Jane's Realty chrome is not copied or recolored. Frame sizes stay the
+    same so HudScene hit targets keep working.
+    """
     kit = Image.new("RGBA", (1024, 768), (0, 0, 0, 0))
     boxes: dict = {}
     draw = ImageDraw.Draw(kit)
 
-    def forest_panel(name, x, y, w, h, r=12):
-        draw.rounded_rectangle((x, y, x + w, y + h), r, fill=FOREST + (236,), outline=GOLD + (220,), width=2)
-        draw.rounded_rectangle((x + 3, y + 3, x + w - 3, y + h - 3), max(4, r - 4), outline=CREAM + (70,), width=1)
+    def plaque(name: str, x: int, y: int, w: int, h: int, kind: str = "slate") -> None:
+        fill = WOOD if kind == "wood" else FOREST if kind != "pulp" else PULP
+        light = WOOD_LT if kind == "wood" else SLATE_LT if kind != "pulp" else (238, 230, 204)
+        dark = WOOD_DK if kind == "wood" else SLATE_DK if kind != "pulp" else (168, 154, 118)
+        c = 6 if min(w, h) > 40 else 4
+        outer = _chamfer(x, y, w, h, c)
+        draw.polygon(outer, fill=fill + (242,), outline=BRASS + (230,))
+        # Iso bevel: light north-west, dark south-east.
+        draw.line([(x + c, y + 2), (x + w - c, y + 2)], fill=light + (220,), width=2)
+        draw.line([(x + 2, y + c), (x + 2, y + h - c)], fill=light + (200,), width=2)
+        draw.line([(x + c, y + h - 2), (x + w - c, y + h - 2)], fill=dark + (230,), width=2)
+        draw.line([(x + w - 2, y + c), (x + w - 2, y + h - c)], fill=dark + (230,), width=2)
+        inset = _chamfer(x + 5, y + 5, w - 10, h - 10, max(3, c - 2))
+        draw.polygon(inset, outline=BRASS_DK + (90,))
+        for rx, ry in ((x + 9, y + 9), (x + w - 10, y + 9), (x + 9, y + h - 10), (x + w - 10, y + h - 10)):
+            if w > 28 and h > 28:
+                _rivet(draw, rx, ry, 3 if min(w, h) > 50 else 2)
+        if kind == "wood" and h > 60:
+            draw.rectangle((x + 18, y + 4, x + w - 18, y + 11), fill=BRASS + (255,), outline=BRASS_DK + (255,))
+        if kind == "pulp":
+            for line_y in range(y + 18, y + h - 8, 10):
+                draw.line([(x + 12, line_y), (x + w - 12, line_y)], fill=(196, 178, 132, 140), width=1)
         boxes[name] = {"x": x, "y": y, "w": w, "h": h}
 
-    forest_panel("plate", 8, 8, 250, 78, 10)
-    forest_panel("status", 270, 8, 320, 62, 10)
-    forest_panel("mass", 600, 8, 186, 44, 10)
-    forest_panel("card", 8, 100, 330, 260, 12)
-    forest_panel("census", 8, 380, 900, 120, 8)
-    forest_panel("minimap", 350, 100, 200, 140, 10)
-    forest_panel("toast", 8, 520, 360, 48, 8)
-    forest_panel("btn", 580, 100, 92, 36, 8)
-    forest_panel("btn-wide", 580, 148, 140, 36, 8)
-    forest_panel("btn-sq", 580, 196, 46, 46, 8)
-    forest_panel("dpad", 740, 100, 150, 150, 12)
-    # Compass disc.
-    draw.ellipse((910, 8, 1010, 108), fill=FOREST + (236,), outline=GOLD + (220,), width=2)
-    draw.polygon([(960, 28), (972, 52), (960, 48)], fill=GOLD)
+    plaque("plate", 8, 8, 250, 78, "wood")
+    plaque("status", 270, 8, 320, 62, "slate")
+    plaque("mass", 600, 8, 186, 44, "slate")
+    plaque("card", 8, 100, 330, 260, "wood")
+    plaque("census", 8, 380, 900, 120, "pulp")
+    plaque("minimap", 350, 100, 200, 140, "slate")
+    plaque("toast", 8, 520, 360, 48, "slate")
+    plaque("btn", 580, 100, 92, 36, "slate")
+    plaque("btn-wide", 580, 148, 140, 36, "slate")
+    plaque("btn-sq", 580, 196, 46, 46, "slate")
+    # Octagonal survey pad, not a Jane disc-in-a-pill.
+    dpad_pts = _chamfer(740, 100, 150, 150, 28)
+    draw.polygon(dpad_pts, fill=FOREST + (242,), outline=BRASS + (230,))
+    draw.polygon(_chamfer(752, 112, 126, 126, 22), outline=BRASS_DK + (120,))
+    for rx, ry in ((756, 116), (874, 116), (756, 234), (874, 234)):
+        _rivet(draw, rx, ry, 3)
+    boxes["dpad"] = {"x": 740, "y": 100, "w": 150, "h": 150}
+    # Brass survey compass (octagon, not a Jane disc-in-a-pill).
+    compass = []
+    for i in range(8):
+        ang = math.radians(22.5 + i * 45)
+        compass.append((960 + 46 * math.cos(ang), 58 + 46 * math.sin(ang)))
+    draw.polygon(compass, fill=FOREST + (242,), outline=BRASS + (240,))
+    draw.ellipse((930, 28, 990, 88), outline=BRASS_DK + (200,))
+    draw.polygon([(960, 22), (966, 48), (960, 44), (954, 48)], fill=BRASS)
     boxes["compass"] = {"x": 910, "y": 8, "w": 100, "h": 100}
-    # Recolored Jane's pills — isolated, not the map chrome.
-    pills = recolor_gold_widget(hud.crop((8, 448, 900, 520)))
-    kit.alpha_composite(pills.resize((880, 64), Image.Resampling.LANCZOS), (8, 580))
-    boxes["pills"] = {"x": 8, "y": 580, "w": 880, "h": 64}
-    bars = recolor_gold_widget(hud.crop((250, 520, 900, 600)))
-    kit.alpha_composite(bars.resize((400, 48), Image.Resampling.LANCZOS), (8, 660))
-    boxes["bars"] = {"x": 8, "y": 660, "w": 400, "h": 48}
-    draw.rounded_rectangle((430, 668, 730, 684), 4, fill=(42, 47, 44, 255))
-    draw.rounded_rectangle((430, 668, 590, 684), 4, fill=GOLD)
-    boxes["mass-track"] = {"x": 430, "y": 668, "w": 300, "h": 16}
-    boxes["mass-fill"] = {"x": 430, "y": 668, "w": 160, "h": 16}
+    plaque("rail", 740, 260, 130, 220, "wood")
     return kit, boxes
 
 
@@ -604,8 +657,7 @@ def write_civic_and_hud() -> tuple[dict, dict]:
     civic.save(OUT / "civic-kit-k1.png")
     pack_large_street_tiles(civic_boxes)
 
-    hud_src = SRC2 / "PC _ Computer - Jane's Realty - Interface - HUD Graphics.png"
-    kit, hud_boxes = hud_kit(open_rgba(hud_src))
+    kit, hud_boxes = hud_kit()
     kit.save(OUT / "hud-kit-k1.png")
     return civic_boxes, hud_boxes
 
@@ -623,7 +675,14 @@ READABILITY_BOXES = {
 }
 
 
-def iso_diamond(width: int, height: int, fill: tuple[int, int, int], edge: tuple[int, int, int], dash: tuple[int, int, int] | None = None) -> Image.Image:
+def iso_diamond(
+    width: int,
+    height: int,
+    fill: tuple[int, int, int],
+    edge: tuple[int, int, int],
+    dash: tuple[int, int, int] | None = None,
+    chevrons: bool = False,
+) -> Image.Image:
     """Readable isometric pavement tile (not a 4px speck)."""
     im = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(im)
@@ -631,7 +690,16 @@ def iso_diamond(width: int, height: int, fill: tuple[int, int, int], edge: tuple
     pts = [(cx, 2), (width - 3, cy), (cx, height - 3), (3, cy)]
     draw.polygon(pts, fill=fill + (255,), outline=edge + (255,))
     if dash:
-        draw.line([(cx - width * 0.18, cy - 1), (cx + width * 0.18, cy + 1)], fill=dash + (230,), width=3)
+        draw.line([(cx - width * 0.22, cy - 2), (cx + width * 0.22, cy + 2)], fill=dash + (240,), width=4)
+        draw.line([(cx - width * 0.18, cy + 6), (cx + width * 0.18, cy + 10)], fill=dash + (180,), width=2)
+    if chevrons and dash:
+        for t in (0.32, 0.50, 0.68):
+            px = cx + (t - 0.5) * width * 0.42
+            py = cy + (t - 0.5) * height * 0.18
+            draw.polygon(
+                [(px - 11, py + 1), (px - 1, py - 6), (px + 12, py + 1), (px - 1, py + 7)],
+                fill=dash + (235,),
+            )
     return im
 
 
@@ -649,8 +717,8 @@ def pack_large_street_tiles(civic_boxes: dict | None = None, path: Path = OUT / 
     road1 = restyle(trim(ground.crop((190, 181, 190 + 144, 181 + 97))), sat=0.62, contrast=1.08)
     kit.paste(road0, (8, 640 + 96 - road0.height))
     kit.paste(road1, (162, 640 + 97 - road1.height))
-    bike0 = iso_diamond(120, 70, (95, 125, 68), GOLD, CREAM)
-    bike1 = iso_diamond(120, 70, (82, 114, 62), GOLD, CREAM)
+    bike0 = iso_diamond(120, 70, (74, 132, 42), (236, 228, 168), CREAM, chevrons=True)
+    bike1 = iso_diamond(120, 70, (62, 118, 38), (236, 228, 168), CREAM, chevrons=True)
     kit.paste(bike0, (320, 640), bike0)
     kit.paste(bike1, (448, 640), bike1)
     kit.save(path)
@@ -772,7 +840,7 @@ def main() -> None:
                 "ChatGPT family trios",
                 "CENTER_OF_MAP_HQ office compound",
                 "Attached construction / parking / gates / bank, restyled",
-                "Jane's Realty HUD gold panels recolored to olive-slate+gold",
+                "Construction-city HUD: beveled wood/slate plaques + brass rivets (not Jane chrome)",
                 "Jane's houses only after saturation crush",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
@@ -806,8 +874,7 @@ if __name__ == "__main__":
     import sys
 
     if "--hud-only" in sys.argv:
-        hud_src = SRC2 / "PC _ Computer - Jane's Realty - Interface - HUD Graphics.png"
-        kit, hud_boxes = hud_kit(open_rgba(hud_src))
+        kit, hud_boxes = hud_kit()
         kit.save(OUT / "hud-kit-k1.png")
         existing = {}
         if MANIFEST.joinpath("tileset-manifest.json").exists():

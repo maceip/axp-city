@@ -856,7 +856,7 @@ export class CityScene extends Phaser.Scene {
     }
   }
 
-  update(time: number, delta: number): void {
+  update(time: number, _delta: number): void {
     const c = this.cameras.main;
     const inputTime = performance.now();
     const elapsed = Math.min(inputTime - this.lastInputTime, 500);
@@ -880,7 +880,10 @@ export class CityScene extends Phaser.Scene {
       if (!x && !y) this.restoreKeysIdle = true;
       else if (this.restoreKeysIdle) this.releaseRestoreCamera();
     }
-    this.actors.step(Math.min(delta, 100));
+    // Wall-clock elapsed (not Phaser's frame delta, which software-GL
+    // runners cap well below real time) so actor timelines keep pace
+    // when the city is scrolled away and back.
+    this.actors.step(Math.min(elapsed, 500));
     if (!restoring && this.followActor) {
       const at = this.actors.position(this.followActor);
       if (at) {

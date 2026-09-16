@@ -61,7 +61,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert kinds.get("gate", 0) >= 1
         assert info["hasBikeLane"], "bike-lane feature missing from the city plan"
         assert info["roadStampWidth"] >= 140, f"roads still stamp too small: {info['roadStampWidth']}"
-        assert info["bikeStampWidth"] >= 90, f"bike lanes still stamp too small: {info['bikeStampWidth']}"
+        assert info["bikeStampWidth"] >= 140, f"bike lanes still stamp too small: {info['bikeStampWidth']}"
         assert info["uniqueFacades"] >= 12, f"repo lots still look cloned: {info['uniqueFacades']} unique facades"
 
         click_hud(page, "zoom-out")

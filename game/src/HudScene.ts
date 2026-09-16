@@ -112,6 +112,7 @@ export class HudScene extends Phaser.Scene {
   private hint!: Phaser.GameObjects.Text;
   private dpad!: Phaser.GameObjects.Container;
   private tools!: Phaser.GameObjects.Container;
+  private kitRail!: Phaser.GameObjects.Image;
   private listeners = new Set<(event: string, detail?: unknown) => void>();
   private constructionStamp?: string;
   private lastView?: Rect;
@@ -135,7 +136,7 @@ export class HudScene extends Phaser.Scene {
     for (const listener of this.listeners) listener(event, detail);
   }
 
-  /** Restyled olive-slate/gold chrome from the civic HUD kit. */
+  /** Construction-city survey plaques from the civic HUD kit. */
   private hudPanel(frame: keyof typeof HUD_FRAMES, width: number, height: number): Phaser.GameObjects.Image {
     const box = HUD_FRAMES[frame];
     const img = this.add.image(0, 0, HUD_SHEET.file, ensureFrame(this, HUD_SHEET.file, box));
@@ -162,8 +163,8 @@ export class HudScene extends Phaser.Scene {
     if (this.input.keyboard) this.input.keyboard.enabled = false;
     this.plate = this.add.container(16, 16);
     const plateBg = this.hudPanel("plate", 250, 78);
-    const title = this.add.text(14, 10, "AXP CITY", { fontFamily: FONT, fontSize: "12px", color: GOLD, letterSpacing: 2 });
-    this.district = this.add.text(14, 28, "Central Park", { fontFamily: FONT, fontSize: "19px", color: INK, fontStyle: "bold" });
+    const title = this.add.text(14, 12, "SURVEY DESK", { fontFamily: FONT, fontSize: "11px", color: GOLD, letterSpacing: 3 });
+    this.district = this.add.text(14, 30, "Central Park", { fontFamily: FONT, fontSize: "18px", color: INK, fontStyle: "bold" });
     this.coords = this.add.text(14, 55, "0 · 0", { fontFamily: FONT, fontSize: "11px", color: MUTED });
     this.plate.add([plateBg, title, this.district, this.coords]);
     this.plate.setSize(250, 78).setName("plate");
@@ -254,23 +255,25 @@ export class HudScene extends Phaser.Scene {
     this.dpad.add(home.container);
 
     this.hint = this.add
-      .text(0, 0, "Drag to explore · scroll or pinch to zoom · WASD/arrows · / search · C census · F follow · Esc clear", {
+      .text(0, 0, "FIELD NOTES · drag · scroll/pinch · WASD · / search · C census · F follow · Esc", {
         fontFamily: FONT,
         fontSize: "11px",
-        color: MUTED,
-        backgroundColor: "rgba(21,37,32,0.85)",
-        padding: { x: 10, y: 6 },
+        color: "#efe6c8",
+        backgroundColor: "rgba(72,54,32,0.92)",
+        padding: { x: 12, y: 7 },
       })
       .setOrigin(0.5, 1);
-    this.button("census", "Census", 92, 36, () => this.toggleCensus());
-    this.button("capture", "Capture PNG", 120, 36, () => this.actions.capture());
-    this.button("svg", "SVG", 56, 36, () => window.open(document.querySelector<HTMLMetaElement>('meta[name="city-svg"]')?.content || "/api/city/export.svg", "_blank", "noopener"));
-    this.button("motion", "Motion: on", 116, 36, () => {
+    this.kitRail = this.hudPanel("rail", 136, 220);
+    this.kitRail.setName("kit-rail");
+    this.button("census", "CENSUS", 118, 34, () => this.toggleCensus());
+    this.button("capture", "CAPTURE", 118, 34, () => this.actions.capture());
+    this.button("svg", "SVG MAP", 118, 34, () => window.open(document.querySelector<HTMLMetaElement>('meta[name="city-svg"]')?.content || "/api/city/export.svg", "_blank", "noopener"));
+    this.button("motion", "MOTION ON", 118, 34, () => {
       this.motion = this.actions.toggleMotion();
-      this.buttons.get("motion")!.label.setText(this.motion ? "Motion: on" : "Motion: off");
+      this.buttons.get("motion")!.label.setText(this.motion ? "MOTION ON" : "MOTION OFF");
       this.emit("motion", this.motion);
     });
-    this.button("follow", "Follow", 78, 36, () => this.actions.follow());
+    this.button("follow", "FOLLOW", 118, 34, () => this.actions.follow());
 
     this.card = this.add.container(0, 0).setVisible(false).setName("card");
     this.cardBg = this.hudPanel("card", 330, 260);
@@ -331,9 +334,8 @@ export class HudScene extends Phaser.Scene {
     const bg = this.add.graphics();
     const label = this.add.text(width / 2, height / 2, text, { fontFamily: FONT, fontSize: height >= 40 ? "20px" : "12px", color: INK }).setOrigin(0.5);
     const paint = (hover: boolean) => {
-      img.setTint(hover ? 0xd5f0c8 : 0xffffff);
+      img.setTint(hover ? 0xf0e0a0 : 0xffffff);
       bg.clear();
-      bg.lineStyle(1.5, 0xf6dd91, hover ? 0.95 : 0.45).strokeRoundedRect(0, 0, width, height, 8);
     };
     paint(false);
     container.add([img, bg, label]);
@@ -377,13 +379,38 @@ export class HudScene extends Phaser.Scene {
     // A phone's bottom-sheet card covers the d-pad; it returns when the card closes.
     this.dpad.setVisible(!(small && this.card.visible));
     const toolbar = ["census", "capture", "svg", "motion", "follow"];
-    let x = small ? 16 : 190;
-    const y = small ? H - 216 : H - 52;
     this.hint.setOrigin(0, 1).setPosition(190, H - 60).setVisible(!small && !this.censusOpen && W >= 1100);
-    for (const name of toolbar) {
-      const b = this.buttons.get(name)!;
-      b.container.setPosition(x, y);
-      x += b.width + 8;
+    if (small) {
+      this.kitRail.setVisible(false);
+      const y0 = H - 248;
+      let x = 16;
+      for (const name of ["census", "capture", "svg"]) {
+        const b = this.buttons.get(name)!;
+        b.container.setScale(0.82);
+        b.container.setPosition(x, y0);
+        x += b.width * 0.82 + 6;
+      }
+      x = 16;
+      for (const name of ["motion", "follow"]) {
+        const b = this.buttons.get(name)!;
+        b.container.setScale(0.82);
+        b.container.setPosition(x, y0 + 36);
+        x += b.width * 0.82 + 6;
+      }
+    } else {
+      const kitW = 118;
+      const kitX = W - mapW - 22 - kitW - 14;
+      const kitY = H - mapH - 46;
+      for (const name of toolbar) this.buttons.get(name)!.container.setScale(1);
+      this.kitRail.setVisible(true);
+      this.kitRail.setPosition(kitX - 8, kitY - 10);
+      this.kitRail.setDisplaySize(kitW + 16, toolbar.length * 42 + 18);
+      let y = kitY;
+      for (const name of toolbar) {
+        const b = this.buttons.get(name)!;
+        b.container.setPosition(kitX, y);
+        y += b.height + 8;
+      }
     }
     this.toastBg.setPosition(W / 2, H - (small ? 230 : 70));
     this.toastText.setPosition(W / 2, H - (small ? 230 : 70));
@@ -498,7 +525,7 @@ export class HudScene extends Phaser.Scene {
               : f.kind === "office"
                 ? 0xc9b56a
                 : f.kind === "bike"
-                  ? 0x8fbc6a
+                  ? 0x5f9a32
                   : 0x768270;
       g.fillStyle(fill, 1);
       const pts = [project(f.x, f.y), project(f.x + f.w, f.y), project(f.x + f.w, f.y + f.h), project(f.x, f.y + f.h)].map(

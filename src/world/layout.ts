@@ -345,7 +345,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       x: minSx * STRIDE_X,
       y: minSy * STRIDE_Y + LOT_D + SHOULDER,
       w: (maxSx - minSx + 1) * STRIDE_X,
-      h: ROAD_D * 0.35,
+      h: ROAD_D * 0.62,
     },
   ];
 
