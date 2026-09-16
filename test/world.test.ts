@@ -64,6 +64,7 @@ describe("planCity", () => {
     expect(plan.civics.some((c) => c.kind === "gate")).toBe(true);
     expect(plan.civics.filter((c) => c.kind === "road").length).toBeGreaterThan(3);
     expect(plan.civics.every((c) => c.kind !== "road" || c.sprite.startsWith("road-"))).toBe(true);
+    expect(planCity(lots(36)).civics.some((c) => c.kind === "odd")).toBe(true);
     const park = plan.features.find((f) => f.kind === "park")!;
     expect(office!.x).toBeGreaterThan(park.x);
     expect(office!.x).toBeLessThan(park.x + park.w);
