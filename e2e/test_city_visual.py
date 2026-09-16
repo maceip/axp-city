@@ -490,6 +490,64 @@ def test_rename_keeps_the_address_and_removal_keeps_neighbours(page, server):
     page.screenshot(path=str(SHOTS / "after-rename-removal.png"))
 
 
+def test_unmeasured_fields_carry_last_good_values_and_are_named_partial(page, server):
+    """Audit finding A in rendered output: a refresh that could not measure a field must not
+    become a fresh-looking zero. The lot keeps its last good numbers, the inspect card and the
+    census (visual and accessible) say which fields are carried, the drawn lot does not
+    regress, and a first enrollment with nothing to carry is refused rather than published."""
+    import urllib.error
+    import urllib.request
+    repo = "acme/forge"
+    before = next(p["lot"] for p in server.get("/api/city")["plan"]["placements"] if p["lot"]["fullName"] == repo)
+    assert (before["openIssues"], before["openPrs"]) == (5, 20) and not before.get("partial")
+    key = page.evaluate("r => window.__AXP.drawnRenderKey(r)", repo)
+    # The source answers with placeholder zeros and says it could not measure them.
+    row = server.metrics[0]
+    assert row["fullName"] == repo
+    row.update(openIssues=0, openPrs=0, unknownFields=["openIssues", "openPrs"], stars=25100)
+    server.save()
+    assert server.webhook(repo, "partial-1") == 202
+    page.wait_for_function("r => { const l = window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === r).lot; return l.stars === 25100 && l.partial && l.partial.carriedFields.length === 2; }", arg=repo, timeout=15000)
+    lot = page.evaluate("r => window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === r).lot", repo)
+    assert (lot["openIssues"], lot["openPrs"]) == (5, 20), lot  # carried, not zeroed
+    assert sorted(lot["partial"]["carriedFields"]) == ["openIssues", "openPrs"]
+    assert page.evaluate("r => window.__AXP.drawnRenderKey(r)", repo) == key, "the drawn lot changed although only unmeasured fields did"
+    select(page, repo)
+    card = a11y(page, "#a11y-selection")
+    assert "PARTIAL: openIssues, openPrs carried from" in card and "ISSUES 5" in card and "OPEN PRS 20" in card, card
+    page.screenshot(path=str(SHOTS / "partial-metrics-card.png"))
+    page.keyboard.press("Escape")
+    page.wait_for_function("!window.__AXP.diagnostics().cardVisible")
+    page.keyboard.press("c")
+    page.wait_for_function("window.__AXP.diagnostics().censusOpen")
+    rows = page.evaluate("Array.from(document.querySelectorAll('#a11y-census tr')).map(tr => Array.from(tr.children).map(td => td.textContent))")
+    forge = next(r for r in rows if r[0] == repo)
+    assert forge[3:5] == ["5", "20"] and forge[-1] == "partial: openIssues, openPrs carried from an earlier refresh", forge
+    assert all(r[-1] == "complete" for r in rows[1:] if r[0] != repo), rows
+    assert page.evaluate("window.__AXP.censusRows().find(r => r.repo === 'acme/forge').partial") is True
+    page.keyboard.press("Escape")
+    page.wait_for_function("!window.__AXP.diagnostics().censusOpen")
+    # A repository never seen before has nothing to carry: its enrollment is refused with the
+    # reason, and no zero-valued lot is published anywhere.
+    server.metrics.append(repo_metrics("acme/unmeasured", stars=900, openIssues=0, unknownFields=["openIssues"]))
+    server.save()
+    body = json.dumps(dict(repo="acme/unmeasured")).encode()
+    request = urllib.request.Request(server.url + "/api/city/lots", data=body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {ADMIN}"})
+    try:
+        urllib.request.urlopen(request, timeout=20)
+        raise AssertionError("an unmeasured first refresh was published")
+    except urllib.error.HTTPError as refused:
+        assert refused.code == 502
+        assert "not measured and no last good values" in json.loads(refused.read())["detail"]
+    assert all(p["lot"]["fullName"] != "acme/unmeasured" for p in server.get("/api/city")["plan"]["placements"])
+    assert page.evaluate("window.__AXP.snapshot().plan.placements.every(p => p.lot.fullName !== 'acme/unmeasured')")
+    # Once the source measures again, the lot is complete and the fresh numbers replace the carried ones.
+    row.update(openIssues=7, openPrs=3, unknownFields=[])
+    server.save()
+    assert server.webhook(repo, "partial-2") == 202
+    page.wait_for_function("r => { const l = window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === r).lot; return l.openIssues === 7 && l.openPrs === 3 && !(l.partial && l.partial.carriedFields.length); }", arg=repo, timeout=15000)
+
+
 def png_bytes(width, height, rgb):
     """A solid-colour 8-bit RGB PNG, built without any imaging dependency."""
     import struct

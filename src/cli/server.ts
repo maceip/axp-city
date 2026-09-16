@@ -5,6 +5,7 @@ import { parseArgs, parseRepoLine } from "./args.js";
 import { parseLot } from "../parser/parseLot.js";
 import { loadFixtureRepositoryRules, loadLocalRules, repoName } from "../rules/load.js";
 import { loadArtworkApprovals, resolveArtwork } from "../rules/artwork.js";
+import { mergeMetrics } from "../ingest/merge.js";
 import {
   PrivateRepositoryError,
   resolveRepository,
@@ -140,11 +141,19 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     if (!row) throw new Error(`Offline fixture has no repository ${name}`);
     // Same visibility rule as the live resolver: a row that turned private is withdrawn, not retried.
     if (row.isPrivate === true) throw new PrivateRepositoryError(name);
-    const metrics: RepoMetrics = { ...row, source: "fixture", isPrivate: row.isPrivate ?? false };
+    const fresh: RepoMetrics = { ...row, source: "fixture", isPrivate: row.isPrivate ?? false };
+    // Same rule as live mode for fields the source could not measure (`unknownFields`):
+    // carry the last good value and mark the lot partial, or refuse the refresh when
+    // there is no last good value — never publish a placeholder zero as fresh data.
+    const merged = mergeMetrics(previous, fresh);
+    const metrics = merged.metrics;
     const local = await loadLocalRules(config.rulesDir);
     const rules = await loadFixtureRepositoryRules(name, config.rulesDir, local);
     const lot: CityLot = {
-      ...parseLot(metrics, { rules: rules.rules }),
+      ...parseLot(metrics, {
+        rules: rules.rules,
+        carried: merged.carried.length ? { fields: merged.carried, from: previous?.fetchedAt } : undefined,
+      }),
       rulesSource: rules.source,
     };
     const warnings = rules.warning ? [rules.warning] : [];

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { ambientActors } from "../../src/game/ambient.js";
-import { findPlacement } from "../../src/game/census.js";
+import { censusRows, findPlacement } from "../../src/game/census.js";
 import { buildingBounds, buildingSize, lotSampleBounds } from "../../src/game/geometry.js";
 import { planLot, type LotRenderPlan } from "../../src/game/plan.js";
 import { overlaps, unproject, visibleChunks, type Rect } from "../../src/game/visibility.js";
@@ -299,6 +299,8 @@ export class CityScene extends Phaser.Scene {
         return view ? { stage: view.stage, incomplete: view.incomplete, objects: view.images.length + view.shapes.length } : null;
       },
       drawnRenderKey: (repo: string) => this.lots.get(repo)?.renderKey ?? null,
+      // The shared census model both the Phaser table and the accessible mirror read.
+      censusRows: () => censusRows(this.city.plan, this.now()),
       lotTags: (repo: string) => {
         const place = this.city.plan.placements.find((p) => p.lot.fullName === repo);
         return place ? planLot(place, true, this.now()).images.map((i) => i.tag ?? i.sheet) : [];
