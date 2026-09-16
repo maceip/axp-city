@@ -632,9 +632,10 @@ export class HudScene extends Phaser.Scene {
       [`${place.district.toUpperCase()} · ${lot.buildingBand} BUILDING · SLOT ${place.col},${place.row}`, GOLD, "10px"],
       [lot.name, INK, "16px"],
       [`${lot.owner} / ${lot.name}`, MUTED, "11px"],
-      [`STARS ${lot.stars.toLocaleString()}    ISSUES ${lot.openIssues}    OPEN PRS ${lot.openPrs}`, INK, "12px"],
-      [site.stage !== "complete" ? `UNDER CONSTRUCTION · ${constructionLabel(site).toUpperCase()} · ${Math.round(site.progress * 100)}%` : yardLabel(lot.yard).toUpperCase(), GOLD, "11px"],
-      [`${crewLabel(lot)} — ${lot.crewBasis}`, INK, "11px"],
+      [`STARS ${lot.stars.toLocaleString()}    ISSUES ${lot.openIssues}    OPEN PRS ${lot.openPrs}`, INK, "12px", true],
+      [site.stage !== "complete" ? `UNDER CONSTRUCTION · ${constructionLabel(site).toUpperCase()} · ${Math.round(site.progress * 100)}%` : yardLabel(lot.yard).toUpperCase(), GOLD, "11px", true],
+      [crewLabel(lot), INK, "11px"],
+      [lot.crewBasis, MUTED, "10px", true],
       [`Loading zone: ${yardPropList(lot).concat(lot.extraProps ?? []).join(", ") || "ready for its next delivery"}${lot.layout ? ` · ${lot.layout.bays} bay${lot.layout.bays > 1 ? "s" : ""}` : ""}`, MUTED, "11px", true],
       [
         `${lot.dataSource === "fixture" ? "Recorded fixture" : "GitHub data"}${lot.fetchedAt ? ` · ${new Date(lot.fetchedAt).toLocaleString()}` : ""}${lot.partial?.carriedFields.length ? ` · PARTIAL: ${lot.partial.carriedFields.join(", ")} carried from ${lot.partial.carriedFrom ? new Date(lot.partial.carriedFrom).toLocaleDateString() : "an earlier refresh"}` : ""}`,
