@@ -418,14 +418,23 @@ export function createCityStore(
 
   function freshness(): CityFreshness {
     if (refreshCache) return refreshCache;
+    // Only published lots count towards "failing": a refused enrollment or a
+    // withdrawn repository is answered/recorded elsewhere and must not leave the
+    // city looking degraded.
     const agg = db
       .prepare(
-        "SELECT MAX(last_success_at) AS ok, SUM(CASE WHEN last_error IS NOT NULL THEN 1 ELSE 0 END) AS failing FROM refresh_status",
+        `SELECT MAX(r.last_success_at) AS ok,
+                SUM(CASE WHEN r.last_error IS NOT NULL THEN 1 ELSE 0 END) AS failing
+         FROM refresh_status r
+         JOIN lots l ON l.full_name = r.full_name COLLATE NOCASE AND l.status = 'published'`,
       )
       .get() as { ok: string | null; failing: number | null };
     const failure = db
       .prepare(
-        "SELECT last_attempt_at AS at, last_error AS error FROM refresh_status WHERE last_error IS NOT NULL ORDER BY last_attempt_at DESC LIMIT 1",
+        `SELECT r.last_attempt_at AS at, r.last_error AS error
+         FROM refresh_status r
+         JOIN lots l ON l.full_name = r.full_name COLLATE NOCASE AND l.status = 'published'
+         WHERE r.last_error IS NOT NULL ORDER BY r.last_attempt_at DESC LIMIT 1`,
       )
       .get() as { at: string; error: string } | undefined;
     refreshCache = {
