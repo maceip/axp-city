@@ -414,6 +414,91 @@ describe("repository-owned rules", () => {
     }
   });
 
+  it("finishes a delivery interrupted between claim and completion after a crash, and a reconnecting stream sees the change", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "axp-crash-"));
+    const databasePath = join(dir, "city.sqlite");
+    let release!: () => void;
+    const blocked = new Promise<void>((r) => (release = r));
+    const firstCalls: string[] = [];
+    const first = createWebhookServer(
+      {
+        secret,
+        databasePath,
+        coalesceMs: 0,
+        refreshTimeoutMs: 10_000,
+        resolveRepository: async (fullName) => {
+          firstCalls.push(fullName);
+          await blocked; // GitHub answers only after this process is already dead
+          const m = metrics({ fullName, stars: 555, isPrivate: false });
+          return { lot: parseLot(m), metrics: m };
+        },
+      },
+      0,
+    );
+    const base = await start(first);
+    await first.city.hydrate([parseLot(metrics({ fullName: "acme/widget", stars: 1 }))]);
+    const body = JSON.stringify({ ref: "refs/heads/main", repository: { full_name: "acme/widget" }, sender: { login: "human" } });
+    const accepted = await fetch(`${base}/webhooks/github`, {
+      method: "POST",
+      body,
+      headers: { "x-github-event": "push", "x-github-delivery": "crash-1", "x-hub-signature-256": signBody(Buffer.from(body), secret) },
+    });
+    expect(accepted.status).toBe(202);
+    // Accepting a signed delivery kicks the worker, which claims it and is now waiting on GitHub.
+    const inFlight = first.drainDeliveries().catch(() => undefined);
+    while (first.city.deliveryCounts().processing !== 1) await new Promise((r) => setTimeout(r, 5));
+    expect(first.city.deliveryCounts()).toMatchObject({ pending: 0, processing: 1, done: 0 });
+    expect(firstCalls).toEqual(["acme/widget"]);
+    // Crash: no graceful stop, the socket and the database simply go away mid-refresh.
+    first.server.closeAllConnections();
+    await new Promise<void>((done) => first.server.close(() => done()));
+    first.city.close();
+    release();
+    await inFlight;
+
+    let secondCalls = 0;
+    const second = createWebhookServer(
+      {
+        secret,
+        databasePath,
+        coalesceMs: 0,
+        refreshTimeoutMs: 10_000,
+        resolveRepository: async (fullName) => {
+          secondCalls++;
+          const m = metrics({ fullName, stars: 777, isPrivate: false });
+          return { lot: parseLot(m), metrics: m };
+        },
+      },
+      0,
+    );
+    const base2 = await start(second);
+    try {
+      // Reopening returns the claimed-but-unfinished delivery to the queue; nothing was published by the dead process.
+      expect(second.city.deliveryCounts()).toMatchObject({ pending: 1, processing: 0, done: 0, failed: 0 });
+      expect(second.city.lots()[0].stars).toBe(1);
+      expect(second.city.freshness().lastSuccessfulRefreshAt).toBeNull();
+      const stream = await streamReader(`${base2}/api/city/stream`);
+      await stream.until("snapshot");
+      await second.drainDeliveries();
+      expect(secondCalls).toBe(1);
+      const update = await stream.until("lot_updated");
+      expect(update.placement.lot.fullName).toBe("acme/widget");
+      expect(update.placement.lot.stars).toBe(777);
+      expect(second.city.lots()[0].stars).toBe(777);
+      expect(second.city.deliveryCounts()).toMatchObject({ pending: 0, processing: 0, done: 1, failed: 0 });
+      expect(second.city.freshness().lastSuccessfulRefreshAt).not.toBeNull();
+      const redelivered = await fetch(`${base2}/webhooks/github`, {
+        method: "POST",
+        body,
+        headers: { "x-github-event": "push", "x-github-delivery": "crash-1", "x-hub-signature-256": signBody(Buffer.from(body), secret) },
+      });
+      expect(redelivered.status).toBe(200); // the finished delivery is still remembered across the restart
+      stream.close();
+    } finally {
+      await stop(second);
+    }
+  });
+
   it("bounds a slow GitHub response: the published lot stays, freshness records the failure, the delivery retries", async () => {
     const dir = await mkdtemp(join(tmpdir(), "axp-slow-"));
     let slow = true;
