@@ -97,6 +97,7 @@ export async function fetchViaGraphQl(
 
   const response = await fetch(GRAPHQL_URL, {
     method: "POST",
+    signal: AbortSignal.timeout(10_000),
     headers: {
       ...authHeaders(token),
       "Content-Type": "application/json",
@@ -116,14 +117,18 @@ export async function fetchViaGraphQl(
     errors?: Array<{ message: string }>;
   };
   if (payload.errors?.length && !payload.data) {
-    throw new Error(`GraphQL errors: ${payload.errors.map((e) => e.message).join("; ")}`);
+    throw new Error(
+      `GraphQL errors: ${payload.errors.map((e) => e.message).join("; ")}`,
+    );
   }
   const fetchedAt = now.toISOString();
   const out: RepoMetrics[] = [];
   for (let i = 0; i < repos.length; i++) {
     const row = payload.data?.[`r${i}`];
     if (!row) {
-      throw new Error(`Repository not found: ${repos[i].owner}/${repos[i].name}`);
+      throw new Error(
+        `Repository not found: ${repos[i].owner}/${repos[i].name}`,
+      );
     }
     out.push(fromGraphQl(row, fetchedAt));
   }
@@ -133,17 +138,27 @@ export async function fetchViaGraphQl(
 async function restJson<T>(
   path: string,
   token?: string,
-): Promise<{ data: T; remaining: number | null }> {
+): Promise<{ data: T; remaining: number | null; lastPage: number }> {
   const response = await fetch(`${REST_URL}${path}`, {
     headers: authHeaders(token),
+    signal: AbortSignal.timeout(10_000),
   });
   const remaining = response.headers.get("x-ratelimit-remaining");
   const text = await response.text();
   if (!response.ok) {
-    throw new GitHubHttpError(`REST HTTP ${response.status} ${path}`, response.status, text);
+    throw new GitHubHttpError(
+      `REST HTTP ${response.status} ${path}`,
+      response.status,
+      text,
+    );
   }
   return {
     data: JSON.parse(text) as T,
+    lastPage: Number(
+      response.headers
+        .get("link")
+        ?.match(/[?&]page=(\d+)[^>]*>; rel="last"/)?.[1] ?? 1,
+    ),
     remaining: remaining === null ? null : Number(remaining),
   };
 }
@@ -160,6 +175,14 @@ async function fetchOneRest(
   const pullsRes = await restJson<
     Array<{ user?: { login?: string; type?: string } | null }>
   >(`/repos/${owner}/${name}/pulls?state=open&per_page=100`, token);
+  let openPrs = pullsRes.data.length;
+  if (pullsRes.lastPage > 1) {
+    const last = await restJson<unknown[]>(
+      `/repos/${owner}/${name}/pulls?state=open&per_page=100&page=${pullsRes.lastPage}`,
+      token,
+    );
+    openPrs = (pullsRes.lastPage - 1) * 100 + last.data.length;
+  }
   let languageBytes: Record<string, number> = {};
   try {
     const langs = await restJson<Record<string, number>>(
@@ -202,7 +225,7 @@ async function fetchOneRest(
 
   return fromRest({
     repo: repoRes.data,
-    openPrs: pullsRes.data.length,
+    openPrs,
     languageBytes,
     recentDefaultCommits,
     recentAuthors,
@@ -237,7 +260,9 @@ export async function fetchRepoMetrics(
       );
     }
   } else {
-    console.warn("[ingest] No GITHUB_TOKEN — using unauthenticated REST (60 req/hour)");
+    console.warn(
+      "[ingest] No GITHUB_TOKEN — using unauthenticated REST (60 req/hour)",
+    );
   }
   return fetchViaRest(repos, merged);
 }

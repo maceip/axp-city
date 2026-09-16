@@ -1,193 +1,166 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rename, open } from "node:fs/promises";
 import { dirname } from "node:path";
-import { parseLot } from "../parser/parseLot.js";
-import { lotGroup, lotHitSvg } from "../render/city.js";
-import type { CityLot, RepoMetrics } from "../types.js";
-import { CONSTRUCTION_MS } from "../world/constants.js";
+import type { CityLot } from "../types.js";
 import { planCity } from "../world/layout.js";
-
-export interface LiveLot {
-  repo: string;
-  url: string;
-  stars: number;
-  issues: number;
-  prs: number;
-  band: CityLot["buildingBand"];
-  id: number;
-  yard: string;
-  occupant: CityLot["occupantClass"];
-  constructing: boolean;
-  district: string;
-  x: number;
-  y: number;
-  col: number;
-  row: number;
-  props: string[];
+import type { CityMutation, CitySnapshot } from "./protocol.js";
+import { repoName } from "../rules/load.js";
+export { CONSTRUCTION_MS } from "../world/constants.js";
+export type { CityMutation } from "./protocol.js";
+interface State {
+  version: 2;
+  revision: number;
+  order: string[];
+  addedAt: Record<string, string>;
+  lots: CityLot[];
 }
-
-export interface CityMutation {
-  type: "lot_added";
-  lot: LiveLot;
-  svg: string;
-  hit: string;
-}
-
 export interface CityStore {
   load(): Promise<void>;
   hydrate(lots: CityLot[], addedAt?: Record<string, string>): Promise<void>;
   lots(): CityLot[];
   addedAt(): Record<string, string>;
-  ensure(fullName: string, lot?: CityLot, at?: string): Promise<CityMutation | null>;
+  snapshot(mode?: "live" | "offline"): CitySnapshot;
+  ensure(
+    fullName: string,
+    lot?: CityLot,
+    at?: string,
+  ): Promise<CityMutation | null>;
   onMutation(fn: (event: CityMutation) => void): () => void;
 }
-
-function stubMetrics(fullName: string): RepoMetrics {
-  const [owner, name] = fullName.split("/");
-  return {
-    owner: owner || "unknown",
-    name: name || fullName,
-    fullName,
-    url: `https://github.com/${fullName}`,
-    description: null,
-    stars: 0,
-    forks: 0,
-    openIssues: 0,
-    openPrs: 0,
-    sizeKb: 0,
-    languageBytes: {},
-    primaryLanguage: null,
-    pushedAt: null,
-    updatedAt: null,
-    recentDefaultCommits: 0,
-    recentAuthors: [],
-    prAuthors: [],
-    fetchedAt: new Date().toISOString(),
-    source: "fixture",
-  };
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function mutationFor(
-  lots: CityLot[],
-  addedAt: Record<string, string>,
-  fullName: string,
-): CityMutation {
-  const plan = planCity(lots, { addedAt, now: Date.now() });
-  const index = plan.placements.findIndex((p) => p.lot.fullName === fullName);
-  const place = plan.placements[index];
-  if (!place) throw new Error(`placed lot missing: ${fullName}`);
-  const lot = place.lot;
-  return {
-    type: "lot_added",
-    lot: {
-      repo: lot.fullName,
-      url: lot.url,
-      stars: lot.stars,
-      issues: lot.openIssues,
-      prs: lot.openPrs,
-      band: lot.buildingBand,
-      id: lot.buildingId,
-      yard: lot.yard.replaceAll("_", " "),
-      occupant: lot.occupantClass,
-      constructing: true,
-      district: place.district,
-      x: place.x,
-      y: place.y,
-      col: place.col,
-      row: place.row,
-      props: [],
-    },
-    svg: lotGroup({ ...place, constructing: true }, index),
-    hit: lotHitSvg(place),
-  };
-}
-
 export function createCityStore(path: string): CityStore {
-  let order: string[] = [];
-  let added: Record<string, string> = {};
-  const byName = new Map<string, CityLot>();
+  let state: State = {
+    version: 2,
+    revision: 0,
+    order: [],
+    addedAt: {},
+    lots: [],
+  };
+  let queue: Promise<unknown> = Promise.resolve();
   const listeners = new Set<(event: CityMutation) => void>();
-  let writing = Promise.resolve();
-
-  function currentLots(): CityLot[] {
-    return order.map((name) => byName.get(name)).filter((lot): lot is CityLot => Boolean(lot));
+  function serial<T>(operation: () => Promise<T>): Promise<T> {
+    const result = queue.then(operation, operation);
+    queue = result.catch(() => {});
+    return result;
   }
-
-  async function persist(): Promise<void> {
+  async function commit(next: State): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(
-      path,
-      `${JSON.stringify({ version: 1, order, addedAt: added, lots: currentLots() }, null, 2)}\n`,
-      "utf8",
-    );
+    const temp = `${path}.tmp`;
+    await writeFile(temp, `${JSON.stringify(next)}\n`, "utf8");
+    const fd = await open(temp, "r+");
+    try {
+      await fd.sync();
+    } finally {
+      await fd.close();
+    }
+    await rename(temp, path);
+    state = next;
   }
-
-  function queuePersist(): Promise<void> {
-    writing = writing.then(persist, persist);
-    return writing;
-  }
-
   return {
-    async load(): Promise<void> {
+    async load() {
       try {
-        const text = await readFile(path, "utf8");
-        const parsed = JSON.parse(text) as {
-          order?: string[];
-          addedAt?: Record<string, string>;
-          lots?: CityLot[];
+        const data = JSON.parse(await readFile(path, "utf8")) as Partial<State>;
+        if (!Array.isArray(data.order) || !Array.isArray(data.lots))
+          throw new Error("Invalid city map: missing order/lots");
+        const byName = new Map(
+          data.lots.map((lot) => [repoName(lot.fullName).toLowerCase(), lot]),
+        );
+        const lots = data.order.map((name) => byName.get(name.toLowerCase()));
+        if (
+          lots.some((lot) => !lot) ||
+          new Set(data.order.map((name) => name.toLowerCase())).size !==
+            lots.length
+        )
+          throw new Error("Invalid city map: duplicate or missing lot");
+        // Version 1 map order is the address contract; retain it during migration.
+        state = {
+          version: 2,
+          revision: data.revision ?? 0,
+          order: data.order,
+          lots: lots as CityLot[],
+          addedAt: data.addedAt ?? {},
         };
-        order = Array.isArray(parsed.order) ? parsed.order : [];
-        added = parsed.addedAt && typeof parsed.addedAt === "object" ? parsed.addedAt : {};
-        byName.clear();
-        for (const lot of parsed.lots ?? []) {
-          if (lot && typeof lot.fullName === "string") byName.set(lot.fullName, lot);
-        }
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }
     },
-
-    async hydrate(lots: CityLot[], addedAt = {}): Promise<void> {
-      for (const lot of lots) {
-        if (!order.includes(lot.fullName)) order.push(lot.fullName);
-        byName.set(lot.fullName, lot);
-        if (addedAt[lot.fullName]) added[lot.fullName] = addedAt[lot.fullName];
-        if (!added[lot.fullName]) added[lot.fullName] = "2020-01-01T00:00:00.000Z";
-      }
-      await queuePersist();
+    hydrate(lots, timestamps = {}) {
+      return serial(async () => {
+        const next = structuredClone(state);
+        for (const lot of lots) {
+          repoName(lot.fullName);
+          const i = next.order.findIndex(
+            (name) => name.toLowerCase() === lot.fullName.toLowerCase(),
+          );
+          if (i < 0) {
+            next.order.push(lot.fullName);
+            next.lots.push(lot);
+          } else {
+            next.lots[i] = { ...lot, fullName: next.order[i] };
+          }
+          const key = i < 0 ? lot.fullName : next.order[i];
+          next.addedAt[key] ??=
+            timestamps[lot.fullName] ?? "2020-01-01T00:00:00.000Z";
+        }
+        next.revision++;
+        await commit(next);
+      });
     },
-
-    lots: currentLots,
-
-    addedAt(): Record<string, string> {
-      return { ...added };
+    lots: () => structuredClone(state.lots),
+    addedAt: () => ({ ...state.addedAt }),
+    snapshot(mode = "live") {
+      const serverTime = new Date().toISOString();
+      return {
+        version: 1,
+        revision: state.revision,
+        serverTime,
+        mode,
+        plan: planCity(structuredClone(state.lots), {
+          addedAt: state.addedAt,
+          now: serverTime,
+        }),
+      };
     },
-
-    async ensure(fullName: string, lot?: CityLot, at?: string): Promise<CityMutation | null> {
-      if (byName.has(fullName) || order.includes(fullName)) {
-        if (lot) byName.set(fullName, lot);
-        await queuePersist();
-        return null;
-      }
-      const resolved = lot ?? parseLot(stubMetrics(fullName));
-      const when = at ?? new Date().toISOString();
-      order.push(fullName);
-      byName.set(fullName, resolved);
-      added[fullName] = when;
-      await queuePersist();
-      const mutation = mutationFor(currentLots(), added, fullName);
-      for (const send of listeners) send(mutation);
-      return mutation;
+    ensure(fullName, lot, at = new Date().toISOString()) {
+      return serial(async () => {
+        repoName(fullName);
+        const i = state.order.findIndex(
+          (name) => name.toLowerCase() === fullName.toLowerCase(),
+        );
+        if (!lot) {
+          if (i >= 0) return null;
+          throw new Error("A new lot requires resolved repository metrics");
+        }
+        if (lot.fullName.toLowerCase() !== fullName.toLowerCase())
+          throw new Error("Repository identity mismatch");
+        const next = structuredClone(state);
+        if (i < 0) {
+          next.order.push(lot.fullName);
+          next.lots.push(lot);
+          next.addedAt[lot.fullName] = at;
+        } else {
+          next.lots[i] = { ...lot, fullName: next.order[i] };
+        }
+        next.revision++;
+        await commit(next);
+        const plan = planCity(state.lots, { addedAt: state.addedAt });
+        const { placements, ...geometry } = plan;
+        const event: CityMutation = {
+          type: i < 0 ? "lot_added" : "lot_updated",
+          revision: state.revision,
+          serverTime: new Date().toISOString(),
+          placement: placements[i < 0 ? placements.length - 1 : i],
+          ...(i < 0 ? { geometry } : {}),
+        };
+        for (const listener of listeners) {
+          try {
+            listener(event);
+          } catch {
+            /* one disconnected subscriber cannot undo a committed update */
+          }
+        }
+        return event;
+      });
     },
-
-    onMutation(fn: (event: CityMutation) => void): () => void {
+    onMutation(fn) {
       listeners.add(fn);
       return () => {
         listeners.delete(fn);
@@ -195,5 +168,3 @@ export function createCityStore(path: string): CityStore {
     },
   };
 }
-
-export { CONSTRUCTION_MS };

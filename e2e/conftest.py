@@ -1,179 +1,118 @@
-"""Shared fixtures: render a deterministic city, serve it, drive Chromium.
-
-Run with the home venv: ``~/.venv/bin/python -m pytest e2e -v``.
-Set ``HEADED=1`` to watch the browser.
-"""
-
+"""Exercise the production Phaser build and real HTTP/SSE server in isolation."""
+import hashlib
+import hmac
 import json
 import os
-import posixpath
+import socket
 import subprocess
-import threading
+import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
 
 import pytest
+from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
-ASSETS = REPO / "assets" / "city-sprites"
-
-MIME = {
-    ".html": "text/html; charset=utf-8",
-    ".png": "image/png",
-    ".json": "application/json; charset=utf-8",
-    ".svg": "image/svg+xml",
-}
+SECRET = "local-browser-test-secret"
+ADMIN = "local-browser-test-admin"
 
 
-def _repo_metrics(owner, name, **kw):
-    """One RepoMetrics record; defaults mirror test/helpers.ts."""
+def repo_metrics(name, **kw):
     now = datetime.now(timezone.utc)
-    base = {
-        "owner": owner,
-        "name": name,
-        "fullName": f"{owner}/{name}",
-        "url": f"https://github.com/{owner}/{name}",
-        "description": "e2e fixture",
-        "stars": 100,
-        "forks": 10,
-        "openIssues": 0,
-        "openPrs": 0,
-        "sizeKb": 1200,
-        "languageBytes": {"TypeScript": 80000},
-        "primaryLanguage": "TypeScript",
-        "pushedAt": (now - timedelta(days=400)).isoformat(),
-        "updatedAt": (now - timedelta(days=400)).isoformat(),
-        "recentDefaultCommits": 0,
-        "recentAuthors": [],
-        "prAuthors": [],
-        "fetchedAt": now.isoformat(),
-        "source": "e2e",
-    }
-    base.update(kw)
-    return base
-
-
-def _recent_iso(days_ago=3):
-    return (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
-
-
-HUMAN = {"login": "human", "type": "User"}
-BOT = {"login": "dependabot[bot]", "type": "Bot"}
+    owner, short = name.split("/")
+    value = dict(owner=owner, name=short, fullName=name, url=f"https://github.com/{name}", description="Browser fixture", stars=100, forks=4, openIssues=0, openPrs=0, sizeKb=100, languageBytes={}, primaryLanguage="TypeScript", pushedAt=(now-timedelta(days=400)).isoformat(), updatedAt=now.isoformat(), recentDefaultCommits=0, recentAuthors=[], prAuthors=[], fetchedAt=now.isoformat(), source="fixture")
+    value.update(kw)
+    return value
 
 
 def fixture_metrics():
-    """Eight lots covering every yard kind, human and bot activity."""
-    recent = _recent_iso()
-    return [
-        # prs_active, human, high pressure (parked-drone + animated crew).
-        _repo_metrics("acme", "forge", fullName="acme/forge",
-                      openPrs=20, pushedAt=recent, prAuthors=[HUMAN]),
-        # prs_active, bot-tended (robot crew + crane + airlift).
-        _repo_metrics("acme", "robots", fullName="acme/robots", stars=12000,
-                      openPrs=4, openIssues=2, pushedAt=recent,
-                      prAuthors=[BOT]),
-        # issues_active, human (reader + table).
-        _repo_metrics("acme", "plans", fullName="acme/plans",
-                      openIssues=5, pushedAt=recent),
-        # issues_active, bot-tended (crane from plans, dog patrol).
-        _repo_metrics("acme", "botplans", fullName="acme/botplans",
-                      openIssues=5, pushedAt=recent,
-                      recentAuthors=["renovate[bot]"]),
-        # idle_active, human (lone walker).
-        _repo_metrics("acme", "idle", fullName="acme/idle",
-                      pushedAt=recent),
-        # idle_active, bot-tended (dog patrol).
-        _repo_metrics("acme", "botidle", fullName="acme/botidle",
-                      pushedAt=recent, recentAuthors=["github-actions[bot]"]),
-        # prs_quiet, stale high pressure (parked dimmed quad).
-        _repo_metrics("acme", "old", fullName="acme/old", openPrs=20),
-        # fully_dormant (dimmed building only).
-        _repo_metrics("acme", "dead", fullName="acme/dead"),
-    ]
+    return [repo_metrics("acme/forge", stars=25000, openPrs=20, openIssues=5, recentDefaultCommits=1), repo_metrics("acme/robots", stars=12000, openPrs=4, recentDefaultCommits=2, prAuthors=[dict(login="dependabot[bot]", type="Bot")]), repo_metrics("acme/plans", openIssues=4, recentDefaultCommits=1), repo_metrics("acme/quiet"), repo_metrics("acme/idle", recentDefaultCommits=1), repo_metrics("acme/botidle", recentDefaultCommits=1, recentAuthors=["renovate[bot]"]), repo_metrics("acme/stale", stars=45000, openPrs=3), repo_metrics("acme/annex", openIssues=2)]
 
 
-class CityHandler(BaseHTTPRequestHandler):
-    """Serve the rendered out dir at / and sprite PNGs at /assets/sprites/."""
+class CityServer:
+    def __init__(self, root, metrics):
+        self.root = root
+        self.metrics = metrics
+        self.file = root / "metrics.json"
+        self.rules = root / "rules"
+        self.rules.mkdir()
+        self.save()
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            self.port = sock.getsockname()[1]
+        self.url = f"http://127.0.0.1:{self.port}"
+        self.proc = None
+        self.start()
 
-    out_dir = ""
-    assets_dir = ""
+    def save(self):
+        self.file.write_text(json.dumps(self.metrics))
 
-    def log_message(self, *args):
-        pass
+    def start(self):
+        env = dict(os.environ, CITY_OFFLINE="1", CITY_DATA_DIR=str(self.root / "data"), CITY_FIXTURE_PATH=str(self.file), CITY_RULES_DIR=str(self.rules), GITHUB_WEBHOOK_SECRET=SECRET, CITY_ADMIN_TOKEN=ADMIN, HOST="127.0.0.1")
+        self.log = (self.root / "server.log").open("a")
+        self.proc = subprocess.Popen(["node", "dist/server/cli/server.js", "--port", str(self.port)], cwd=REPO, env=env, stdout=self.log, stderr=subprocess.STDOUT)
+        for _ in range(100):
+            try:
+                if self.get("/healthz")["renderer"] == "phaser-4": return
+            except (OSError, urllib.error.URLError): pass
+            if self.proc.poll() is not None: raise RuntimeError((self.root / "server.log").read_text())
+            time.sleep(.05)
+        raise RuntimeError("City server did not start")
 
-    def _send_file(self, path):
-        try:
-            data = Path(path).read_bytes()
-        except OSError:
-            self.send_error(404)
-            return
-        self.send_response(200)
-        self.send_header("content-type",
-                         MIME.get(Path(path).suffix, "application/octet-stream"))
-        self.send_header("content-length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+    def stop(self):
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+            try: self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired: self.proc.kill(); self.proc.wait()
+        self.log.close()
 
-    def do_GET(self):
-        raw = urlsplit(self.path).path
-        if raw in ("/", "/city.html"):
-            return self._send_file(os.path.join(self.out_dir, "city.html"))
-        if raw.startswith("/assets/sprites/"):
-            rel = posixpath.normpath(unquote(raw[len("/assets/sprites/"):]))
-            if rel.startswith("..") or os.path.isabs(rel):
-                return self.send_error(404)
-            return self._send_file(os.path.join(self.assets_dir, rel))
-        return self.send_error(404)
+    def restart(self):
+        self.stop(); self.start()
 
+    def get(self, path):
+        with urllib.request.urlopen(self.url + path, timeout=5) as response: return json.load(response)
 
-@pytest.fixture(scope="session")
-def e2e_out(tmp_path_factory):
-    """Render the fixture city into an isolated dir (repo tree untouched)."""
-    out = tmp_path_factory.mktemp("city")
-    (out / "metrics.json").write_text(
-        json.dumps(fixture_metrics()), encoding="utf8")
-    subprocess.run(
-        ["npm", "run", "render", "--", "--out", str(out)],
-        cwd=REPO, check=True, capture_output=True, text=True,
-    )
-    assert (out / "city.html").exists()
-    return out
-
-
-@pytest.fixture(scope="session")
-def server(e2e_out):
-    CityHandler.out_dir = str(e2e_out)
-    CityHandler.assets_dir = str(ASSETS)
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), CityHandler)
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{httpd.server_address[1]}"
-    httpd.shutdown()
+    def webhook(self, repo, delivery="test-1"):
+        body = json.dumps(dict(ref="refs/heads/main", repository=dict(full_name=repo), sender=dict(login="human"))).encode()
+        signature = "sha256=" + hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
+        request = urllib.request.Request(self.url + "/webhooks/github", data=body, headers={"Content-Type":"application/json", "X-GitHub-Event":"push", "X-GitHub-Delivery":delivery, "X-Hub-Signature-256":signature})
+        with urllib.request.urlopen(request, timeout=10) as response: return response.status
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
+def server(tmp_path):
+    runtime = CityServer(tmp_path, fixture_metrics())
+    yield runtime
+    runtime.stop()
+
+
+@pytest.fixture
+def large_server(tmp_path):
+    rows = [repo_metrics(f"bench/repo{i}", stars=i*83, openPrs=i%20, recentDefaultCommits=1) for i in range(1000)]
+    runtime = CityServer(tmp_path, rows)
+    yield runtime
+    runtime.stop()
+
+
+@pytest.fixture
 def browser():
-    from playwright.sync_api import sync_playwright
-
-    headed = os.environ.get("HEADED") == "1"
     with sync_playwright() as p:
-        bw = p.chromium.launch(headless=not headed)
-        yield bw
-        bw.close()
+        browser = p.chromium.launch(headless=os.environ.get("HEADED") != "1")
+        yield browser
+        browser.close()
 
 
-@pytest.fixture()
+def ready(page, url):
+    page.goto(url + "/city", wait_until="domcontentloaded")
+    page.wait_for_function("Boolean(window.__AXP) && window.__AXP.diagnostics().chunks > 0", timeout=30000)
+    page.locator("#boot-card").wait_for(state="hidden")
+
+
+@pytest.fixture
 def page(browser, server):
-    failures = []
-    pg = browser.new_page(viewport={"width": 1600, "height": 1000})
-    pg.on("requestfailed",
-          lambda r: failures.append(f"{r.url} :: {r.failure}"))
-    pg.on("response",
-          lambda r: failures.append(f"{r.url} :: HTTP {r.status}")
-          if r.status >= 400 else None)
-    pg.goto(f"{server}/city.html")
-    pg.wait_for_selector("#axp-map")
-    yield pg, failures, server
-    pg.close()
+    page = browser.new_page(viewport=dict(width=1600, height=1000))
+    ready(page, server.url)
+    yield page
+    page.close()

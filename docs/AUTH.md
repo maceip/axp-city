@@ -1,37 +1,11 @@
 # Authentication
 
-The city page is a **public read**. Cameras are per-browser; the shared
-secret is the map itself (lot addresses), not user sessions.
+The Phaser application, city snapshot, and SSE feeds are public reads. GitHub and admin credentials exist only on the server.
 
-## GitHub webhooks (inbound)
+`POST /webhooks/github` checks `X-Hub-Signature-256` against the raw request body with `GITHUB_WEBHOOK_SECRET`, using a timing-safe comparison. Missing configuration or invalid signatures return 401. A configured secret always requires a signature. Explicit `--allow-unsigned` is available only on a loopback development listener. Requests are size-limited and rate-limited before their bodies are buffered.
 
-`POST /webhooks/github` verifies `X-Hub-Signature-256` (HMAC-SHA256 of the
-raw body) with `GITHUB_WEBHOOK_SECRET`. Comparison is timing-safe.
+`POST /api/city/lots` requires `Authorization: Bearer $CITY_ADMIN_TOKEN`. An empty/missing token denies mutations. The client has no admin form or embedded token.
 
-Unsigned deliveries are accepted **only** when the secret is empty **and**
-the process was started with `--allow-unsigned`. A configured secret never
-degrades to unsigned.
+`GITHUB_TOKEN` provides server-side read access to GitHub metrics and rule files and enables periodic reconciliation. Use a token with only the access needed for the repositories represented in the public city. Do not expose private-repository metadata in this public map unless that is intended.
 
-Missing/invalid signatures → `401 bad signature`. Floods → `429` before
-the body is buffered. See [`WEBHOOKS.md`](WEBHOOKS.md).
-
-## City mutations
-
-`POST /api/city/lots` plots a repo by hand. It requires
-
-```
-Authorization: Bearer $CITY_ADMIN_TOKEN
-```
-
-The token is hashed then compared timing-safely. An empty/missing token
-**denies** every mutation (fail closed). The page never receives this
-token.
-
-`GET /city`, `GET /api/city`, and `GET /api/city/stream` are public so
-every visitor can share the same map.
-
-## What we deliberately do not do
-
-- No end-user login or OAuth on the map (no chat, no per-user state).
-- No CORS wildcard on webhook POST.
-- No leaking whether a secret is configured (401 either way).
+The deployment can reuse an existing authenticated GitHub CLI credential on the same server. Credentials are loaded at service start without being written to release artifacts or browser bundles.

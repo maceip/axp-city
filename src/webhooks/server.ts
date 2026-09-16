@@ -2,9 +2,10 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
 import { createCityStore, type CityStore } from "../live/cityStore.js";
-import { renderCityHtml } from "../render/html.js";
-import { planSnapshot } from "../render/city.js";
-import { planCity } from "../world/layout.js";
+import type { ServerResponse } from "node:http";
+import type { CityLot } from "../types.js";
+import { resolveRepository } from "../live/repository.js";
+import { repoName } from "../rules/load.js";
 import { authorizeAdmin, authorizeWebhook } from "./auth.js";
 import { normalizeDelivery } from "./normalize.js";
 import { createRateLimiter } from "./rateLimit.js";
@@ -27,6 +28,15 @@ export interface WebhookOptions {
   adminToken?: string;
   /** Sprite PNG root, served at /assets/sprites/. */
   spritesRoot?: string;
+  clientRoot?: string;
+  offline?: boolean;
+  buildRevision?: string;
+  resolveRepository?: (fullName: string) => Promise<CityLot>;
+  frontend?: (
+    req: IncomingMessage,
+    res: ServerResponse,
+    next: () => void,
+  ) => void;
 }
 
 export interface WebhookServer {
@@ -34,6 +44,7 @@ export interface WebhookServer {
   store: EventStore;
   city: CityStore;
   port: number;
+  refreshRepository(fullName: string): Promise<void>;
 }
 
 /**
@@ -46,6 +57,7 @@ export async function handleDelivery(
   deliveryId: string | undefined,
   options: WebhookOptions,
   store: EventStore,
+  apply?: (event: CityEvent) => Promise<void>,
 ): Promise<DeliveryResult> {
   const secret = options.secret;
   const signature = headers["x-hub-signature-256"];
@@ -64,7 +76,11 @@ export async function handleDelivery(
   } catch {
     return { status: 400, body: "invalid json" };
   }
-  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+  if (
+    payload === null ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
     return { status: 400, body: "invalid json" };
   }
 
@@ -74,6 +90,8 @@ export async function handleDelivery(
   const event = normalizeDelivery(name, payload, deliveryId, receivedAt);
   if (!event) return { status: 200, body: "ignored" };
   try {
+    if (store.has(event.id)) return { status: 200, body: "duplicate" };
+    if (apply) await apply(event);
     const stored = await store.append(event);
     return stored
       ? { status: 200, body: "ok", event }
@@ -193,7 +211,9 @@ export function createWebhookServer(
 ): WebhookServer {
   const logPath = options.logPath ?? "data/city-events.jsonl";
   const store = createEventStore(logPath);
-  const city = createCityStore(options.cityMapPath ?? join(logPath, "..", "city-map.json"));
+  const city = createCityStore(
+    options.cityMapPath ?? join(logPath, "..", "city-map.json"),
+  );
   const broadcast = createBroadcaster();
   const limiter = createRateLimiter({
     max: options.rateLimitMax ?? 120,
@@ -201,6 +221,28 @@ export function createWebhookServer(
   });
   const spritesRoot = options.spritesRoot ? resolve(options.spritesRoot) : "";
   const adminToken = options.adminToken ?? "";
+  const resolveLot = options.resolveRepository ?? resolveRepository;
+  const refreshes = new Map<string, Promise<unknown>>();
+  const refreshLot = (fullName: string) => {
+    repoName(fullName);
+    const key = fullName.toLowerCase();
+    const previous = refreshes.get(key) ?? Promise.resolve();
+    const next = previous
+      .catch(() => {})
+      .then(async () => city.ensure(fullName, await resolveLot(fullName)));
+    refreshes.set(key, next);
+    void next
+      .finally(() => {
+        if (refreshes.get(key) === next) refreshes.delete(key);
+      })
+      .catch(() => {});
+    return next;
+  };
+  const refreshRepository = async (fullName: string): Promise<void> => {
+    await refreshLot(fullName);
+  };
+  let deliveries: Promise<unknown> = Promise.resolve();
+  const mode = options.offline ? "offline" : "live";
 
   const server = createServer(async (req, res) => {
     try {
@@ -224,54 +266,67 @@ export function createWebhookServer(
           res.end("body too large");
           return;
         }
-        const result = await handleDelivery(
-          req.headers as Record<string, string | string[] | undefined>,
-          raw,
-          headerValue(req.headers["x-github-delivery"]),
-          options,
-          store,
+        const pending = deliveries.then(() =>
+          handleDelivery(
+            req.headers as Record<string, string | string[] | undefined>,
+            raw,
+            headerValue(req.headers["x-github-delivery"]),
+            options,
+            store,
+            (event) => refreshRepository(event.repo),
+          ),
         );
+        deliveries = pending.catch(() => {});
+        const result = await pending;
         if (result.event) {
           broadcast.broadcast(result.event);
-          await city.ensure(result.event.repo);
         }
         res.writeHead(result.status, { "content-type": "text/plain" });
         res.end(result.body);
         return;
       }
-      if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/status")) {
+      if (req.method === "GET" && url.pathname === "/status") {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         res.end(statusPage(store));
         return;
       }
-      if (req.method === "GET" && (url.pathname === "/city" || url.pathname === "/city.html")) {
-        const html = renderCityHtml(city.lots(), new Date().toISOString(), {
-          addedAt: city.addedAt(),
-        });
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        res.end(html);
-        return;
-      }
       if (req.method === "GET" && url.pathname === "/api/city") {
-        const plan = planCity(city.lots(), { addedAt: city.addedAt() });
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify(planSnapshot(plan)));
+        res.writeHead(200, {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+        });
+        res.end(JSON.stringify(city.snapshot(mode)));
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/city/stream") {
         res.writeHead(200, {
           "content-type": "text/event-stream",
-          "cache-control": "no-cache",
+          "cache-control": "no-cache, no-transform",
           connection: "keep-alive",
+          "x-accel-buffering": "no",
         });
-        res.write(": connected\n\n");
-        const send = (event: unknown): void => {
-          const typed = event as { type?: string };
-          res.write(`event: ${typed.type ?? "message"}\n`);
-          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        const send = (type: string, revision: number, event: unknown): void => {
+          if (res.writableLength > 1_000_000) {
+            res.destroy();
+            return;
+          }
+          res.write(
+            `id: ${revision}\nevent: ${type}\ndata: ${JSON.stringify(event)}\n\n`,
+          );
         };
-        const remove = city.onMutation(send);
-        req.on("close", remove);
+        const remove = city.onMutation((event) =>
+          send(event.type, event.revision, event),
+        );
+        const snapshot = city.snapshot(mode);
+        send("snapshot", snapshot.revision, snapshot);
+        const heartbeat = setInterval(
+          () => res.write(": heartbeat\n\n"),
+          15_000,
+        );
+        res.on("close", () => {
+          remove();
+          clearInterval(heartbeat);
+        });
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/city/lots") {
@@ -301,12 +356,18 @@ export function createWebhookServer(
           res.end("invalid json");
           return;
         }
-        if (!/^[^/]+\/[^/]+$/.test(repo)) {
+        let valid = true;
+        try {
+          repoName(repo);
+        } catch {
+          valid = false;
+        }
+        if (!valid) {
           res.writeHead(400, { "content-type": "text/plain" });
           res.end("invalid repo");
           return;
         }
-        const mutation = await city.ensure(repo);
+        const mutation = await refreshLot(repo);
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify(mutation ?? { type: "exists", repo }));
         return;
@@ -314,11 +375,16 @@ export function createWebhookServer(
       if (
         spritesRoot &&
         req.method === "GET" &&
-        (url.pathname === "/assets/sprites" || url.pathname.startsWith("/assets/sprites/"))
+        (url.pathname === "/assets/sprites" ||
+          url.pathname.startsWith("/assets/sprites/"))
       ) {
         const rel = url.pathname.slice("/assets/sprites".length) || "/";
         const file = normalize(join(spritesRoot, rel));
-        if (!file.startsWith(spritesRoot) || !existsSync(file) || !statSync(file).isFile()) {
+        if (
+          !file.startsWith(`${spritesRoot}/`) ||
+          !existsSync(file) ||
+          !statSync(file).isFile()
+        ) {
           res.writeHead(404, { "content-type": "text/plain" });
           res.end("not found");
           return;
@@ -327,7 +393,9 @@ export function createWebhookServer(
           ".png": "image/png",
           ".svg": "image/svg+xml",
         };
-        res.writeHead(200, { "content-type": types[extname(file)] ?? "application/octet-stream" });
+        res.writeHead(200, {
+          "content-type": types[extname(file)] ?? "application/octet-stream",
+        });
         createReadStream(file).pipe(res);
         return;
       }
@@ -356,8 +424,64 @@ export function createWebhookServer(
       }
       if (req.method === "GET" && url.pathname === "/healthz") {
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ ok: true, stored: store.size, lots: city.lots().length }));
+        res.end(
+          JSON.stringify({
+            ok: true,
+            renderer: "phaser-4",
+            buildRevision: options.buildRevision ?? "development",
+            stored: store.size,
+            lots: city.lots().length,
+            mode,
+          }),
+        );
         return;
+      }
+      if (
+        (req.method === "GET" || req.method === "HEAD") &&
+        !url.pathname.startsWith("/api/") &&
+        !url.pathname.startsWith("/events")
+      ) {
+        if (options.frontend) {
+          options.frontend(req, res, () => {
+            res.writeHead(404);
+            res.end("not found");
+          });
+          return;
+        }
+        const root = resolve(options.clientRoot ?? "dist/game");
+        const name = [
+          "/",
+          "/city",
+          "/city/",
+          "/city.html",
+          "/index.html",
+        ].includes(url.pathname)
+          ? "index.html"
+          : decodeURIComponent(url.pathname).replace(/^\//, "");
+        const file = resolve(root, name);
+        if (
+          file.startsWith(`${root}/`) &&
+          existsSync(file) &&
+          statSync(file).isFile()
+        ) {
+          const types: Record<string, string> = {
+            ".html": "text/html; charset=utf-8",
+            ".js": "text/javascript; charset=utf-8",
+            ".css": "text/css; charset=utf-8",
+            ".json": "application/json",
+            ".png": "image/png",
+          };
+          res.writeHead(200, {
+            "content-type": types[extname(file)] ?? "application/octet-stream",
+            "cache-control": name.startsWith("assets/")
+              ? "public, max-age=31536000, immutable"
+              : "no-cache",
+            "x-content-type-options": "nosniff",
+          });
+          if (req.method === "HEAD") res.end();
+          else createReadStream(file).pipe(res);
+          return;
+        }
       }
       res.writeHead(404, { "content-type": "text/plain" });
       res.end("not found");
@@ -371,7 +495,7 @@ export function createWebhookServer(
     }
   });
 
-  return { server, store, city, port };
+  return { server, store, city, port, refreshRepository };
 }
 
 function headerValue(value: string | string[] | undefined): string | undefined {

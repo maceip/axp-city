@@ -61,16 +61,16 @@ export function ringSlots(ring: number): Slot[] {
  * Sticky lot address: index 0 is always the first unreserved ring cell.
  * Adding a repo only appends; earlier lots never move.
  */
+const addressCache: Slot[] = [];
+let nextRing = 1;
 export function lotSlot(index: number): Slot {
-  let n = 0;
-  for (let ring = 1; ring < 10_000; ring++) {
-    for (const cell of ringSlots(ring)) {
-      if (isReservedSlot(cell.sx, cell.sy)) continue;
-      if (n === index) return cell;
-      n += 1;
-    }
+  if (!Number.isInteger(index) || index < 0 || index > 1_000_000)
+    throw new Error("Invalid lot index");
+  while (addressCache.length <= index) {
+    for (const cell of ringSlots(nextRing++))
+      if (!isReservedSlot(cell.sx, cell.sy)) addressCache.push(cell);
   }
-  throw new Error(`lot slot overflow at index ${index}`);
+  return { ...addressCache[index] };
 }
 
 export function slotKey(sx: number, sy: number): string {

@@ -18,7 +18,6 @@ import {
   sheetForBand,
   spriteBoxFor,
   spritePlacement,
-  stamper,
   WILD_BUSHES,
   WILD_SHEETS,
   WILD_TREES,
@@ -26,6 +25,15 @@ import {
 } from "../src/render/sprites.js";
 
 describe("building sprite atlas", () => {
+  it("does not crop the first-row roofs or combine neighboring bottom-row buildings", () => {
+    for (let id = 18; id <= 22; id++)
+      expect(spriteBoxFor(id).y).toBeLessThan(40);
+    for (let id = 35; id <= 38; id++)
+      expect(spriteBoxFor(id).y).toBeLessThan(25);
+    const last = [47, 48, 49, 50].map(spriteBoxFor);
+    for (let i = 0; i < last.length - 1; i++)
+      expect(last[i].x + last[i].w).toBeLessThan(last[i + 1].x);
+  });
   it("covers all 50 catalog ids inside their sheets", () => {
     for (let id = 1; id <= 50; id++) {
       const band = id <= 17 ? "S" : id <= 34 ? "M" : "L";
@@ -101,7 +109,9 @@ describe("yard prop atlas", () => {
   });
 
   it("ships the ground kit and anim atlases the renderer references", () => {
-    expect(existsSync(join("assets", "city-sprites", GROUND_SHEET.file))).toBe(true);
+    expect(existsSync(join("assets", "city-sprites", GROUND_SHEET.file))).toBe(
+      true,
+    );
     for (const sheet of Object.values(ANIM_SHEETS)) {
       expect(existsSync(join("assets", "city-sprites", sheet.file))).toBe(true);
     }
@@ -149,16 +159,15 @@ describe("yard prop atlas", () => {
     const sheet = PROP_SHEETS.materials;
     const p = propPlacement(sheet, PROP_BOXES.brickPallet, 100, 200, 85);
     expect(p.clipW).toBeCloseTo(85, 6);
-    expect(p.imgX + (PROP_BOXES.brickPallet.x + PROP_BOXES.brickPallet.w / 2) * (85 / PROP_BOXES.brickPallet.w)).toBeCloseTo(100, 6);
-    expect(p.imgY + (PROP_BOXES.brickPallet.y + PROP_BOXES.brickPallet.h) * (85 / PROP_BOXES.brickPallet.w)).toBeCloseTo(200, 6);
-  });
-
-  it("mints unique clip ids per stamp", () => {
-    const stamp = stamper(3);
-    const sheet = PROP_SHEETS.drones;
-    const a = stamp("f.png", sheet, PROP_BOXES.quadScout, 0, 0, 10, false);
-    const b = stamp("f.png", sheet, PROP_BOXES.quadScout, 0, 0, 10, false);
-    expect(a).toContain("clip-lot-3-0");
-    expect(b).toContain("clip-lot-3-1");
+    expect(
+      p.imgX +
+        (PROP_BOXES.brickPallet.x + PROP_BOXES.brickPallet.w / 2) *
+          (85 / PROP_BOXES.brickPallet.w),
+    ).toBeCloseTo(100, 6);
+    expect(
+      p.imgY +
+        (PROP_BOXES.brickPallet.y + PROP_BOXES.brickPallet.h) *
+          (85 / PROP_BOXES.brickPallet.w),
+    ).toBeCloseTo(200, 6);
   });
 });

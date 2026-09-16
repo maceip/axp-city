@@ -1,43 +1,15 @@
-# E2E visual harness (Playwright + pytest)
-
-Loads a rendered fixture city in real Chromium and checks what unit tests
-cannot see: sprite URLs resolve and paint, labels never collide, buildings
-sit on their own pads, animation is scoped to active lots, and
-click/drag/keyboard interaction works.
-
-## Setup (once)
-
-Uses `uv` and the home venv — no project-local env:
+# Production browser verification
 
 ```sh
-uv pip install --python ~/.venv/bin/python -r e2e/requirements.txt
-~/.venv/bin/python -m playwright install chromium
+npm ci
+npm run build
+python3 -m pip install -r e2e/requirements.txt
+python3 -m playwright install chromium
+python3 -m pytest e2e -v
 ```
 
-## Run
+On the existing Mac setup, use `/Users/mac/.venv/bin/python` in place of `python3`. Set `HEADED=1` to watch. Every test starts the actual compiled Node server with isolated data, rules, and recorded metrics. The production Vite bundle is served through the same origin as JSON and SSE. No static SVG harness is involved.
 
-```sh
-~/.venv/bin/python -m pytest e2e -v        # headless
-HEADED=1 ~/.venv/bin/python -m pytest e2e -v  # watch it run
-```
+Tests cover all normal city routes, asset loading, building picks after pan/zoom, keyboard jumps, touch taps, D-pad, native multi-touch pinch, two browser contexts, rules/metric changes through signed webhooks, reconnect resynchronization, persisted addresses and data after process restart, the actual 45-second construction interval, wilderness travel, and 1,000-lot rendering.
 
-## What it does
-
-- Renders 8 fixture lots (every yard kind, human + bot activity) into an
-  isolated temp dir via `npm run render` — the repo tree is untouched.
-- Serves that dir at `/` and `assets/city-sprites/` at `/assets/sprites/`
-  on `127.0.0.1` (ephemeral port), matching the live URL layout.
-- 12 tests: clean load (no failed/4xx requests), sprite resolve + paint,
-  label/label separation, own-label clearance, building seating, roamer
-  leash, yard image budgets, animation scoping, click-to-card, drag pan,
-  keyboard pan, review screenshot (`e2e/screenshots/`, git-ignored).
-
-## Geometry notes
-
-Overlap checks use screen-space rects: label `getBoundingClientRect`
-plus clip-path rects projected through the SVG's `getScreenCTM`.
-Only static stamps (`clip-lot-*`) take part in overlap checks —
-animated figures (`anim-*`) legitimately roam and the labels layer paints
-above them; roamers get a leash test (stay near their own tile) instead.
-Cross-row art passing behind a front label is legal iso layering (opaque
-label pills stay legible); pairwise label collision is not, and fails.
+Screenshots and a measured `performance.json` are written to `e2e/screenshots/`. Performance assertions bound active viewport objects and frame intervals on the test machine; mobile tests emulate a touch viewport and do not substitute for physical-device profiling.

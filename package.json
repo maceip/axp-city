@@ -11,15 +11,27 @@
     "render": "tsx src/cli/render.ts",
     "demo": "tsx src/cli/demo.ts",
     "preview": "tsx src/cli/preview.ts",
+    "game": "npm run dev",
+    "game:build": "npm run build",
+    "game:preview": "npm run preview",
     "webhooks": "tsx src/cli/webhooks.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p game/tsconfig.json",
+    "dev": "tsx src/cli/server.ts --dev --offline",
+    "build": "vite build --config game/vite.config.ts && tsc -p tsconfig.server.json && node scripts/build-info.mjs",
+    "start": "node dist/server/cli/server.js",
+    "test:e2e": "python3 -m pytest e2e -v"
+  },
+  "dependencies": {
+    "phaser": "4.2.1"
   },
   "devDependencies": {
     "@types/node": "^24.3.1",
+    "prettier": "3.6.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
+    "vite": "^6.3.5",
     "vitest": "^3.2.4"
   }
 }

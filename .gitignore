@@ -12,3 +12,5 @@ unprocessed/
 e2e/screenshots/
 __pycache__/
 ai-game-studio/
+
+.pytest_cache/

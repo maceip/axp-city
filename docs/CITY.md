@@ -1,60 +1,25 @@
-# City map
+# Shared city and live protocol
 
-The isometric map is more than a repo grid. Lot **addresses are sticky**:
-index `0` is always the same plot. New repos append to the next free slot
-around Central Park. Feature corridors (park, freeway, tram, river) are
-reserved from the first lot so growing the city never shuffles buildings.
+The Node process is authoritative for lots and their order. `data/city-map.json` stores version 2 state: `revision`, append-only `order`, `lots`, and original `addedAt` timestamps. Version 1 maps migrate without changing order or addresses. Each update writes and syncs a temporary file, renames it atomically, and only then publishes the new state. Persist failures do not mutate the in-memory city.
 
-## Layout
+`src/world/planCity` maps that stable order to unreserved ring slots around Central Park. Park, river, freeway, tram, and plaza geometry is shared by server and client. The coordinate system is a 72×36 2:1 isometric tile square. Camera movement never changes the city.
 
-```
-        ← east–west freeway (reserved row) →
-   river   lots   CENTRAL PARK   tram boulevard   lots
-           lots   CENTRAL PARK   tram boulevard   lots
-```
+## Reads
 
-- **Central Park** — 2×2 slot hole at the origin. Trees, pond, benches, humans.
-- **Freeway** — reserved slot row north of the park. Paved length grows with
-  the developed bounding box as repos are added (not as a user pans).
-- **Tram** — reserved north–south boulevard east of the park, with rails,
-  stations, and a gliding car. Extends with city height.
-- **River** — western watercourse, same growth rule.
-- **Vacant plots** — undeveloped lots inside the bbox (grass, dirt, trees,
-  pocket plazas) so the map reads as a city, not a 9×6 sheet of repos.
+- `GET /`, `/city`, `/city.html`: the same Phaser app.
+- `GET /api/city`: `{ version: 1, revision, serverTime, mode, plan }`. `plan.placements` contains each complete `CityLot`, canonical coordinates, district, and construction timestamp. The plan also includes features, bounds, street rows, and vacancies.
+- `GET /api/city/stream`: SSE. Every connection, including a reconnect with `Last-Event-ID`, starts with a full `snapshot` of current state. Following `lot_added` / `lot_updated` events carry `{ type, revision, serverTime, placement }`; additions also carry updated `geometry`. Events contain no markup.
+- `GET /healthz`: renderer, build commit, mode, and state counts.
+- `GET /status`, `/events`, `/events/stream`: webhook diagnostics.
 
-Wilderness tiles continue **infinitely** in every direction via a repeating
-iso-grass pattern plus sparse client-side trees. Panning does **not** invent
-parks or freeways.
+A client ignores old/duplicate revisions and reconnects for a fresh snapshot if there is a revision gap. A snapshot and subscription are established synchronously in one server event-loop turn. Heartbeats keep the SSE connection alive; stalled subscribers are disconnected so they can resynchronize. Reconnect and restart tests exercise this behavior with two real browser contexts.
 
-## Buildings
+## Updates
 
-Every repo building is one of **three sizes** from stars:
+`POST /webhooks/github` verifies the signature before processing. Pushes, PR/issue changes, stars, forks, and repository creation refresh metrics and rules from GitHub. These are absolute state reads, so retrying a failed delivery does not double-increment counts. Refreshes for the same repository are serialized, including manual updates and scheduled reconciliation. The delivery is acknowledged only after city persistence and event-log append succeed. Duplicate acknowledged delivery IDs are ignored.
 
-| Band | Stars | Pad width |
-| --- | --- | --- |
-| S | < 5k | 112px |
-| M | 5k–20k | 138px |
-| L | ≥ 20k | 168px |
+`POST /api/city/lots` with an admin bearer token and `{ "repo": "owner/name" }` fetches and adds or refreshes a real repository. It cannot insert arbitrary client-provided metrics or empty placeholder lots.
 
-A newly plotted lot plays an **under-construction** animation (crane,
-scaffold, cones) for 45 seconds of map time (`CONSTRUCTION_MS`).
+The browser derives construction progress from `addedAt` and server time; construction ends after 45 seconds, even after a reload. Cameras and selected lots stay local to each visitor. There is no chat or synchronized camera.
 
-## Occupants
-
-Two sprite classes:
-
-- **Human** — recent human activity. Hardhat crew + walk cycles on the yard.
-- **Robot** — bot/agent authors. Quad dogs, rovers, cranes, cargo drones.
-
-Drones also fly over high-PR yards (AI pressure) even when the sidewalk is
-human. Quiet lots have no crew.
-
-## Multiplayer
-
-Everyone who opens the city sees the **same lot addresses**. There is no
-chat and cameras are not synced. A new repo (GitHub `repository.created`,
-or any first-seen webhook for that name, or `POST /api/city/lots`) is
-appended to `data/city-map.json` and broadcast on `GET /api/city/stream`
-so open pages grow a construction site on the shared plot.
-
-Canonical JSON: `GET /api/city`.
+This is a single-process persisted city. Run one writer against its data directory; horizontal multi-writer deployment would require a transactional shared store and fanout, which are not implemented here.

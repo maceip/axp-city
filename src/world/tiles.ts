@@ -1,12 +1,7 @@
 import type { CityPlan } from "./layout.js";
-import { STRIDE_X, STRIDE_Y } from "./constants.js";
+import { LOT_D, LOT_W, SHOULDER, STRIDE_X, STRIDE_Y } from "./constants.js";
 import { hash01 } from "./hash.js";
-import {
-  isFreewaySlot,
-  isParkSlot,
-  isRiverSlot,
-  isTramSlot,
-} from "./slots.js";
+import { isFreewaySlot, isParkSlot, isRiverSlot, isTramSlot } from "./slots.js";
 
 export type GroundKind =
   | "park"
@@ -26,11 +21,9 @@ export type GroundKind =
  * of the current lot set (plan); everything else is a stable hash so panning
  * never invents parks or freeways — those only grow when a repo is plotted.
  */
-export function tileKind(
-  ix: number,
-  iy: number,
-  plan: CityPlan,
-): GroundKind {
+const occupiedCache = new WeakMap<CityPlan, Set<string>>();
+
+export function tileKind(ix: number, iy: number, plan: CityPlan): GroundKind {
   const sx = Math.floor(ix / STRIDE_X);
   const sy = Math.floor(iy / STRIDE_Y);
   const { minSx, maxSx, minSy, maxSy } = plan.slotBounds;
@@ -43,8 +36,14 @@ export function tileKind(
     if (isRiverSlot(sx, sy)) return "river";
     const localX = ix - sx * STRIDE_X;
     const localY = iy - sy * STRIDE_Y;
-    if (localY < 0.2 || localY > STRIDE_Y - 0.35) return "street";
-    if (plan.placements.some((p) => p.col === sx && p.row === sy)) return "lot";
+    if (localY >= LOT_D + SHOULDER || localX >= LOT_W + SHOULDER)
+      return "street";
+    let occupied = occupiedCache.get(plan);
+    if (!occupied) {
+      occupied = new Set(plan.placements.map((p) => `${p.col},${p.row}`));
+      occupiedCache.set(plan, occupied);
+    }
+    if (occupied.has(`${sx},${sy}`)) return "lot";
     return "vacant";
   }
 

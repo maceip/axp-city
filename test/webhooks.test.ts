@@ -1,3 +1,7 @@
+import { parseLot } from "../src/parser/parseLot.js";
+import { metrics } from "./helpers.js";
+const resolveTestLot = async (fullName: string) =>
+  parseLot(metrics({ fullName }));
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -65,7 +69,8 @@ describe("signatureMatches", () => {
 describe("normalizeDelivery", () => {
   it("maps ping, push, PR lifecycle, and issues", () => {
     expect(
-      normalizeDelivery("ping", { repository: { full_name: "a/b" } }, "d1", NOW)?.signal,
+      normalizeDelivery("ping", { repository: { full_name: "a/b" } }, "d1", NOW)
+        ?.signal,
     ).toBe("ping");
     expect(normalizeDelivery("push", pushPayload(), "d2", NOW)).toMatchObject({
       signal: "push",
@@ -73,19 +78,24 @@ describe("normalizeDelivery", () => {
       ref: "refs/heads/main",
       actor: "octocat",
     });
-    expect(normalizeDelivery("pull_request", prPayload("opened"), "d3", NOW)?.signal).toBe(
-      "pr_opened",
-    );
+    expect(
+      normalizeDelivery("pull_request", prPayload("opened"), "d3", NOW)?.signal,
+    ).toBe("pr_opened");
     expect(
       normalizeDelivery("pull_request", prPayload("closed", true), "d4", NOW),
     ).toMatchObject({ signal: "pr_merged", number: 7, merged: true });
     expect(
-      normalizeDelivery("pull_request", prPayload("closed", false), "d5", NOW)?.signal,
+      normalizeDelivery("pull_request", prPayload("closed", false), "d5", NOW)
+        ?.signal,
     ).toBe("pr_closed");
     expect(
       normalizeDelivery(
         "issues",
-        { action: "opened", issue: { number: 3 }, repository: { full_name: "a/b" } },
+        {
+          action: "opened",
+          issue: { number: 3 },
+          repository: { full_name: "a/b" },
+        },
         "d6",
         NOW,
       )?.signal,
@@ -93,8 +103,12 @@ describe("normalizeDelivery", () => {
   });
 
   it("returns null for unhandled actions and missing repos", () => {
-    expect(normalizeDelivery("pull_request", prPayload("labeled"), "d", NOW)).toBeNull();
-    expect(normalizeDelivery("star", { repository: { full_name: "a/b" } }, "d", NOW)).toBeNull();
+    expect(
+      normalizeDelivery("pull_request", prPayload("labeled"), "d", NOW),
+    ).toBeNull();
+    expect(
+      normalizeDelivery("star", { repository: { full_name: "a/b" } }, "d", NOW),
+    ).toBeNull();
     expect(normalizeDelivery("push", { sender: {} }, "d", NOW)).toBeNull();
     expect(
       normalizeDelivery(
@@ -133,14 +147,18 @@ describe("handleDelivery", () => {
     expect(result.body).toBe("ok");
     expect(result.event?.signal).toBe("push");
     expect(store.recent(10)).toHaveLength(1);
-    const lines = (await readFile(join(dir, "events.jsonl"), "utf8")).trim().split("\n");
+    const lines = (await readFile(join(dir, "events.jsonl"), "utf8"))
+      .trim()
+      .split("\n");
     expect(lines).toHaveLength(1);
     expect(JSON.parse(lines[0]).signal).toBe("push");
   });
 
   it("dedups redeliveries by delivery id", async () => {
     const { store } = await tempStore();
-    expect((await deliver(store, "push", pushPayload(), "del-9")).body).toBe("ok");
+    expect((await deliver(store, "push", pushPayload(), "del-9")).body).toBe(
+      "ok",
+    );
     const again = await deliver(store, "push", pushPayload(), "del-9");
     expect(again.status).toBe(200);
     expect(again.body).toBe("duplicate");
@@ -210,10 +228,28 @@ describe("event store recovery", () => {
     await writeFile(
       logPath,
       [
-        JSON.stringify({ id: "a", receivedAt: NOW, repo: "a/b", signal: "push", actor: null }),
+        JSON.stringify({
+          id: "a",
+          receivedAt: NOW,
+          repo: "a/b",
+          signal: "push",
+          actor: null,
+        }),
         "{torn",
-        JSON.stringify({ id: "b", receivedAt: NOW, repo: "a/b", signal: "ping", actor: null }),
-        JSON.stringify({ id: "a", receivedAt: NOW, repo: "a/b", signal: "push", actor: null }),
+        JSON.stringify({
+          id: "b",
+          receivedAt: NOW,
+          repo: "a/b",
+          signal: "ping",
+          actor: null,
+        }),
+        JSON.stringify({
+          id: "a",
+          receivedAt: NOW,
+          repo: "a/b",
+          signal: "push",
+          actor: null,
+        }),
         JSON.stringify({ nope: true }),
         "",
       ].join("\n"),
@@ -226,7 +262,13 @@ describe("event store recovery", () => {
     expect(store.recent(10).map((event) => event.id)).toEqual(["b", "a"]);
     // Replayed ids still dedup redeliveries.
     expect(
-      await store.append({ id: "a", receivedAt: NOW, repo: "a/b", signal: "push", actor: null }),
+      await store.append({
+        id: "a",
+        receivedAt: NOW,
+        repo: "a/b",
+        signal: "push",
+        actor: null,
+      }),
     ).toBe(false);
   });
 
@@ -248,14 +290,26 @@ describe("event store recovery", () => {
       "x-github-event": "push",
       "x-hub-signature-256": signBody(raw, SECRET),
     };
-    const failed = await handleDelivery(headers, raw, "retry-1", { secret: SECRET }, broken);
+    const failed = await handleDelivery(
+      headers,
+      raw,
+      "retry-1",
+      { secret: SECRET },
+      broken,
+    );
     expect(failed.status).toBe(500);
     expect(failed.body).toBe("storage failure");
     // Write-then-ack: the failed delivery was NOT marked seen…
     expect(broken.has("retry-1")).toBe(false);
     // …so the retry (e.g. after a restart replays the log) still lands.
     const healthy = createEventStore(join(dir, "events.jsonl"));
-    const retried = await handleDelivery(headers, raw, "retry-1", { secret: SECRET }, healthy);
+    const retried = await handleDelivery(
+      headers,
+      raw,
+      "retry-1",
+      { secret: SECRET },
+      healthy,
+    );
     expect(retried.status).toBe(200);
     expect(retried.body).toBe("ok");
   });
@@ -265,10 +319,16 @@ describe("webhook server", () => {
   it("receives a push and serves it back over /events", async () => {
     const dir = await mkdtemp(join(tmpdir(), "axp-webhooks-srv-"));
     const { server } = createWebhookServer(
-      { secret: SECRET, logPath: join(dir, "events.jsonl") },
+      {
+        secret: SECRET,
+        logPath: join(dir, "events.jsonl"),
+        resolveRepository: resolveTestLot,
+      },
       0,
     );
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
     try {
@@ -305,13 +365,19 @@ describe("webhook server", () => {
     }
   });
 
-  it("serves a status page at / with attacker content escaped", async () => {
+  it("serves a status page at /status with attacker content escaped", async () => {
     const dir = await mkdtemp(join(tmpdir(), "axp-webhooks-page-"));
     const { server } = createWebhookServer(
-      { secret: SECRET, logPath: join(dir, "events.jsonl") },
+      {
+        secret: SECRET,
+        logPath: join(dir, "events.jsonl"),
+        resolveRepository: resolveTestLot,
+      },
       0,
     );
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
     try {
@@ -337,7 +403,7 @@ describe("webhook server", () => {
         body: raw,
       });
       expect(posted.status).toBe(200);
-      const page = await fetch(`http://127.0.0.1:${port}/`);
+      const page = await fetch(`http://127.0.0.1:${port}/status`);
       expect(page.status).toBe(200);
       expect(page.headers.get("content-type")).toContain("text/html");
       const html = await page.text();
@@ -355,10 +421,18 @@ describe("webhook server", () => {
   it("rate-limits floods with 429 and a Retry-After hint", async () => {
     const dir = await mkdtemp(join(tmpdir(), "axp-webhooks-rl-"));
     const { server } = createWebhookServer(
-      { secret: SECRET, logPath: join(dir, "events.jsonl"), rateLimitMax: 1, rateLimitWindowMs: 60_000 },
+      {
+        secret: SECRET,
+        logPath: join(dir, "events.jsonl"),
+        rateLimitMax: 1,
+        rateLimitWindowMs: 60_000,
+        resolveRepository: resolveTestLot,
+      },
       0,
     );
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : 0;
     const post = (id: string) => {

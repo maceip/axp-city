@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#253c36" />
+    <meta
+      name="description"
+      content="A shared isometric city built from GitHub repositories."
+    />
+    <title>AXP City</title>
+  </head>
+  <body>
+    <div id="game" aria-label="Interactive isometric GitHub city"></div>
+    <header class="mast">
+      <div class="brand">
+        <span class="brand-mark">A</span>
+        <div>
+          <h1>AXP CITY</h1>
+          <p>A living atlas of open source</p>
+        </div>
+      </div>
+      <div class="connection">
+        <span id="connection-dot"></span
+        ><span id="connection-status">Connecting</span
+        ><span id="city-count"></span>
+      </div>
+    </header>
+    <section class="district panel">
+      <span class="eyebrow">YOU ARE EXPLORING</span
+      ><strong id="district-name">Central Park</strong
+      ><span id="coordinates">0 · 0</span>
+    </section>
+    <div class="search panel">
+      <label for="repo-search">Find a repository</label
+      ><input
+        id="repo-search"
+        type="search"
+        placeholder="owner / repository"
+        list="repo-options"
+        autocomplete="off"
+      /><datalist id="repo-options"></datalist>
+    </div>
+    <div id="hover-tag" hidden></div>
+    <aside
+      id="lot-card"
+      class="panel"
+      hidden
+      aria-label="Repository details"
+    ></aside>
+    <div class="compass" aria-hidden="true">
+      <span>N</span><b>◇</b><small>W &nbsp; E</small><span>S</span>
+    </div>
+    <div class="dpad panel" aria-label="Move camera">
+      <button data-move="up" aria-label="Move north">↑</button>
+      <div>
+        <button data-move="left" aria-label="Move west">←</button
+        ><button id="home" aria-label="Return to Central Park">⌂</button
+        ><button data-move="right" aria-label="Move east">→</button>
+      </div>
+      <button data-move="down" aria-label="Move south">↓</button>
+    </div>
+    <div class="map-tools">
+      <div class="zoom panel">
+        <button id="zoom-out" aria-label="Zoom out">−</button
+        ><output id="zoom-level">100%</output
+        ><button id="zoom-in" aria-label="Zoom in">+</button>
+      </div>
+      <div class="minimap panel">
+        <canvas
+          id="minimap"
+          width="180"
+          height="118"
+          aria-label="City overview; click to move"
+        ></canvas
+        ><span>CITY OVERVIEW</span>
+      </div>
+    </div>
+    <footer>
+      <span class="hints"
+        >Drag to explore <i>·</i> Scroll / pinch to zoom <i>·</i> WASD
+        <i>·</i> 1–0 jump <i>·</i> F follow</span
+      ><button id="weather" class="panel">Sky: clear</button>
+    </footer>
+    <div id="toast" role="status" hidden></div>
+    <div id="boot-card" class="panel">
+      <span class="eyebrow">WELCOME TO AXP CITY</span>
+      <h2>Building your view.</h2>
+      <p id="boot-message">Loading the city and its artwork…</p>
+      <div id="boot-bar"><span></span></div>
+      <button id="retry" hidden>Try again</button>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

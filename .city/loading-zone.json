@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "plot": "receiving-yard",
+  "precedence": ["openPrs", "openIssues", "recentActivity"],
+  "props": {
+    "issues": ["blueprint", "drafting-table"],
+    "prs": ["materials"],
+    "recent": ["crew"],
+    "highPrsOrBot": ["drone"]
+  },
+  "combinedBlueprint": true
+}
