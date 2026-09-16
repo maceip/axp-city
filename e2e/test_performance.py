@@ -278,14 +278,14 @@ def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, serve
         repo = server.metrics[cycle % 8]
         repo["stars"] = repo.get("stars", 0) + 137
         repo["openPrs"] = (repo.get("openPrs", 0) + 1) % 30
-        server.save()
+        newcomer = f"soak/lot{enrolled}" if cycle % 4 == 1 else None
+        if newcomer:
+            server.metrics.append(repo_metrics(newcomer, stars=3000 + enrolled * 900, openPrs=2, recentDefaultCommits=1, recentAuthors=["ada"]))
+        server.save()  # one write per cycle, before anything asks the server to read it
         assert server.webhook(repo["fullName"], f"soak-{cycle}") == 202
         updates += 1
-        if cycle % 4 == 1:
-            name = f"soak/lot{enrolled}"
-            server.metrics.append(repo_metrics(name, stars=3000 + enrolled * 900, openPrs=2, recentDefaultCommits=1, recentAuthors=["ada"]))
-            server.save()
-            assert server.enroll(name) in (200, 201)
+        if newcomer:
+            assert server.enroll(newcomer) in (200, 201)
             enrolled += 1
         key = SOAK_TRAVEL[cycle % 4]
         page.keyboard.down(key)

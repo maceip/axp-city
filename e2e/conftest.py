@@ -3,6 +3,8 @@ import hashlib
 import hmac
 import json
 import os
+import re
+import shutil
 import socket
 import subprocess
 import time
@@ -49,7 +51,11 @@ class CityServer:
         self.start()
 
     def save(self):
-        self.file.write_text(json.dumps(self.metrics))
+        # Atomic replace: the server re-reads this file on every refresh, and a
+        # truncate-then-write could be observed half-written as a parse failure.
+        tmp = self.file.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(self.metrics))
+        os.replace(tmp, self.file)
 
     def start(self):
         env = dict(os.environ, CITY_DATA_DIR=str(self.root / "data"), CITY_RULES_DIR=str(self.rules), GITHUB_WEBHOOK_SECRET=SECRET, CITY_ADMIN_TOKEN=ADMIN, HOST="127.0.0.1")
@@ -110,30 +116,44 @@ class CityServer:
         with urllib.request.urlopen(request, timeout=10) as response: return response.status
 
 
+SERVER_LOGS = Path(__file__).parent / "screenshots" / "server-logs"
+
+
+def keep_server_log(runtime, request):
+    """Copy the server's log next to the screenshots so CI evidence includes what the
+    server did (delivery failures, retries) and not only what the browser saw."""
+    runtime.stop()
+    source = runtime.root / "server.log"
+    if source.exists():
+        SERVER_LOGS.mkdir(parents=True, exist_ok=True)
+        name = re.sub(r"[^A-Za-z0-9_.-]+", "_", request.node.name)
+        shutil.copyfile(source, SERVER_LOGS / f"{name}.log")
+
+
 @pytest.fixture
-def server(tmp_path):
+def server(tmp_path, request):
     runtime = CityServer(tmp_path, fixture_metrics())
     yield runtime
-    runtime.stop()
+    keep_server_log(runtime, request)
 
 
 @pytest.fixture
-def live_server(tmp_path):
+def live_server(tmp_path, request):
     """The real resolver against GitHub. Skipped without a token so the suite never
     pretends live coverage it did not get."""
     if not os.environ.get("GITHUB_TOKEN"):
         pytest.skip("GITHUB_TOKEN is not set; live GitHub coverage was not run")
     runtime = CityServer(tmp_path, [], live=True, env={"CITY_REFRESH_INTERVAL_MS": "15000", "CITY_STALE_AFTER_MS": "600000"})
     yield runtime
-    runtime.stop()
+    keep_server_log(runtime, request)
 
 
 @pytest.fixture
-def large_server(tmp_path):
+def large_server(tmp_path, request):
     rows = [repo_metrics(f"bench/repo{i}", stars=i*83, openPrs=i%20, recentDefaultCommits=1) for i in range(1000)]
     runtime = CityServer(tmp_path, rows)
     yield runtime
-    runtime.stop()
+    keep_server_log(runtime, request)
 
 
 class BrowserBackend:

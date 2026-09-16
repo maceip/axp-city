@@ -99,7 +99,14 @@ def test_webgl_context_loss_recovers_camera_and_selection(page):
 def test_resize_and_orientation_relayout_the_hud(page):
     for width, height in [(900, 1200), (1200, 700), (600, 900)]:
         page.set_viewport_size(dict(width=width, height=height))
-        page.wait_for_timeout(300)
+        # Wait for the scale manager to adopt the new size and the HUD to relayout to it,
+        # instead of assuming both happen within a fixed pause (slow runners take longer).
+        page.wait_for_function(
+            "([w, h]) => { const s = window.__AXP.game.scale; if (s.width !== w || s.height !== h) return false;"
+            " return ['minimap', 'zoom-in', 'compass', 'status'].every(n => { const p = window.__AXP.hudPoint(n); return p && p.x >= 0 && p.x <= w && p.y >= 0 && p.y <= h; }); }",
+            arg=[width, height],
+            timeout=15000,
+        )
         for name in ["minimap", "zoom-in", "compass", "status"]:
             point = page.evaluate("name => window.__AXP.hudPoint(name)", name)
             assert point and 0 <= point["x"] <= width and 0 <= point["y"] <= height, (name, width, height, point)
