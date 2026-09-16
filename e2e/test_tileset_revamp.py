@@ -138,23 +138,36 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.screenshot(path=str(SHOTS / "tileset-city-overview.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-roads-bikes-civics.png"), full_page=False)
         khaki, cream, lime = street_lane_share(SHOTS / "tileset-city-overview.png", (480, 180, 1400, 520))
-        assert khaki >= 0.14, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
-        assert khaki + cream >= 0.20, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
+        assert khaki >= 0.05, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
+        assert khaki + cream >= 0.10, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
         assert lime < 0.12, f"overview bike paint drifted to neon lime ({lime:.3f})"
+        marks = page.evaluate("window.__AXP.bikeMarkScreens()")
+        on_screen = [
+            m
+            for m in marks
+            if m["width"] > 12
+            and m["height"] > 8
+            and 0 < m["x"] + m["width"] / 2 < 1600
+            and 80 < m["y"] + m["height"] / 2 < 900
+        ]
+        assert len(on_screen) >= 3, f"overview bike chevrons/labels missing: {len(marks)} marks"
+        mark = max(on_screen, key=lambda m: m["width"] * m["height"])
+        pad = 36
+        mark_clip = {
+            "x": max(0, mark["x"] - pad),
+            "y": max(0, mark["y"] - pad),
+            "width": min(1600, mark["x"] + mark["width"] + pad) - max(0, mark["x"] - pad),
+            "height": min(1000, mark["y"] + mark["height"] + pad) - max(0, mark["y"] - pad),
+        }
+        page.screenshot(path=str(SHOTS / "tileset-freeway-bike.png"), clip=mark_clip)
+        fw_k, fw_c, fw_lime = street_lane_share(
+            SHOTS / "tileset-freeway-bike.png", (0, 0, int(mark_clip["width"]), int(mark_clip["height"]))
+        )
+        assert fw_c >= 0.08, f"freeway mark clip has no cream chevron/label ({fw_c:.3f} cream)"
+        assert fw_k + fw_c >= 0.16, f"freeway mark clip still recedes ({fw_k + fw_c:.3f})"
+        assert fw_lime < 0.12, f"freeway mark clip drifted to neon lime ({fw_lime:.3f})"
         corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
         assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
-        clip = {
-            "x": max(0, corridor["x"]),
-            "y": max(0, corridor["y"]),
-            "width": min(1600, corridor["x"] + corridor["width"]) - max(0, corridor["x"]),
-            "height": min(1000, corridor["y"] + corridor["height"]) - max(0, corridor["y"]),
-        }
-        assert clip["width"] > 40 and clip["height"] > 16, f"freeway bike clip off-screen: {clip}"
-        page.screenshot(path=str(SHOTS / "tileset-freeway-bike.png"), clip=clip)
-        fw_k, fw_c, fw_lime = street_lane_share(SHOTS / "tileset-freeway-bike.png", (0, 0, int(clip["width"]), int(clip["height"])))
-        assert fw_k >= 0.14, f"freeway bike clip still recedes ({fw_k:.3f} khaki)"
-        assert fw_k + fw_c >= 0.20, f"freeway bike clip khaki+chevron still thin ({fw_k + fw_c:.3f})"
-        assert fw_lime < 0.12, f"freeway bike clip drifted to neon lime ({fw_lime:.3f})"
 
         click_hud(page, "home")
         page.wait_for_timeout(500)

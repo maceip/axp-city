@@ -555,9 +555,11 @@ export class HudScene extends Phaser.Scene {
               ? 0xc4b69a
               : f.kind === "office"
                 ? 0xc9b56a
-                : f.kind === "bike" || f.kind === "freeway"
+                : f.kind === "bike"
                   ? 0xa89c68
-                  : 0x768270;
+                  : f.kind === "freeway"
+                    ? 0x52606b
+                    : 0x768270;
       g.fillStyle(fill, 1);
       const pts = [project(f.x, f.y), project(f.x + f.w, f.y), project(f.x + f.w, f.y + f.h), project(f.x, f.y + f.h)].map(
         (p) => new Phaser.Math.Vector2(px(p.sx), py(p.sy)),

@@ -23,7 +23,7 @@ import { ensureFrame } from "./stamps.js";
 const trees = WILD_TREES.filter((box) => box.h >= 50 && box.w < 130);
 const COLORS: Record<string, number> = {
   park: 0x7a9460,
-  freeway: 0xa89c68,
+  freeway: 0x52606b,
   tram: 0x8f9890,
   river: 0x6a9094,
   lot: 0x8a9c72,
@@ -204,26 +204,6 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
       );
       if (kind === "freeway") {
         const local = ((wy % STRIDE_Y) + STRIDE_Y) % STRIDE_Y;
-        g.fillStyle(0xa89c68, 1);
-        g.fillPoints(
-          [
-            { x: p.sx + width / 2 - 12, y: p.sy + 11 },
-            { x: p.sx + width / 2 + 22, y: p.sy + 16 },
-            { x: p.sx + width / 2 + 16, y: p.sy + 26 },
-            { x: p.sx + width / 2 - 18, y: p.sy + 21 },
-          ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
-          true,
-        );
-        g.fillStyle(0xece3b8, 0.96);
-        g.fillPoints(
-          [
-            { x: p.sx + width / 2 - 10, y: p.sy + 14 },
-            { x: p.sx + width / 2 + 4, y: p.sy + 12 },
-            { x: p.sx + width / 2 + 14, y: p.sy + 18 },
-            { x: p.sx + width / 2 + 2, y: p.sy + 22 },
-          ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
-          true,
-        );
         if (Math.abs(local - STRIDE_Y * 0.18) < 0.45 || Math.abs(local - STRIDE_Y * 0.82) < 0.45) {
           g.lineStyle(1.5, 0xe6cf8b, 0.85);
           g.lineBetween(p.sx + width / 2 - 8, p.sy + 13, p.sx + width / 2 + 12, p.sy + 23);
@@ -386,25 +366,40 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     road: ROAD_STAMP_WIDTH,
     bike: BIKE_STAMP_WIDTH,
   };
-  const paintBikeBand = (x: number, streetY: number, w: number, band: number, labelSize: number) => {
-    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx++) {
-      const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      diamond(laneX, streetY, STRIDE_X, band, 0xa89c68, 1);
-      diamond(laneX, streetY + band - 0.28, STRIDE_X, 0.28, 0xe4d8a8, 0.98);
-      diamond(laneX + 0.2, streetY + band * 0.16, 3.4, Math.min(1.05, band * 0.38), 0xece3b8, 0.98);
-      diamond(laneX + 1.8, streetY + band * 0.48, 2.6, Math.min(0.78, band * 0.26), 0xe4d8a8, 0.94);
-    }
-    const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
-    const step = Math.max(2, Math.ceil(span / 6));
-    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += step) {
-      const labelAt = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.8, streetY + band * 0.48);
-      objects.push(
-        scene.add
-          .bitmapText(labelAt.sx, labelAt.sy, HUD_FONT.face, "BIKE LANE", labelSize)
-          .setTint(0xece3b8)
-          .setOrigin(0.5)
-          .setDepth(-90_000),
+  ensureBikeMarkTextures(scene);
+  const paintBikeBand = (x: number, streetY: number, w: number, band: number, glance: boolean) => {
+    const mid = project(x + w / 2, streetY + band * 0.5);
+    const bandG = scene.add.graphics().setDepth(mid.sy - 4);
+    objects.push(bandG);
+    const fillBand = (bx: number, by: number, bw: number, bh: number, color: number, alpha = 1) => {
+      const p = [project(bx, by), project(bx + bw, by), project(bx + bw, by + bh), project(bx, by + bh)].map(
+        (q) => new Phaser.Math.Vector2(q.sx, q.sy),
       );
+      bandG.fillStyle(color, alpha);
+      bandG.fillPoints(p, true);
+    };
+    fillBand(x - 0.08, streetY - 0.08, w + 0.16, band + 0.16, 0x3f3c34, 1);
+    fillBand(x, streetY, w, band, 0xa89c68, 1);
+    fillBand(x, streetY, w, 0.18, 0xece3b8, 0.98);
+    fillBand(x, streetY + band - 0.18, w, 0.18, 0xece3b8, 0.98);
+    const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
+    const chevronStep = glance ? 1 : Math.max(1, Math.ceil(span / 8));
+    const labelStep = Math.max(2, Math.ceil(span / 5));
+    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
+      const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
+      const at = project(laneX + 2.2, streetY + band * 0.5);
+      const chevron = scene.add
+        .image(at.sx, at.sy, "bike-chevron-k1")
+        .setOrigin(0.5)
+        .setRotation(Math.atan2(1, 2))
+        .setDisplaySize(glance ? 92 : 70, glance ? 54 : 40)
+        .setDepth(at.sy + 6);
+      chevron.setData("bikeLaneMark", true);
+      objects.push(chevron);
+    }
+    for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += labelStep) {
+      const at = project(x + (sx - plan.slotBounds.minSx) * STRIDE_X + 1.6, streetY + band * 0.5);
+      objects.push(bikeLanePlaque(scene, at.sx, at.sy + (glance ? 22 : 14), glance));
     }
   };
   for (const row of plan.streetRows) {
@@ -412,27 +407,17 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const w = (plan.slotBounds.maxSx - plan.slotBounds.minSx + 1) * STRIDE_X;
     const streetY = row * STRIDE_Y + LOT_D + SHOULDER;
     diamond(x, streetY + BIKE_BAND, w, 0.32, 0x5e6662, 0.96);
-    paintBikeBand(x, streetY, w, BIKE_BAND, 18);
+    paintBikeBand(x, streetY, w, BIKE_BAND, false);
   }
   const freewayBike = plan.features.find((f) => f.id === "freeway-bike-lane");
-  if (freewayBike) {
-    paintBikeBand(freewayBike.x, freewayBike.y, freewayBike.w, freewayBike.h, 26);
-    const flyover = project(freewayBike.x + freewayBike.w / 2, freewayBike.y + freewayBike.h * 0.5);
-    objects.push(
-      scene.add
-        .bitmapText(flyover.sx, flyover.sy + 18, HUD_FONT.face, "BIKE LANE", 22)
-        .setTint(0xece3b8)
-        .setOrigin(0.5)
-        .setDepth(-89_000),
-    );
-  }
+  if (freewayBike) paintBikeBand(freewayBike.x, freewayBike.y, freewayBike.w, freewayBike.h, true);
   for (const marker of plan.civics ?? []) {
     const box = CIVIC_SPRITES[marker.sprite];
     if (!box) continue;
     const width = civicWidth[marker.kind] ?? 100;
     const a = project(marker.x, marker.y);
     const depth =
-      marker.kind === "bike" ? -99_994 : marker.kind === "road" ? -99_996 : a.sy + (marker.kind === "office" ? 8 : 0);
+      marker.kind === "bike" ? a.sy - 8 : marker.kind === "road" ? a.sy - 12 : a.sy + (marker.kind === "office" ? 8 : 0);
     objects.push(
       scene.add
         .image(a.sx, a.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, box))
@@ -455,4 +440,57 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     }
   }
   return objects;
+}
+
+function ensureBikeMarkTextures(scene: Phaser.Scene): void {
+  if (scene.textures.exists("bike-chevron-k1")) return;
+  const g = scene.make.graphics({ x: 0, y: 0 });
+  g.fillStyle(0x3f3c34, 1);
+  g.fillPoints(
+    [
+      new Phaser.Math.Vector2(6, 6),
+      new Phaser.Math.Vector2(6, 50),
+      new Phaser.Math.Vector2(86, 28),
+    ],
+    true,
+  );
+  g.fillStyle(0xece3b8, 1);
+  g.fillPoints(
+    [
+      new Phaser.Math.Vector2(12, 12),
+      new Phaser.Math.Vector2(12, 44),
+      new Phaser.Math.Vector2(74, 28),
+    ],
+    true,
+  );
+  g.fillStyle(0xf4ecd0, 1);
+  g.fillPoints(
+    [
+      new Phaser.Math.Vector2(20, 18),
+      new Phaser.Math.Vector2(20, 38),
+      new Phaser.Math.Vector2(58, 28),
+    ],
+    true,
+  );
+  g.generateTexture("bike-chevron-k1", 92, 56);
+  g.destroy();
+}
+
+function bikeLanePlaque(scene: Phaser.Scene, sx: number, sy: number, glance: boolean): Phaser.GameObjects.Container {
+  const w = glance ? 118 : 96;
+  const h = glance ? 28 : 22;
+  const plaque = scene.add.graphics();
+  plaque.fillStyle(0x3f3c34, 0.94);
+  plaque.fillRoundedRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4, 5);
+  plaque.fillStyle(0x5c4e38, 0.96);
+  plaque.fillRoundedRect(-w / 2, -h / 2, w, h, 4);
+  const text = scene.add
+    .bitmapText(0, 1, HUD_FONT.face, "BIKE LANE", glance ? 16 : 13)
+    .setTint(0xf4ecd0)
+    .setOrigin(0.5);
+  const box = scene.add.container(sx, sy, [plaque, text]);
+  box.setSize(w, h);
+  box.setDepth(sy + 12);
+  box.setData("bikeLaneMark", true);
+  return box;
 }

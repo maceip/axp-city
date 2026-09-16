@@ -308,6 +308,23 @@ export class CityScene extends Phaser.Scene {
         if (!this.hudReady) return null;
         return this.hud.labelText(name);
       },
+      bikeMarkScreens: () => {
+        const view = this.view();
+        const zoom = this.cameras.main.zoom;
+        return this.civics
+          .filter((object) => object.getData("bikeLaneMark"))
+          .map((object) => {
+            const width = ("displayWidth" in object ? Number(object.displayWidth) : Number(object.width) || 96) * zoom;
+            const height = ("displayHeight" in object ? Number(object.displayHeight) : Number(object.height) || 28) * zoom;
+            return {
+              x: (object.x - view.x) * zoom - width / 2,
+              y: (object.y - view.y) * zoom - height / 2,
+              width,
+              height,
+              type: object.type,
+            };
+          });
+      },
       featureScreenBox: (id: string) => {
         const feature = this.city.plan.features.find((f) => f.id === id);
         if (!feature) return null;
@@ -575,9 +592,9 @@ export class CityScene extends Phaser.Scene {
     const developed = center.x >= b.minX && center.x <= b.maxX && center.y >= b.minY && center.y <= b.maxY;
     if (this.hudReady)
       this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
-    const markScale = Math.min(2.8, Math.max(1, 0.85 / this.cameras.main.zoom));
+    const markScale = Math.min(3.4, Math.max(1, 1.05 / this.cameras.main.zoom));
     for (const object of this.civics) {
-      if (object instanceof Phaser.GameObjects.BitmapText && object.text === "BIKE LANE") object.setScale(markScale);
+      if (object.getData("bikeLaneMark")) object.setScale(markScale);
     }
   }
 

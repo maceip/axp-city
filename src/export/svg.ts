@@ -19,7 +19,7 @@ export interface SvgExportOptions {
 
 const FEATURE_FILL: Record<CityFeature["kind"], string> = {
   park: "#6f8f54",
-  freeway: "#a89c68",
+  freeway: "#4a4f57",
   tram: "#8a8f96",
   plaza: "#c9b7a0",
   river: "#5a8a8e",
