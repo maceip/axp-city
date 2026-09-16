@@ -499,6 +499,117 @@ describe("repository-owned rules", () => {
     }
   });
 
+  it("survives a full disk: refused deliveries are answered 500 and never published, readiness says why, and the claimed delivery completes once space returns", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "axp-full-"));
+    let release!: () => void;
+    const blocked = new Promise<void>((r) => (release = r));
+    let calls = 0;
+    const runtime = createWebhookServer(
+      {
+        secret,
+        databasePath: join(dir, "city.sqlite"),
+        coalesceMs: 0,
+        refreshTimeoutMs: 10_000,
+        resolveRepository: async (fullName) => {
+          calls++;
+          await blocked; // the disk fills while GitHub is still answering
+          // A long description makes the stored metrics need pages the full disk cannot give.
+          const m = metrics({ fullName, stars: 4242, isPrivate: false, description: "d".repeat(64_000) });
+          return { lot: parseLot(m), metrics: m };
+        },
+      },
+      0,
+    );
+    const base = await start(runtime);
+    await runtime.city.hydrate([parseLot(metrics({ fullName: "acme/widget", stars: 1 }))]);
+    const post = (id: string, padding = "") => {
+      const body = JSON.stringify({ ref: "refs/heads/main", repository: { full_name: "acme/widget" }, sender: { login: "human" }, padding });
+      return fetch(`${base}/webhooks/github`, {
+        method: "POST",
+        body,
+        headers: { "x-github-event": "push", "x-github-delivery": id, "x-hub-signature-256": signBody(Buffer.from(body), secret) },
+      });
+    };
+    const stream = await streamReader(`${base}/api/city/stream`);
+    try {
+      await stream.until("snapshot");
+      expect((await post("full-1")).status).toBe(202);
+      const inFlight = runtime.drainDeliveries().catch(() => undefined);
+      while (runtime.city.deliveryCounts().processing !== 1) await new Promise((r) => setTimeout(r, 5));
+      expect(calls).toBe(1);
+
+      // The disk fills: SQLite may not grow the file by a single page (SQLITE_FULL,
+      // "database or disk is full"), which is exactly what a full volume produces.
+      const db = runtime.city.database;
+      const pages = Number(Object.values(db.prepare("PRAGMA page_count").get() as Record<string, unknown>)[0]);
+      db.exec(`PRAGMA max_page_count = ${pages}`);
+      // Deliveries keep arriving while the worker is busy; each is persisted before its 202
+      // until the last free bytes are gone and the store refuses the next one.
+      let accepted = 0;
+      let refused: Response | undefined;
+      for (let i = 0; i < 500 && !refused; i++) {
+        const response = await post(`fill-${i}`);
+        if (response.status === 202) accepted++;
+        else refused = response;
+      }
+      expect(refused, "the store never ran out of space").toBeDefined();
+      expect(refused!.status).toBe(500);
+      expect(await refused!.text()).toBe("storage failure");
+      expect(runtime.city.hasDelivery(`fill-${accepted}`)).toBe(false); // not recorded, so not silently lost either: GitHub shows it failed
+      expect(runtime.city.deliveryCounts()).toMatchObject({ pending: accepted, processing: 1 });
+      // Readiness says so even though the one-row write probe still fits.
+      const notReady = await fetch(`${base}/readyz`);
+      expect(notReady.status).toBe(503);
+      const readiness = (await notReady.json()) as { ready: boolean; checks: { storageFailure: { where: string; error: string } | null } };
+      expect(readiness.ready).toBe(false);
+      expect(readiness.checks.storageFailure).toMatchObject({ where: "enqueue delivery", error: expect.stringContaining("full") });
+      // Reads still work: visitors keep the last good city.
+      expect(((await (await fetch(`${base}/api/city`)).json()) as { plan: { placements: Array<{ lot: { stars: number } }> } }).plan.placements[0].lot.stars).toBe(1);
+
+      // GitHub answers the claimed delivery now; publishing it needs room the disk does not have.
+      release();
+      await inFlight;
+      expect(runtime.city.lots()[0].stars).toBe(1); // nothing half-published
+      const claimed = db.prepare("SELECT status, last_error FROM deliveries WHERE id = 'full-1'").get() as { status: string; last_error: string | null };
+      // Either the failure was recorded (retry scheduled) or the store could not even record
+      // it and the row is left `processing` for the next drain to re-queue — never `done`.
+      expect(["pending", "processing"]).toContain(claimed.status);
+      if (claimed.status === "pending") expect(claimed.last_error).toContain("full");
+      expect(runtime.city.deliveryCounts().done).toBe(0);
+      expect(db.prepare("PRAGMA integrity_check").get()).toMatchObject({ integrity_check: "ok" });
+
+      // Space returns: the next drain re-queues anything abandoned, retries what is due, and finishes all of it.
+      db.exec("PRAGMA max_page_count = 1073741823");
+      const later = () => new Date(Date.now() + 60 * 60_000).toISOString();
+      await runtime.drainDeliveries(later());
+      expect(calls).toBeGreaterThanOrEqual(2);
+      const update = await stream.until("lot_updated");
+      expect(update.placement.lot.stars).toBe(4242);
+      // Same-millisecond deliveries for one repository are coalesced into a deferred refresh.
+      for (let i = 0; i < 100 && runtime.city.deliveryCounts().done < 1 + accepted; i++) {
+        await new Promise((r) => setTimeout(r, 20));
+        await runtime.drainDeliveries(later());
+      }
+      expect(runtime.city.deliveryCounts()).toMatchObject({ pending: 0, processing: 0, done: 1 + accepted, failed: 0 });
+      expect(runtime.city.lots()[0].stars).toBe(4242);
+      expect((await post(`fill-${accepted}`)).status).toBe(202); // the operator's redelivery is accepted now
+      await runtime.drainDeliveries(later());
+      const ready = await fetch(`${base}/readyz`);
+      expect(((await ready.json()) as { checks: { storageFailure: unknown } }).checks.storageFailure).toBeNull();
+      expect(db.prepare("PRAGMA integrity_check").get()).toMatchObject({ integrity_check: "ok" });
+
+      // A delivery left `processing` by a drain that died without recording anything is
+      // picked up by the next drain in this process, not only by a restart.
+      db.prepare("UPDATE deliveries SET status = 'processing', completed_at = NULL WHERE id = 'full-1'").run();
+      expect(runtime.city.deliveryCounts().processing).toBe(1);
+      await runtime.drainDeliveries(later());
+      expect(runtime.city.deliveryCounts()).toMatchObject({ pending: 0, processing: 0, done: 2 + accepted, failed: 0 });
+      stream.close();
+    } finally {
+      await stop(runtime);
+    }
+  });
+
   it("bounds a slow GitHub response: the published lot stays, freshness records the failure, the delivery retries", async () => {
     const dir = await mkdtemp(join(tmpdir(), "axp-slow-"));
     let slow = true;

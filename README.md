@@ -26,7 +26,7 @@ npm run build
 npm start
 ```
 
-The production server listens on **http://127.0.0.1:43174/city**. `/`, `/city`, and `/city.html` serve the same Phaser app. `/healthz` is liveness; `/readyz` is readiness (client bundle present, storage writable, GitHub freshness, delivery backlog). `/api/city/status` reports freshness, the delivery queue, and the **effective** configuration actually in force.
+The production server listens on **http://127.0.0.1:43174/city**. `/`, `/city`, and `/city.html` serve the same Phaser app. `/healthz` is liveness; `/readyz` is readiness (client bundle present, storage writable and no refused write outstanding, GitHub freshness, delivery backlog). `/api/city/status` reports freshness, the delivery queue, and the **effective** configuration actually in force.
 
 ### Configuration
 

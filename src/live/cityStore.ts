@@ -143,6 +143,8 @@ export interface CityStore {
   /** Hold a delivery until `until` without counting an attempt (event coalescing). */
   deferDelivery(id: string, until: string): void;
   deliveryCounts(): Record<DeliveryStatus, number>;
+  /** Returns interrupted `processing` deliveries to `pending`; number re-queued. */
+  requeueInterrupted(): number;
   /** Public diagnostic events (visibility already enforced at write time). */
   appendEvent(event: CityEvent): boolean;
   recentEvents(limit: number): CityEvent[];
@@ -300,10 +302,19 @@ export function createCityStore(
       }
     }
     // Deliveries interrupted mid-processing are retried, not lost.
-    db.prepare(
-      "UPDATE deliveries SET status = 'pending' WHERE status = 'processing'",
-    ).run();
+    requeueInterrupted();
     opened = true;
+  }
+
+  /** Returns every `processing` delivery to `pending`. Safe whenever no worker holds a
+   *  delivery: at open, and at the start of each serial drain (a delivery is only ever
+   *  left in `processing` when the previous drain died, e.g. on a storage failure). */
+  function requeueInterrupted(): number {
+    return Number(
+      db
+        .prepare("UPDATE deliveries SET status = 'pending' WHERE status = 'processing'")
+        .run().changes,
+    );
   }
 
   function meta(key: string): string | undefined {
@@ -940,6 +951,7 @@ export function createCityStore(
         id,
       );
     },
+    requeueInterrupted,
     deliveryCounts() {
       const counts: Record<DeliveryStatus, number> = {
         pending: 0,

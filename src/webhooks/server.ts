@@ -179,10 +179,14 @@ export function handleDelivery(
     return queued
       ? { status: 202, body: "queued", event }
       : { status: 200, body: "duplicate" };
-  } catch {
+  } catch (error) {
     // Storage failed: the delivery was NOT recorded. GitHub does not retry on
     // its own; the operator redelivers from the App's delivery log.
-    return { status: 500, body: "storage failure" };
+    return {
+      status: 500,
+      body: "storage failure",
+      storageError: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -364,6 +368,18 @@ export function createWebhookServer(
   const mode = options.offline ? "offline" : "live";
   const refreshTimeoutMs = options.refreshTimeoutMs ?? 45_000;
   const coalesceMs = options.coalesceMs ?? 10_000;
+  /** The most recent write the store refused (disk full, corruption, permissions) that has not
+   *  been followed by a successful write. The readiness probe's one-row write can still succeed
+   *  on a nearly full disk, so readiness reports this explicitly instead of relying on the probe. */
+  let storageFailure: { at: string; where: string; error: string } | undefined;
+  function recordStorageFailure(where: string, error: unknown): void {
+    storageFailure = {
+      at: new Date().toISOString(),
+      where,
+      error: error instanceof Error ? error.message : String(error),
+    };
+    log("error", "storage failure", storageFailure);
+  }
   const resolveLot =
     options.resolveRepository ??
     ((fullName: string, previous?: RepoMetrics) =>
@@ -550,6 +566,16 @@ export function createWebhookServer(
     if (stopped) return Promise.resolve(0);
     draining = (async () => {
       let processed = 0;
+      // The worker is serial and drains are single-flight, so a `processing` row at this
+      // point was abandoned by an earlier drain that could not even record its failure
+      // (storage full). It is retried now rather than waiting for a restart.
+      try {
+        const requeued = city.requeueInterrupted();
+        if (requeued) log("warn", "re-queued deliveries abandoned by a failed drain", { requeued });
+      } catch (error) {
+        recordStorageFailure("re-queue interrupted deliveries", error);
+        return 0;
+      }
       for (;;) {
         // A stop request lets the delivery in hand finish and leaves the rest queued;
         // they are picked up on the next start (processing rows are re-queued on load).
@@ -559,16 +585,24 @@ export function createWebhookServer(
         processed++;
         try {
           await processDelivery(delivery);
+          storageFailure = undefined;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          city.failDelivery(
-            delivery.id,
-            message,
-            delivery.attempts < RETRY_SCHEDULE_MS.length
-              ? new Date(Date.now() + RETRY_SCHEDULE_MS[delivery.attempts]).toISOString()
-              : null,
-          );
           log("error", `delivery ${delivery.id} crashed`, { error: message });
+          try {
+            city.failDelivery(
+              delivery.id,
+              message,
+              delivery.attempts < RETRY_SCHEDULE_MS.length
+                ? new Date(Date.now() + RETRY_SCHEDULE_MS[delivery.attempts]).toISOString()
+                : null,
+            );
+          } catch (storageError) {
+            // The store cannot even record the failure: stop this drain so the
+            // delivery stays `processing` and is re-queued by the next one.
+            recordStorageFailure(`record failure of delivery ${delivery.id}`, storageError);
+            break;
+          }
         }
       }
       return processed;
@@ -671,6 +705,8 @@ export function createWebhookServer(
           city,
         );
         text(res, result.status, result.body);
+        if (result.storageError) recordStorageFailure("enqueue delivery", result.storageError);
+        else if (result.status === 202) storageFailure = undefined;
         if (result.event) {
           void drainDeliveries().catch((error) =>
             log("error", "delivery processing failed", { error: String(error) }),
@@ -929,12 +965,13 @@ export function createWebhookServer(
           city.lots().length > 0 &&
           (Number.isNaN(last) || Date.now() - last > freshness.staleAfterMs);
         const counts = city.deliveryCounts();
-        const ready = clientReady && writable;
+        const ready = clientReady && writable && !storageFailure;
         json(res, ready ? 200 : 503, {
           ready,
           checks: {
             clientBundle: clientReady,
             storageWritable: writable,
+            storageFailure: storageFailure ?? null,
             githubFresh: !stale,
             deliveryBacklog: counts.pending + counts.processing,
             failedDeliveries: counts.failed,
