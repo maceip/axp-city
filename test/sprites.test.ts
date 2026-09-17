@@ -772,6 +772,41 @@ print(" ".join(f"{xor_frac(a,b):.3f}" for a,b in pairs))
     });
   });
 
+  it("clears the lot 22 cabin roof-tree fragment without boxing the gable", () => {
+    const script = `
+from PIL import Image
+im = Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA")
+x,y,w,h = 1094,4,115,172
+px = im.load()
+dark = green = opaque = 0
+door = 0
+for yy in range(y, y+h):
+    for xx in range(x, x+w):
+        r,g,b,a = px[xx,yy]
+        if a < 16:
+            continue
+        opaque += 1
+        if g > r + 8 and g > b + 4 and max(r,g,b)-min(r,g,b) > 16:
+            green += 1
+            if yy > y + int(h*0.55) and x + int(w*0.20) <= xx <= x + int(w*0.55):
+                door += 1
+        if yy < y + int(h*0.55) and xx > x + int(w*0.62):
+            if (r+g+b)/3 < 90 and max(r,g,b)-min(r,g,b) < 40:
+                dark += 1
+print(f"{dark} {green} {door} {opaque}")
+`;
+    const [dark, green, door, opaque] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(dark, "lot 22 still has a roof-tree fragment").toBeLessThan(28);
+    expect(door, "lot 22 lost the green door").toBeGreaterThan(8);
+    expect(green, "lot 22 has no door ink").toBeGreaterThan(8);
+    expect(opaque, "lot 22 stamp vanished").toBeGreaterThan(400);
+  });
+
   it("flattens the lot 48 store oval off the slate roof", () => {
     const script = `
 from PIL import Image

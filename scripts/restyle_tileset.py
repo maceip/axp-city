@@ -1545,6 +1545,115 @@ def _is_lineart(spr: Image.Image) -> bool:
     return n > 40 and chroma / n < 0.08
 
 
+def _keep_sat(r: int, g: int, b: int) -> int:
+    return max(r, g, b) - min(r, g, b)
+
+
+def _keep_luma(r: int, g: int, b: int) -> float:
+    return (r + g + b) / 3.0
+
+
+def _is_snow_roof(r: int, g: int, b: int) -> bool:
+    return min(r, g, b) > 198 and _keep_sat(r, g, b) < 36
+
+
+def _is_keep_foliage(r: int, g: int, b: int, a: int) -> bool:
+    if a < 16 or _is_snow_roof(r, g, b):
+        return False
+    return g > r + 6 and g > b + 3 and _keep_sat(r, g, b) > 14
+
+
+def _is_keep_timber(r: int, g: int, b: int, a: int) -> bool:
+    return a >= 16 and r > g + 12 and r > b + 8 and 45 < _keep_luma(r, g, b) < 190
+
+
+def _is_dark_canopy(r: int, g: int, b: int, a: int) -> bool:
+    """Pine crown after keying — near-black / olive, not log-end rings."""
+    if a < 16 or _is_snow_roof(r, g, b) or _is_keep_timber(r, g, b, a):
+        return False
+    luma = _keep_luma(r, g, b)
+    if luma < 78 and _keep_sat(r, g, b) < 55:
+        return True
+    return g >= r - 2 and g > b and luma < 110 and _keep_sat(r, g, b) > 8
+
+
+def drop_yard_hedge(spr: Image.Image) -> Image.Image:
+    """Drop green lawn/hedge before restyle so it does not bake into a cream ghost."""
+    out = spr.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            if g > r + 10 and g > b + 6 and _keep_sat(r, g, b) > 18 and not _is_snow_roof(r, g, b):
+                px[x, y] = (0, 0, 0, 0)
+    return trim(out)
+
+
+def drop_cabin_roof_tree(spr: Image.Image) -> Image.Image:
+    """Remove the hanging pine on the right gable. Keep the green door and logs."""
+    out = spr.copy()
+    px = out.load()
+    w, h = out.size
+    x0 = int(w * 0.66)
+    y1 = int(h * 0.64)
+    for y in range(0, y1):
+        for x in range(x0, w):
+            r, g, b, a = px[x, y]
+            if _is_keep_foliage(r, g, b, a) or _is_dark_canopy(r, g, b, a):
+                px[x, y] = (0, 0, 0, 0)
+    # Close 1px bites in the snow gable without growing a new roof lobe.
+    for _ in range(8):
+        fills: list[tuple[int, int, tuple[int, int, int, int]]] = []
+        for y in range(0, y1):
+            for x in range(x0, w):
+                if px[x, y][3] >= 16:
+                    continue
+                neigh: list[tuple[int, int, int, int]] = []
+                roof_n = 0
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        if dx == 0 and dy == 0:
+                            continue
+                        xx, yy = x + dx, y + dy
+                        if 0 <= xx < w and 0 <= yy < h:
+                            rr, gg, bb, aa = px[xx, yy]
+                            if aa >= 16:
+                                neigh.append((rr, gg, bb, aa))
+                                if aa >= 16 and _keep_luma(rr, gg, bb) > 165 and _keep_sat(rr, gg, bb) < 55:
+                                    roof_n += 1
+                if roof_n >= 5 and neigh:
+                    mid = len(neigh) // 2
+                    rs = sorted(c[0] for c in neigh)
+                    gs = sorted(c[1] for c in neigh)
+                    bs = sorted(c[2] for c in neigh)
+                    fills.append((x, y, (rs[mid], gs[mid], bs[mid], 255)))
+        for x, y, col in fills:
+            px[x, y] = col
+        if not fills:
+            break
+    # Isolated dark specks left on the right ridge after the pine crown keys out.
+    for y in range(0, int(h * 0.50)):
+        for x in range(int(w * 0.70), w):
+            r, g, b, a = px[x, y]
+            if a < 16 or _is_keep_timber(r, g, b, a) or _is_snow_roof(r, g, b):
+                continue
+            if _keep_luma(r, g, b) >= 95:
+                continue
+            opaque_n = 0
+            for dy in range(-2, 3):
+                for dx in range(-2, 3):
+                    if dx == 0 and dy == 0:
+                        continue
+                    xx, yy = x + dx, y + dy
+                    if 0 <= xx < w and 0 <= yy < h and px[xx, yy][3] >= 16:
+                        opaque_n += 1
+            if opaque_n <= 8:
+                px[x, y] = (0, 0, 0, 0)
+    return trim(out)
+
+
 def extract_fv_keep(name: str) -> Image.Image:
     """Finished isometric exterior from src1/src3 — never interiors or lineart."""
     path = FV_KEEP.get(name)
@@ -1568,31 +1677,12 @@ def extract_fv_keep(name: str) -> Image.Image:
         spr = trim(blob[4])
         if _is_lineart(spr) or is_gray_pad(spr):
             continue
-        spr = restyle_jane_odd(restyle(spr, sat=0.48, contrast=1.04))
-        if name in ("tudor", "duplex"):
-            # Yard hedge / lawn is not the house; drop it so the roof silhouette reads.
-            px = spr.load()
-            for y in range(spr.height):
-                for x in range(spr.width):
-                    r, g, b, a = px[x, y]
-                    if a < 16:
-                        continue
-                    if g > r + 10 and g > b + 6 and max(r, g, b) - min(r, g, b) > 18:
-                        px[x, y] = (0, 0, 0, 0)
-            spr = trim(spr)
-        elif name == "logcabin":
-            # Hanging canopy on the right only — keep the green door and timber.
-            px = spr.load()
-            cut = int(spr.width * 0.72)
-            for y in range(spr.height):
-                for x in range(cut, spr.width):
-                    r, g, b, a = px[x, y]
-                    if a < 16:
-                        continue
-                    if g > r + 8 and g > b + 6:
-                        px[x, y] = (0, 0, 0, 0)
-            spr = trim(spr)
-        return spr
+        # Drop yard / roof-tree while foliage is still green — restyle turns pines umber.
+        if name == "logcabin":
+            spr = drop_cabin_roof_tree(spr)
+        elif name in ("tudor", "duplex"):
+            spr = drop_yard_hedge(spr)
+        return restyle_jane_odd(restyle(spr, sat=0.48, contrast=1.04))
     raise SystemExit(f"no finished exterior in {path.name}")
 
 
@@ -2463,7 +2553,7 @@ def main() -> None:
                 "Remaining catalog S/M/L trios keep one original size; extras use unused KEEP (spa/workshop/mill/temple/church/hall/cottage/norwood + eco observatory/helipad/orchard/conservatory)",
                 "Leftover mill/clock/eco-white/ranch cousins keep one of each family; extras use unused KEEP (greenhouse, Dutch mill, Spanish villa, restyled src1/src3 finished exteriors)",
                 "Temple cousins 9/17 keep one pagoda (lot 17); lot 9 is a restyled Tudor exterior, not a second eave stack",
-                "Boxy lots 8/22/47 keep original commercial 8; 22 is a log cabin and 47 a pitched duplex, not one cube species",
+                "Boxy lots 8/22/47 keep original commercial 8; 22 is a log cabin (roof-tree dropped) and 47 a pitched duplex, not one cube species",
                 "Lot 17 pagoda restyled to slate/timber catalog vibe; silhouette stays an odd original",
                 "Lettered family-sheet poster faces (AIE / OPEN SOURCE / CLEAN COMPUTE) flattened onto cream/khaki walls",
                 "styleui + fruit-tree plants, restyled",
