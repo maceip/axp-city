@@ -293,6 +293,10 @@ def test_sustained_travel_bounds_memory_textures_and_loading(browser, large_serv
 SOAK_SECONDS = int(os.environ.get("CITY_SOAK_SECONDS", "60"))
 SOAK_CYCLE_S = 5.0
 SOAK_TRAVEL = ["d", "s", "a", "w"]
+# Enroll a repository every N cycles; 0 keeps the city at its 8 lots so a run shows
+# what updates, travel and HUD use alone do to the heap (growth with lots and growth
+# with time are otherwise locked together, one enrollment per four updates).
+SOAK_ENROLL_EVERY = int(os.environ.get("CITY_SOAK_ENROLL_EVERY", "4"))
 
 
 def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, server, backend):
@@ -301,7 +305,8 @@ def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, serve
     One page lives through ``CITY_SOAK_SECONDS`` (60 s in CI; run locally with
     300+ for the figures in docs/PERFORMANCE.md) of the whole product at once:
     a metrics update arrives through a webhook every cycle, a new repository is
-    enrolled every fourth cycle (so several construction sites overlap), and the
+    enrolled every fourth cycle (``CITY_SOAK_ENROLL_EVERY``; 0 for none, which
+    isolates growth with time from growth with the city), and the
     camera travels, zooms, selects lots and opens the census the entire time.
     The stream must stay connected, every update must land in the client,
     nothing may throw, and objects, actors, terrain textures, sheets and (in
@@ -331,7 +336,7 @@ def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, serve
         repo = server.metrics[cycle % 8]
         repo["stars"] = repo.get("stars", 0) + 137
         repo["openPrs"] = (repo.get("openPrs", 0) + 1) % 30
-        newcomer = f"soak/lot{enrolled}" if cycle % 4 == 1 else None
+        newcomer = f"soak/lot{enrolled}" if SOAK_ENROLL_EVERY and cycle % SOAK_ENROLL_EVERY == 1 % SOAK_ENROLL_EVERY else None
         if newcomer:
             server.metrics.append(repo_metrics(newcomer, stars=3000 + enrolled * 900, openPrs=2, recentDefaultCommits=1, recentAuthors=["ada"]))
         server.save()  # one write per cycle, before anything asks the server to read it
@@ -366,7 +371,7 @@ def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, serve
 
     keep = ["t", "cycle", "revision", "totalLots", "objects", "activeObjects", "actors", "drawnActors", "cachedChunks", "textures", "sheetsRequested", "assetsInflight", "assetsFailed", "heapBytes", "heapQuantised", "connection", "zoom"]
     rows = [{k: s.get(k) for k in keep} for s in samples]
-    report = dict(backend=backend.describe(), driver=page.evaluate("window.__AXP.driver()"), seconds=SOAK_SECONDS, cycles=cycle, updates=updates, enrolled=enrolled,
+    report = dict(backend=backend.describe(), driver=page.evaluate("window.__AXP.driver()"), seconds=SOAK_SECONDS, cycles=cycle, updates=updates, enrolled=enrolled, enrollEvery=SOAK_ENROLL_EVERY,
                   pageErrors=errors, sites=sites, samples=rows, measuredAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     (SHOTS / "soak.json").write_text(json.dumps(report, indent=2))
     print(json.dumps(report, indent=2))
