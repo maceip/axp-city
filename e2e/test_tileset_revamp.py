@@ -5,6 +5,8 @@ saves screenshots. The hosted Playwright service is preferred; see conftest.
 """
 from pathlib import Path
 
+from PIL import Image
+
 from conftest import CityServer, ready, repo_metrics
 
 SHOTS = Path(__file__).parent / "screenshots"
@@ -21,9 +23,102 @@ def hud(page, name):
     return point
 
 
+def street_lane_share(path: Path, box):
+    """Last-audit classifier: khaki only after asphalt-grey, so 0x767056 used to read as ~1%."""
+    image = Image.open(path).convert("RGB")
+    x0, y0, x1, y1 = box
+    n = khaki = cream = lime = 0
+    pix = image.load()
+    for y in range(y0, y1, 2):
+        for x in range(x0, x1, 2):
+            r, g, b = pix[x, y]
+            n += 1
+            sat = max(r, g, b) - min(r, g, b)
+            if g > r + 28 and g > b + 20 and sat > 55:
+                lime += 1
+            if 70 < r < 140 and 70 < g < 140 and 70 < b < 140 and abs(r - g) < 18:
+                continue
+            if 90 < r < 190 and 95 < g < 175 and 60 < b < 140 and g >= r - 16 and r - b > 18 and g - r < 8:
+                khaki += 1
+            elif r > 190 and g > 175 and 140 < b < 210 and abs(r - g) < 30:
+                cream += 1
+    return khaki / n, cream / n, lime / n
+
+
 def click_hud(page, name):
     p = hud(page, name)
     page.mouse.click(p["x"], p["y"])
+
+
+def overview_arrow_groups(path: Path, box) -> tuple[int, int]:
+    """Cream-on-asphalt blobs in the full overview freeway strip, not a crop."""
+    image = Image.open(path).convert("RGB")
+    x0, y0, x1, y1 = box
+    pix = image.load()
+    cream = []
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            r, g, b = pix[x, y]
+            if not (r > 220 and g > 200 and 150 < b < 225 and abs(r - g) < 32 and r - b > 20):
+                continue
+            dark = 0
+            for dx, dy in ((-10, 0), (10, 0), (0, -7), (0, 7)):
+                xx, yy = x + dx, y + dy
+                if x0 <= xx < x1 and y0 <= yy < y1:
+                    rr, gg, bb = pix[xx, yy]
+                    if rr < 145 and gg < 140 and bb < 155:
+                        dark += 1
+            if dark >= 2:
+                cream.append((x, y))
+    if not cream:
+        return 0, 0
+    groups = {x // 160 for x, _y in cream}
+    return len(cream), len(groups)
+
+
+def cream_ink_width(path: Path) -> int:
+    """Width of cream or brass HUD lettering. SwiftShader fillText grows this past the word."""
+    image = Image.open(path).convert("RGB")
+    xs = []
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b = image.getpixel((x, y))
+            cream = r > 200 and g > 190 and b > 150
+            gold = r > 200 and g > 170 and 120 < b < 190 and r - b > 40
+            if cream or gold:
+                xs.append(x)
+    return max(xs) - min(xs) + 1 if xs else 0
+
+
+def clip_hud(page, name, dest: Path, inset_x: int = 0, inset_y: int = 0) -> Path:
+    point = hud(page, name)
+    width = max(8, point["width"] - 2 * inset_x)
+    height = max(8, point["height"] - 2 * inset_y)
+    page.screenshot(
+        path=str(dest),
+        clip={
+            "x": max(0, point["x"] - width / 2),
+            "y": max(0, point["y"] - height / 2),
+            "width": width,
+            "height": height,
+        },
+    )
+    return dest
+
+
+def assert_kit_label(page, name: str, expected: str) -> None:
+    text = page.evaluate("name => window.__AXP.hudLabel(name)", name)
+    assert text == expected, f"HUD {name} game text is {text!r}, expected {expected!r}"
+    # Inset past plate rivets so cream span is lettering, not brass.
+    dest = clip_hud(page, name, SHOTS / f"tileset-hud-label-{name}.png", inset_x=12, inset_y=4)
+    ink = cream_ink_width(dest)
+    scale = 14 / 32
+    expected_w = len(expected) * 19 * scale
+    doubled_w = (len(expected) + 2) * 19 * scale
+    assert ink > expected_w * 0.65, f"{name} label ink too thin ({ink}px) for {expected!r}"
+    assert abs(ink - expected_w) < abs(ink - doubled_w), (
+        f"{name} stamp still reads doubled: ink {ink}px expected ~{expected_w:.0f}px doubled ~{doubled_w:.0f}px"
+    )
 
 
 def diverse_metrics():
@@ -56,10 +151,28 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert kinds.get("office", 0) >= 1
         assert kinds.get("plant", 0) >= 4, f"missing park/vacant plants: {kinds}"
         assert kinds.get("odd", 0) >= 1, f"missing unused odd buildings: {kinds}"
+        odds = info.get("oddSprites") or []
+        assert odds, f"odd civic sprites missing from diagnostics: {odds}"
+        known_odds = {"odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"}
+        assert set(odds) <= known_odds, f"unexpected inland odd sprites: {odds}"
+        assert "odd-2" in odds, f"fence enclosure missing from inland odds: {odds}"
+        assert "odd-4" in odds, f"stacked gates missing from inland odds: {odds}"
+        assert "city-hall" in odds, f"civic kiosk missing from inland odds: {odds}"
+        assert "odd-6" in odds, f"civic depot missing from inland odds: {odds}"
+        widths = info.get("oddStampWidths") or {}
+        home = info.get("oddHomeWidths") or {}
+        assert widths.get("odd-2", 0) >= 200, f"fence stamp still flyover-thin: {widths}"
+        assert widths.get("odd-4", 0) >= 190, f"gate stamp still flyover-thin: {widths}"
+        assert home.get("odd-2", 999) <= 150, f"fence still swallows home zoom: {home}"
+        assert home.get("odd-4", 999) <= 140, f"gates still swallow home zoom: {home}"
+        assert home.get("odd-2", 0) < widths.get("odd-2", 0)
+        assert home.get("odd-4", 0) < widths.get("odd-4", 0)
         assert kinds.get("road", 0) >= 4, f"restyled roads not in the plan: {kinds}"
         assert kinds.get("bike", 0) >= 4, f"bike-lane stamps missing from the plan: {kinds}"
         assert kinds.get("gate", 0) >= 1
         assert info["hasBikeLane"], "bike-lane feature missing from the city plan"
+        assert info["hasFreewayBikeLane"], "freeway bike shoulder missing from the city plan"
+        assert info["freewayBikeBand"] >= 1.8, f"freeway bike shoulder still too thin: {info['freewayBikeBand']}"
         assert info["roadStampWidth"] >= 140, f"roads still stamp too small: {info['roadStampWidth']}"
         assert info["bikeStampWidth"] >= 180, f"bike lanes still stamp too small: {info['bikeStampWidth']}"
         assert info["uniqueFacades"] >= 12, f"repo lots still look cloned: {info['uniqueFacades']} unique facades"
@@ -69,11 +182,85 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.wait_for_timeout(400)
         page.screenshot(path=str(SHOTS / "tileset-city-overview.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-roads-bikes-civics.png"), full_page=False)
+        khaki, cream, lime = street_lane_share(SHOTS / "tileset-city-overview.png", (480, 180, 1400, 520))
+        assert khaki >= 0.05, f"overview bike corridor still recedes as asphalt ({khaki:.3f} khaki)"
+        assert khaki + cream >= 0.10, f"overview khaki+chevron share still too thin ({khaki + cream:.3f})"
+        assert lime < 0.12, f"overview bike paint drifted to neon lime ({lime:.3f})"
+        arrow_px, arrow_groups = overview_arrow_groups(SHOTS / "tileset-city-overview.png", (80, 160, 1520, 320))
+        assert arrow_groups >= 3, (
+            f"full overview PNG still hides painted arrows ({arrow_px} cream-on-asphalt px, {arrow_groups} groups)"
+        )
+        assert arrow_px >= 900, f"full overview arrows still too thin ({arrow_px} cream-on-asphalt px)"
+        marks = page.evaluate("window.__AXP.bikeMarkScreens()")
+        on_screen = [
+            m
+            for m in marks
+            if m.get("visible", True)
+            and m["width"] > 12
+            and m["height"] > 8
+            and 0 < m["x"] + m["width"] / 2 < 1600
+            and 80 < m["y"] + m["height"] / 2 < 900
+        ]
+        assert len(on_screen) >= 3, f"overview bike chevrons/labels missing: {len(marks)} marks"
+        chevrons = [
+            m
+            for m in on_screen
+            if m.get("kind") == "chevron" and m.get("glance") and m["width"] > 40 and m["height"] > 16
+        ]
+        assert len(chevrons) >= 2, f"overview painted chevrons missing: {len(chevrons)} of {len(on_screen)}"
+        flyover_plaques = [m for m in on_screen if m.get("kind") == "plaque"]
+        assert flyover_plaques == [], f"flyover still plaque-first: {len(flyover_plaques)} visible plaques"
+        freeway_chevrons = [m for m in chevrons if 90 < m["y"] + m["height"] / 2 < 380]
+        mark = min(
+            freeway_chevrons or chevrons,
+            key=lambda m: abs(m["x"] + m["width"] / 2 - 1040) + abs(m["y"] + m["height"] / 2 - 230),
+        )
+        pad = 52
+        mark_clip = {
+            "x": max(0, mark["x"] - pad),
+            "y": max(0, mark["y"] - pad),
+            "width": min(1600, mark["x"] + mark["width"] + pad) - max(0, mark["x"] - pad),
+            "height": min(1000, mark["y"] + mark["height"] + pad) - max(0, mark["y"] - pad),
+        }
+        page.screenshot(path=str(SHOTS / "tileset-freeway-bike.png"), clip=mark_clip)
+        fw_k, fw_c, fw_lime = street_lane_share(
+            SHOTS / "tileset-freeway-bike.png", (0, 0, int(mark_clip["width"]), int(mark_clip["height"]))
+        )
+        assert mark.get("kind") == "chevron", f"freeway clip still targeted a plaque: {mark}"
+        assert fw_c >= 0.04, f"freeway clip has no cream arrow body ({fw_c:.3f})"
+        assert cream_ink_width(SHOTS / "tileset-freeway-bike.png") >= 48, "freeway chevron clip missing cream arrow ink"
+        assert fw_lime < 0.12, f"freeway mark clip drifted to neon lime ({fw_k:.3f}/{fw_c:.3f}/{fw_lime:.3f})"
+        corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
+        assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
 
         click_hud(page, "home")
         page.wait_for_timeout(500)
         page.screenshot(path=str(SHOTS / "tileset-center-office.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-street-home.png"), full_page=False)
+        home_marks = page.evaluate("window.__AXP.bikeMarkScreens()")
+        plaques = [
+            m
+            for m in home_marks
+            if m.get("visible", True)
+            and m.get("kind") == "plaque"
+            and 40 < m["width"] < 280
+            and 0 < m["x"] + m["width"] / 2 < 1600
+            and 80 < m["y"] + m["height"] / 2 < 900
+        ]
+        assert len(plaques) >= 2, f"home-zoom BIKE LANE plaques disappeared: {len(plaques)}"
+        plaque = plaques[len(plaques) // 2]
+        plaque_pad = 64
+        plaque_clip = {
+            "x": max(0, plaque["x"] - plaque_pad),
+            "y": max(0, plaque["y"] - plaque_pad),
+            "width": min(1600, plaque["x"] + plaque["width"] + plaque_pad) - max(0, plaque["x"] - plaque_pad),
+            "height": min(1000, plaque["y"] + plaque["height"] + plaque_pad) - max(0, plaque["y"] - plaque_pad),
+        }
+        page.screenshot(path=str(SHOTS / "tileset-freeway-bike-plaque.png"), clip=plaque_clip)
+        assert cream_ink_width(SHOTS / "tileset-freeway-bike-plaque.png") >= 36, "home plaque clip missing BIKE LANE ink"
+        home_k, _home_c, home_lime = street_lane_share(SHOTS / "tileset-street-home.png", (200, 180, 1400, 520))
+        assert home_k >= 0.10, f"home-zoom bike corridor still recedes ({home_k:.3f} khaki)"
+        assert home_lime < 0.12, f"home-zoom bike paint drifted to neon lime ({home_lime:.3f})"
 
         def sample_lot(name):
             page.evaluate("repo => window.__AXP.select(repo)", name)
@@ -91,10 +278,33 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         for name in ("compass", "minimap", "zoom-in", "zoom-out", "home", "census", "capture", "svg", "motion", "follow", "status", "dpad", "move-east"):
             point = hud(page, name)
             assert point["width"] > 8 and point["height"] > 8
+        for name, label in (
+            ("census", "CENSUS"),
+            ("capture", "CAPTURE"),
+            ("svg", "SVG MAP"),
+            ("motion", "MOTION ON"),
+            ("follow", "FOLLOW"),
+        ):
+            assert_kit_label(page, name, label)
 
         click_hud(page, "census")
         page.wait_for_function("window.__AXP.diagnostics().censusOpen === true")
+        census = page.evaluate("window.__AXP.diagnostics()")
+        frame = census["censusFrame"]
+        assert frame and frame["width"] <= 530, f"census still curtains the city ({frame})"
+        assert frame["height"] <= 560, f"census still runs the full viewport ({frame})"
+        assert census["cardVisible"] is False, "inspect card must yield while the census sheet is open"
+        crews = page.evaluate("window.__AXP.censusPaintedCrew()")
+        assert crews, "census painted no crew cells"
+        assert all("…" not in c for c in crews), f"crew column still clips: {crews[:8]}"
+        assert "HUMAN CREW" in crews and "QUIET LOT" in crews, crews
         page.screenshot(path=str(SHOTS / "tileset-hud-census.png"), full_page=False)
+        ledger = SHOTS / "tileset-hud-census-ledger.png"
+        page.screenshot(path=str(ledger), clip={"x": 16, "y": 98, "width": int(frame["width"]), "height": 200})
+        title = SHOTS / "tileset-hud-census-title.png"
+        page.screenshot(path=str(title), clip={"x": 32, "y": 110, "width": 180, "height": 24})
+        title_ink = cream_ink_width(title)
+        assert 75 <= title_ink <= 150, f"census title stamp still dense or doubled ({title_ink}px, expected ~90px for 15px LOT CENSUS)"
         click_hud(page, "census")
 
         page.locator("#repo-search").fill("studio/lot-00")
@@ -104,6 +314,16 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.screenshot(path=str(SHOTS / "tileset-lot-inspect.png"), full_page=False)
         assert hud(page, "card")
         assert hud(page, "close-card")
+        card = page.evaluate("window.__AXP.diagnostics().cardFrame")
+        assert card and card["y"] >= 400, f"inspect card still covers the upper-right ({card})"
+        painted = page.evaluate("window.__AXP.inspectPainted()")
+        joined = " ".join(t.replace("\n", " ") for t in painted)
+        zone = next((t for t in painted if t.startswith("Loading zone")), "")
+        fresh = next((t for t in painted if "fixture" in t.lower() or t.startswith("GitHub")), "")
+        assert "ready for its next delivery" in zone.replace("\n", " "), painted
+        assert "Recorded fixture" in fresh.replace("\n", " "), painted
+        assert "QUIET LOT" in joined and "default-branch" in joined, painted
+        assert "OPEN PRS" in joined, painted
 
         # Determinism across page loads: the facade assignment is the plan's, not this
         # page's. Close the first page first so a software renderer boots the second
@@ -116,5 +336,4 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert other["uniqueFacades"] == info["uniqueFacades"]
         second.close()
     finally:
-        page.close()
         server.stop()

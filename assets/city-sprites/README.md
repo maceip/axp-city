@@ -116,14 +116,33 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
 
 - `buildings-*-k1.png` — ChatGPT 10×3 AXP isometric families + original
   pagoda (id 17), packed on a 5-column grid. Repo lots pick `buildingId`
-  1–50 as before; `facadeTint` + `dressingProp` are a second hash so two
-  lots that share a silhouette do not look like the same house.
+  1–50 as before; high-chroma terracotta roofs remap to umber / slate /
+  olive / clay families so lots share one vibe without becoming one house.
+  The white-solar villa row (ids 11–16 / 28–34 / 45–50) is diversified with
+  unused AXP family-sheet industrial stamps (crane, foundry, lab, factory,
+  security, analytics) — silhouette changes, not tints. Sheet-1 extras that
+  stacked those species into 5+ S/M/L clone families (12/14/15/16/28/29/30/34/46/47/48/49)
+  are replaced with unused KEEP stamps: solarpunk lighthouse / waterwheel /
+  clock tower / duplex / clockwork, craft kiln / chimney works / pottery /
+  loom tower / kiln tower, and Jane Quonset / store after teal-key + poster
+  crush. Remaining catalog S/M/L trios keep one original size (usually L);
+  the extras (2/3/4/5/6/9/10/11/19/20/21/22/23/24/25/26/27) use unused KEEP
+  stamps so repo lots are not one species at three sizes. Lot 17 pagoda keeps
+  its odd silhouette; teal/vermilion Jane color remaps to slate/timber. Lot 48
+  store oval flattens onto the slate roof. Lettered poster faces (AIE / OPEN
+  SOURCE / CLEAN COMPUTE) flatten onto the wall color. `facadeTint` +
+  `dressingProp` are a second hash so two lots that share a silhouette still
+  read as different houses.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
-  stamped larger than any repo lot), Jane's city hall / church / villa / store
-  (odd unused buildings), attached construction stages (pad→posts→roof→shell,
-  never the finished bank), parking, gates, bank, isometric plants from the
-  v5 ground kit, and full-size restyled road/bike tiles that read at overview
-  zoom (not the leftover 4px diamonds).
+  stamped larger than any repo lot),   inland unused civics from the attached
+  construction sheet (cream-infilled timber fence, parking pad, stacked timber
+  gates on a cream plinth, timber loading shed on a cream dock with a planked
+  bay-door face — not a KEEP-gate parking slat — civic notice kiosk — not ChatGPT lot-catalog houses and not
+  Jane church/villa/cottage geometry; fence/gates grow at flyover and stay
+  lot-adjacent at home zoom), attached construction stages (pad→posts→roof→shell,
+  never the finished bank), amenity parking, gates, `$` bank, isometric plants
+  from the v5 ground kit, and full-size restyled road/bike tiles that read at
+  overview zoom (not the leftover 4px diamonds).
 - `hud-kit-k1.png` — olive-slate + gold panels painted to Jane's chrome sizes
   so the overlay matches the catalog vibe; leftover orange HUD is not used.
 

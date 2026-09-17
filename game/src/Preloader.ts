@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { HUD_FONT } from "../../src/render/sprites.js";
 import { SceneKeys } from "./Boot.js";
 import { CORE_SHEETS, SPRITE_BASE } from "./assets.js";
 import { CityConnection } from "./connection.js";
@@ -22,6 +23,7 @@ export class Preloader extends Phaser.Scene {
     });
     this.load.on("loaderror", (file: Phaser.Loader.File) => this.failures.push(file.key));
     for (const file of CORE_SHEETS) this.load.image(file, `${SPRITE_BASE}/${file}`);
+    this.load.bitmapFont(HUD_FONT.face, `${SPRITE_BASE}/${HUD_FONT.file}`, `${SPRITE_BASE}/${HUD_FONT.xml}`);
   }
   async create(): Promise<void> {
     try {

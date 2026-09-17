@@ -18,17 +18,17 @@ export interface SvgExportOptions {
 }
 
 const FEATURE_FILL: Record<CityFeature["kind"], string> = {
-  park: "#5f9e4a",
+  park: "#6f8f54",
   freeway: "#4a4f57",
   tram: "#8a8f96",
   plaza: "#c9b7a0",
-  river: "#3d7bc7",
+  river: "#5a8a8e",
   office: "#c9b56a",
-  bike: "#8fbc6a",
+  bike: "#a89c68",
 };
 
 const VACANT_FILL: Record<VacantPlot["variant"], string> = {
-  grass: "#8fc46a",
+  grass: "#8aa86a",
   dirt: "#c9a06b",
   trees: "#5b8f47",
   plaza: "#d3c4ad",

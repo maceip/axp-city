@@ -2,6 +2,8 @@ import type { CityLot } from "../types.js";
 import {
   BIKE_BAND,
   CONSTRUCTION_MS,
+  FREEWAY_BIKE_BAND,
+  FREEWAY_BIKE_INSET,
   FREEWAY_SY,
   LOT_D,
   LOT_W,
@@ -17,7 +19,7 @@ import {
   TRAM_SX,
 } from "./constants.js";
 import { hash01 } from "./hash.js";
-import { isReservedSlot, lotSlot, slotKey } from "./slots.js";
+import { isCorridorShoulderSlot, isReservedSlot, lotSlot, slotKey } from "./slots.js";
 
 /**
  * Version of the slot-assignment algorithm. Persisted with every lot so a
@@ -177,6 +179,21 @@ export function districtName(sx: number, sy: number): string {
   return "East Ward";
 }
 
+function onTravelLane(x: number, y: number, features: CityFeature[]): boolean {
+  return features.some((f) => {
+    if (f.kind !== "freeway" && f.kind !== "bike") return false;
+    const pad = f.kind === "freeway" ? 1.8 : 0.35;
+    return x >= f.x && x <= f.x + f.w && y >= f.y - pad && y <= f.y + f.h + pad;
+  });
+}
+
+/** Feet plus the north reach of a tall odd/parking stamp. */
+function stampOverlapsTravel(x: number, y: number, features: CityFeature[]): boolean {
+  return (
+    [[x, y], [x, y - 1.4], [x, y - 2.8], [x - 0.9, y - 1.4], [x + 0.9, y - 1.4]] as const
+  ).some(([px, py]) => onTravelLane(px, py, features));
+}
+
 function isConstructing(
   fullName: string,
   options: PlanOptions,
@@ -254,8 +271,9 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
               ? "dirt"
               : "grass";
       vacancies.push({ sx, sy, x: origin.x, y: origin.y, variant });
-      // Occasional odd unused buildings — never assigned to a repository.
-      if (variant === "plaza" && hash01(sx, sy, 41) < 0.55) {
+      const shoulder = isCorridorShoulderSlot(sx, sy);
+      // Occasional odd unused buildings — vacant inland plots, never the street.
+      if (!shoulder && variant === "plaza" && hash01(sx, sy, 41) < 0.55) {
         const odd = ["odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"];
         civics.push({
           kind: "odd",
@@ -272,7 +290,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
           y: origin.y + 0.6 + hash01(sx, sy, 13) * 1.0,
           sprite: `plant-${Math.floor(hash01(sx, sy, 17) * 4)}`,
         });
-      } else if (variant === "dirt" && hash01(sx, sy, 29) < 0.3) {
+      } else if (!shoulder && variant === "dirt" && hash01(sx, sy, 29) < 0.3) {
         civics.push({
           kind: "parking",
           id: `parking-${sx}-${sy}`,
@@ -348,6 +366,14 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       w: (maxSx - minSx + 1) * STRIDE_X,
       h: BIKE_BAND,
     },
+    {
+      kind: "bike",
+      id: "freeway-bike-lane",
+      x: freewayOrigin.x,
+      y: freewayOrigin.y + FREEWAY_BIKE_INSET,
+      w: (maxSx - minSx + 1) * STRIDE_X,
+      h: FREEWAY_BIKE_BAND,
+    },
   ];
 
   const parkCx = parkOrigin.x + parkW / 2;
@@ -359,10 +385,13 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     y: parkCy + 0.15,
     sprite: "office",
   });
-  // Dense lot sets can miss the plaza-roll; keep unused odd buildings on vacant plots.
+  // Dense lot sets can miss the plaza-roll; keep unused odd buildings inland.
   if (!civics.some((c) => c.kind === "odd")) {
     const oddSprites = ["odd-2", "odd-3", "odd-4", "odd-6", "bank-office", "city-hall"];
-    for (const v of vacancies.slice(0, 3)) {
+    const inland = vacancies.filter((v) => !isCorridorShoulderSlot(v.sx, v.sy));
+    const plazas = inland.filter((v) => v.variant === "plaza");
+    const pool = plazas.length ? plazas : inland;
+    for (const v of pool.slice(0, 3)) {
       civics.push({
         kind: "odd",
         id: `odd-spare-${v.sx}-${v.sy}`,
@@ -371,6 +400,31 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
         sprite: oddSprites[Math.floor(hash01(v.sx, v.sy, 7) * oddSprites.length)],
       });
     }
+  }
+  // Fence, stacked gates, kiosk, and depot must actually appear inland (hashed rolls often skip them).
+  for (const sprite of ["odd-2", "odd-4", "city-hall", "odd-6"] as const) {
+    if (civics.some((c) => c.kind === "odd" && c.sprite === sprite)) continue;
+    const taken = new Set(
+      civics
+        .filter((c) => c.kind === "odd" || c.kind === "parking")
+        .map((c) => `${Math.round(c.x)},${Math.round(c.y)}`),
+    );
+    const inland = vacancies.filter((v) => {
+      if (isCorridorShoulderSlot(v.sx, v.sy)) return false;
+      const x = v.x + 1.1;
+      const y = v.y + 1.0;
+      if (taken.has(`${Math.round(x)},${Math.round(y)}`)) return false;
+      return !stampOverlapsTravel(x, y, features);
+    });
+    const v = inland.find((p) => p.variant === "plaza") ?? inland[0];
+    if (!v) continue;
+    civics.push({
+      kind: "odd",
+      id: `odd-ensure-${sprite}`,
+      x: v.x + 1.1,
+      y: v.y + 1.0,
+      sprite,
+    });
   }
   for (const [dx, dy, sprite] of [
     [-3.4, -2.4, "plant-0"],
@@ -429,6 +483,17 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       });
     }
   }
+  const freewaySlots = [minSx, Math.round((minSx + maxSx) / 2), maxSx];
+  for (const sx of new Set(freewaySlots)) {
+    const origin = slotOrigin(sx, FREEWAY_SY);
+    civics.push({
+      kind: "bike",
+      id: `bike-freeway-${sx}`,
+      x: origin.x + LOT_W * 0.55,
+      y: freewayOrigin.y + FREEWAY_BIKE_INSET + FREEWAY_BIKE_BAND * 0.55,
+      sprite: (sx & 1) === 0 ? "bike-0" : "bike-1",
+    });
+  }
 
   const radius = Math.max(
     Math.abs(minSx),
@@ -437,11 +502,16 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     Math.abs(maxSy),
   );
 
+  const travelSafe = civics.filter((c) => {
+    if (c.kind !== "odd" && c.kind !== "parking") return true;
+    return !stampOverlapsTravel(c.x, c.y, features);
+  });
+
   return {
     placements,
     features,
     vacancies,
-    civics,
+    civics: travelSafe,
     slotBounds: { minSx, maxSx, minSy, maxSy },
     bounds: {
       minX: minSx * STRIDE_X - 1,

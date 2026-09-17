@@ -145,9 +145,15 @@ describe("Phaser scene planning", () => {
     expect(custom.images.some((i) => i.tag === "loading-apron")).toBe(true);
     expect(custom.images.some((i) => i.tag === "loading-pad")).toBe(true);
     expect(custom.images.some((i) => i.tag === "roof-sign")).toBe(true);
+    expect(custom.images.some((i) => i.tag === "roof-apron")).toBe(true);
     expect(custom.images.some((i) => i.tag === "roof-lamp")).toBe(true);
     expect(custom.images.some((i) => i.tag === "roof-bench")).toBe(true);
     expect(custom.images.filter((i) => i.tag?.startsWith("roof-bay:")).length).toBe(2);
+    const crown = lotSampleBounds(place);
+    for (const stamp of custom.images.filter((i) => i.tag?.startsWith("roof-"))) {
+      expect(stamp.sy).toBeGreaterThan(crown.y);
+      expect(stamp.sy).toBeLessThan(crown.y + crown.height + 24);
+    }
     expect(base.images.some((i) => i.tag === "loading-pad")).toBe(false);
     expect(custom.diamonds.length).toBeGreaterThan(base.diamonds.length);
     expect(custom.images.filter((i) => i.tag?.startsWith("decor:")).map((i) => i.tag)).toEqual([
@@ -175,11 +181,13 @@ describe("Phaser scene planning", () => {
     const actors = ambientActors(plan);
     const cars = actors.filter((a) => a.kind === "car");
     const freeway = plan.features.find((f) => f.kind === "freeway")!;
+    const freewayBike = plan.features.find((f) => f.id === "freeway-bike-lane")!;
     expect(cars.length).toBeGreaterThanOrEqual(4);
     for (const car of cars) {
       for (const p of car.path) {
         expect(p.y).toBeGreaterThan(freeway.y);
         expect(p.y).toBeLessThan(freeway.y + freeway.h);
+        expect(p.y < freewayBike.y || p.y > freewayBike.y + freewayBike.h).toBe(true);
       }
       expect(car.motion).toBe("wrap");
     }
@@ -235,6 +243,8 @@ describe("Phaser scene planning", () => {
     expect(new Set(requiredSheets()).size).toBe(requiredSheets().length);
     expect(requiredSheets()).toContain("civic-kit-k1.png");
     expect(requiredSheets()).toContain("hud-kit-k1.png");
+    expect(requiredSheets()).toContain("hud-font-k1.png");
+    expect(requiredSheets()).toContain("hud-font-k1.xml");
   });
   it("tints repo facades and stamps dressing plus construction art from the civic kit", () => {
     const places = planCity(

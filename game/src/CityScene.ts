@@ -16,7 +16,7 @@ import { CityConnection, type ConnectionState } from "./connection.js";
 import { downloadCapture, samplePixels } from "./export.js";
 import { HudScene } from "./HudScene.js";
 import { graphicsPool, imagePool, type ObjectPool } from "./pool.js";
-import { BIKE_STAMP_WIDTH, OFFICE_STAMP_WIDTH, ROAD_STAMP_WIDTH } from "../../src/render/sprites.js";
+import { BIKE_STAMP_WIDTH, ODD_HOME_WIDTH, ODD_STAMP_WIDTH, OFFICE_STAMP_WIDTH, ROAD_STAMP_WIDTH, oddDisplayWidth } from "../../src/render/sprites.js";
 import { diamondContains, drawDiamond, ensureFrame, stampEllipse } from "./stamps.js";
 import { TerrainCache, drawCivics } from "./terrain.js";
 
@@ -32,6 +32,9 @@ interface LotView {
   /** Construction stage the current objects were built for. */
   stage: string;
 }
+
+/** Street/home zoom keeps plaque ink; flyover hides them so the city leads. */
+const BIKE_PLAQUE_MIN_ZOOM = 0.82;
 
 const boundsCache = new WeakMap<LotPlacement, Rect>();
 function lotBounds(place: LotPlacement): Rect {
@@ -262,18 +265,27 @@ export class CityScene extends Phaser.Scene {
         freshness: this.city.freshness,
         reducedMotion: this.reducedMotion,
         censusOpen: this.hudReady && this.hud.censusIsOpen,
+        censusFrame: this.hudReady ? this.hud.censusFrame() : null,
         cardVisible: this.hudReady && this.hud.cardVisible,
+        cardFrame: this.hudReady ? this.hud.cardFrame() : null,
         toastVisible: this.hudReady && this.hud.toastVisible,
         office: this.city.plan.civics?.find((c) => c.kind === "office") ?? null,
         officeStampWidth: OFFICE_STAMP_WIDTH,
         roadStampWidth: ROAD_STAMP_WIDTH,
         bikeStampWidth: BIKE_STAMP_WIDTH,
+        oddStampWidths: ODD_STAMP_WIDTH,
+        oddHomeWidths: ODD_HOME_WIDTH,
         civicCount: this.city.plan.civics?.length ?? 0,
         civicByKind: (this.city.plan.civics ?? []).reduce<Record<string, number>>((acc, civic) => {
           acc[civic.kind] = (acc[civic.kind] ?? 0) + 1;
           return acc;
         }, {}),
+        oddSprites: (this.city.plan.civics ?? [])
+          .filter((civic) => civic.kind === "odd")
+          .map((civic) => civic.sprite),
         hasBikeLane: Boolean(this.city.plan.features.some((f) => f.kind === "bike")),
+        hasFreewayBikeLane: Boolean(this.city.plan.features.some((f) => f.id === "freeway-bike-lane")),
+        freewayBikeBand: this.city.plan.features.find((f) => f.id === "freeway-bike-lane")?.h ?? 0,
         uniqueFacades: new Set(
           this.city.plan.placements.map((p) => `${p.lot.buildingId}:${p.lot.facadeTint}:${p.lot.dressingProp}`),
         ).size,
@@ -299,6 +311,11 @@ export class CityScene extends Phaser.Scene {
         return view ? { stage: view.stage, incomplete: view.incomplete, objects: view.images.length + view.shapes.length } : null;
       },
       drawnRenderKey: (repo: string) => this.lots.get(repo)?.renderKey ?? null,
+      lotIncomplete: (repo: string) => this.lots.get(repo)?.incomplete ?? true,
+      drawnTags: (repo: string) => {
+        const view = this.lots.get(repo);
+        return view ? view.images.map((image) => image.getData("tag")).filter((tag): tag is string => Boolean(tag)) : [];
+      },
       // The shared census model both the Phaser table and the accessible mirror read.
       censusRows: () => censusRows(this.city.plan, this.now()),
       lotTags: (repo: string) => {
@@ -350,6 +367,59 @@ export class CityScene extends Phaser.Scene {
       hudPoint: (name: string) => {
         if (!this.hudReady) return null;
         return this.hud.locate(name);
+      },
+      hudLabel: (name: string) => {
+        if (!this.hudReady) return null;
+        return this.hud.labelText(name);
+      },
+      censusPaintedCrew: () => (this.hudReady ? this.hud.censusPaintedCrew() : []),
+      inspectPainted: () => (this.hudReady ? this.hud.inspectPainted() : []),
+      bikeMarkScreens: () => {
+        const view = this.view();
+        const zoom = this.cameras.main.zoom;
+        return this.civics
+          .filter((object) => object.getData("bikeLaneMark"))
+          .map((object) => {
+            const mark = object as unknown as { x: number; y: number; width: number; height: number; displayWidth?: number; displayHeight?: number; type: string };
+            const storedW = object.getData("markW") as number | undefined;
+            const storedH = object.getData("markH") as number | undefined;
+            const scaleX = "scaleX" in object ? (object as Phaser.GameObjects.Graphics).scaleX : 1;
+            const scaleY = "scaleY" in object ? (object as Phaser.GameObjects.Graphics).scaleY : 1;
+            const width = (storedW ?? mark.displayWidth ?? mark.width ?? 96) * scaleX * zoom;
+            const height = (storedH ?? mark.displayHeight ?? mark.height ?? 28) * scaleY * zoom;
+            const kind = object.getData("bikeLaneChevron")
+              ? "chevron"
+              : object.getData("bikeLanePlaque")
+                ? "plaque"
+                : "mark";
+            return {
+              x: (mark.x - view.x) * zoom - width / 2,
+              y: (mark.y - view.y) * zoom - height / 2,
+              width,
+              height,
+              type: mark.type,
+              kind,
+              glance: Boolean(object.getData("bikeLaneGlance")),
+              visible: (object as Phaser.GameObjects.Container).visible,
+            };
+          });
+      },
+      featureScreenBox: (id: string) => {
+        const feature = this.city.plan.features.find((f) => f.id === id);
+        if (!feature) return null;
+        const view = this.view();
+        const zoom = this.cameras.main.zoom;
+        const corners = [
+          project(feature.x, feature.y),
+          project(feature.x + feature.w, feature.y),
+          project(feature.x + feature.w, feature.y + feature.h),
+          project(feature.x, feature.y + feature.h),
+        ];
+        const xs = corners.map((p) => (p.sx - view.x) * zoom);
+        const ys = corners.map((p) => (p.sy - view.y) * zoom);
+        const x = Math.min(...xs);
+        const y = Math.min(...ys);
+        return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
       },
     };
   }
@@ -541,6 +611,7 @@ export class CityScene extends Phaser.Scene {
       if (op.tint && op.tint !== 0xffffff) image.setTint(op.tint);
       else image.clearTint();
       image.setData("repo", place.lot.fullName);
+      if (op.tag) image.setData("tag", op.tag);
       images.push(image);
     }
     if (
@@ -601,6 +672,27 @@ export class CityScene extends Phaser.Scene {
     const developed = center.x >= b.minX && center.x <= b.maxX && center.y >= b.minY && center.y <= b.maxY;
     if (this.hudReady)
       this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
+    const zoom = this.cameras.main.zoom;
+    const showPlaques = zoom >= BIKE_PLAQUE_MIN_ZOOM;
+    for (const object of this.civics) {
+      const oddSprite = object.getData("oddSprite") as string | undefined;
+      if (oddSprite) {
+        const box = object.getData("oddBox") as { w: number; h: number };
+        const width = oddDisplayWidth(oddSprite, zoom);
+        (object as Phaser.GameObjects.Image).setDisplaySize(width, width * (box.h / box.w));
+        continue;
+      }
+      if (object.getData("bikeLanePlaque")) {
+        (object as Phaser.GameObjects.Container).setVisible(showPlaques);
+        continue;
+      }
+      if (!object.getData("bikeLaneGlance")) continue;
+      const screenW = object.getData("markScreenW") as number | undefined;
+      const screenH = object.getData("markScreenH") as number | undefined;
+      if (screenW && screenH) {
+        (object as Phaser.GameObjects.Image).setDisplaySize(screenW / zoom, screenH / zoom);
+      }
+    }
   }
 
   /** Screen-space extent a lot can draw into (yard, building, label). Placements are

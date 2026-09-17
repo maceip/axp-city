@@ -40,6 +40,15 @@ export function isReservedSlot(sx: number, sy: number): boolean {
 }
 
 /**
+ * Slots whose tall odd/parking stamps reach the freeway asphalt.
+ * Immediate neighbors are not enough — a 120px civic still overlaps
+ * two rows south of FREEWAY_SY.
+ */
+export function isCorridorShoulderSlot(_sx: number, sy: number): boolean {
+  return Math.abs(sy - FREEWAY_SY) <= 2;
+}
+
+/**
  * Perimeter of the ring that hugs the park bbox expanded by `ring`.
  * Ring 1 is the Moore neighborhood of the 2×2 park.
  */

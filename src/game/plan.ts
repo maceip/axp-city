@@ -25,6 +25,7 @@ import {
   DRONE_QUADS,
   GROUND_SHEET,
   GROUND_TILES,
+  HUD_FONT,
   HUD_SHEET,
   LOT_TILE_DIRT,
   LOT_TILE_GRASS,
@@ -183,7 +184,7 @@ function lotTileOps(
     : worked
       ? LOT_TILE_DIRT
       : LOT_TILE_GRASS[index % LOT_TILE_GRASS.length];
-  const bed = loading ? "5c6168" : worked ? "c9a06b" : "8fc46a";
+  const bed = loading ? "5c6168" : worked ? "c9a06b" : "8aa86a";
   diamonds.push({
     kind: "diamond",
     x: x + 0.15,
@@ -730,13 +731,21 @@ function roofOps(place: LotPlacement, images: ImageStamp[]): void {
   const roofY = foot.sy - size.height * 0.86;
   const depth = depthAt(place.x, place.y, 8);
   if (bays > 1) {
+    // Cream-gold slab in the crown sample: yard apron never enters lotPixels.
+    images.push(
+      imageStamp(GROUND_SHEET, GROUND_TILES.asphaltSlab, roofX, roofY + 58, 124, false, depth - 0.3, "world", {
+        repo: lot.fullName,
+        tag: "roof-apron",
+        tint: 0xd4b45a,
+      }),
+    );
     images.push(
       imageStamp(
         CIVIC_SHEET,
         CIVIC_SPRITES["bank-office"],
         roofX,
         roofY + 28,
-        58,
+        72,
         false,
         depth,
         "world",
@@ -749,9 +758,9 @@ function roofOps(place: LotPlacement, images: ImageStamp[]): void {
         imageStamp(
           PROP_SHEETS.materials,
           pallet,
-          roofX - 36 + bay * 36,
-          roofY + 52,
-          68,
+          roofX - 44 + bay * 44,
+          roofY + 54,
+          86,
           false,
           depth,
           "world",
@@ -762,7 +771,7 @@ function roofOps(place: LotPlacement, images: ImageStamp[]): void {
   }
   if (extras.includes("lamp")) {
     images.push(
-      imageStamp(GROUND_SHEET, GROUND_TILES.lampPost, roofX + 24, roofY + 48, 20, false, depth, "decor", {
+      imageStamp(GROUND_SHEET, GROUND_TILES.lampPost, roofX + 28, roofY + 46, 36, false, depth, "decor", {
         repo: lot.fullName,
         tag: "roof-lamp",
       }),
@@ -770,7 +779,7 @@ function roofOps(place: LotPlacement, images: ImageStamp[]): void {
   }
   if (extras.includes("bench")) {
     images.push(
-      imageStamp(GROUND_SHEET, GROUND_TILES.benchProp, roofX - 22, roofY + 52, 42, false, depth, "decor", {
+      imageStamp(GROUND_SHEET, GROUND_TILES.benchProp, roofX - 26, roofY + 52, 52, false, depth, "decor", {
         repo: lot.fullName,
         tag: "roof-bench",
       }),
@@ -821,6 +830,8 @@ export function requiredSheets(): string[] {
     GROUND_SHEET.file,
     CIVIC_SHEET.file,
     HUD_SHEET.file,
+    HUD_FONT.file,
+    HUD_FONT.xml,
     PROP_SHEETS.materials.file,
     PROP_SHEETS.planning.file,
     PROP_SHEETS.crew.file,

@@ -263,7 +263,7 @@ export const GROUND_SHEET: PropSheet = {
   height: 720,
 };
 
-/** Restyled civic atlas: center office, construction stages, plants, roads, odd unused buildings. */
+/** Restyled civic atlas: center office, construction stages, plants, roads, odd unused civic footprints. */
 export const CIVIC_SHEET: PropSheet = {
   file: "civic-kit-k1.png",
   width: 1536,
@@ -303,9 +303,40 @@ export const CIVIC_SPRITES: Record<string, SpriteBox> = {
 /** On-screen width of the park-center HQ compound — larger than any repo lot. */
 export const OFFICE_STAMP_WIDTH = 480;
 
+/** Unused inland civics. Fence/gates use the flyover width; home zoom lerps down. */
+export const ODD_STAMP_WIDTH: Record<string, number> = {
+  "odd-2": 228,
+  "odd-3": 138,
+  "odd-4": 210,
+  "odd-6": 160,
+  "city-hall": 132,
+  "bank-office": 120,
+};
+
+/** Lot-adjacent home-zoom sizes so fence/gates do not swallow the street. */
+export const ODD_HOME_WIDTH: Record<string, number> = {
+  "odd-2": 132,
+  "odd-3": 138,
+  "odd-4": 124,
+  "odd-6": 148,
+  "city-hall": 118,
+  "bank-office": 120,
+};
+
+/** Zoom at/above this uses ODD_HOME_WIDTH; two zoom-outs (~0.69) reach ODD_STAMP_WIDTH. */
+export const ODD_FLYOVER_ZOOM = 0.69;
+
+export function oddDisplayWidth(sprite: string, zoom: number): number {
+  const fly = ODD_STAMP_WIDTH[sprite] ?? 160;
+  const home = ODD_HOME_WIDTH[sprite] ?? fly;
+  if (home >= fly) return fly;
+  const t = Math.min(1, Math.max(0, (1 - zoom) / (1 - ODD_FLYOVER_ZOOM)));
+  return home + (fly - home) * t;
+}
+
 /** Street / bike-lane stamps — sized to read at overview and home zoom. */
 export const ROAD_STAMP_WIDTH = 176;
-export const BIKE_STAMP_WIDTH = 200;
+export const BIKE_STAMP_WIDTH = 220;
 
 export const CONSTRUCTION_STAGES: Record<string, SpriteBox> = {
   grading: CIVIC_SPRITES["scaffold-0"],
@@ -336,6 +367,15 @@ export const HUD_SHEET: PropSheet = {
   file: "hud-kit-k1.png",
   width: 1024,
   height: 768,
+};
+
+/** PIL-baked JetBrains Mono atlas — Phaser Text/fillText doubles glyphs on SwiftShader. */
+export const HUD_FONT = {
+  file: "hud-font-k1.png",
+  xml: "hud-font-k1.xml",
+  width: 400,
+  height: 494,
+  face: "hud-ink",
 };
 
 export const HUD_FRAMES: Record<string, SpriteBox> = {

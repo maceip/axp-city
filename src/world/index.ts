@@ -2,6 +2,8 @@ export {
   BIKE_BAND,
   BUILDING_WIDTH,
   CONSTRUCTION_MS,
+  FREEWAY_BIKE_BAND,
+  FREEWAY_BIKE_INSET,
   FREEWAY_SY,
   LOT_D,
   LOT_W,
@@ -37,6 +39,7 @@ export {
   type VacantPlot,
 } from "./layout.js";
 export {
+  isCorridorShoulderSlot,
   isFreewaySlot,
   isParkSlot,
   isReservedSlot,

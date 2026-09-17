@@ -13,6 +13,13 @@ export class Boot extends Phaser.Scene {
   }
 
   create(): void {
-    this.scene.start(SceneKeys.Preloader);
+    const fonts = document.fonts;
+    const ready = fonts
+      ? fonts.load('16px "JetBrains Mono"').then(() => fonts.ready)
+      : Promise.resolve();
+    void ready.then(
+      () => this.scene.start(SceneKeys.Preloader),
+      () => this.scene.start(SceneKeys.Preloader),
+    );
   }
 }
