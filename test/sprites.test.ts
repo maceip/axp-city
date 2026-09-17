@@ -809,7 +809,7 @@ print(f"{dark} {green} {door} {opaque}")
     expect(opaque, "lot 22 stamp vanished").toBeGreaterThan(400);
   });
 
-  it("crushes Jane mill chroma onto the khaki KEEP/solarpunk range", () => {
+  it("keeps lot 24 a complete khaki stamp, not a mill-sail fragment", () => {
     const script = `
 from PIL import Image
 im = Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA")
@@ -829,7 +829,7 @@ print(f"{n} {chroma/max(n,1):.2f}")
       .trim()
       .split(/\s+/)
       .map(Number);
-    expect(opaque, "lot 24 mill stamp vanished").toBeGreaterThan(400);
+    expect(opaque, "lot 24 is still a mill-sail fragment").toBeGreaterThan(7500);
     expect(sat, "lot 24 mill still reads as a second, hotter game").toBeLessThan(32);
   });
 
