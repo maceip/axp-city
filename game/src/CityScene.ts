@@ -639,7 +639,7 @@ export class CityScene extends Phaser.Scene {
       if (op.tint && op.tint !== 0xffffff) image.setTint(op.tint);
       else image.clearTint();
       image.setData("repo", place.lot.fullName);
-      if (op.tag) image.setData("tag", op.tag);
+      image.setData("tag", op.tag ?? null);
       images.push(image);
     }
     if (

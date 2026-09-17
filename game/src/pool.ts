@@ -49,6 +49,11 @@ export function imagePool(scene: Phaser.Scene, capacity?: number) {
     (image) => {
       image.setAlpha(1).setScale(1).setFlipX(false).setTint(0xffffff).clearTint();
       image.setDepth(0);
+      // Recycled images keep setData values unless cleared; leftover
+      // roof-bay / roof-lamp tags made fallback probes see stamps that
+      // were no longer on this lot.
+      image.setData("tag", null);
+      image.setData("repo", null);
     },
     capacity,
   );
