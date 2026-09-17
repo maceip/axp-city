@@ -101,7 +101,7 @@ def test_live_mode_against_a_local_github_reaches_two_browsers_alerts_on_outage_
     before = len(github.hits(f"/repos/{ALPHA}"))
     assert server.webhook(ALPHA, "local-live-1") == 202
     for tab in (first, second):
-        tab.wait_for_function("r => window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === r).lot.stars === 4321", arg=ALPHA, timeout=30000)
+        tab.wait_for_function("r => { const p = window.__AXP.snapshot().plan.placements.find(q => q.lot.fullName === r); return Boolean(p) && p.lot.stars === 4321; }", arg=ALPHA, timeout=30000)
     assert len(github.hits(f"/repos/{ALPHA}")) > before
     wait_until(lambda: server.get("/api/city/status")["deliveries"]["done"] >= 1, 30, "delivery not completed")
     first.evaluate("r => window.__AXP.select(r)", ALPHA)
@@ -143,7 +143,7 @@ def test_live_mode_against_a_local_github_reaches_two_browsers_alerts_on_outage_
     #    delivery, STALE clears, and the operator hears "recovered".
     github.mode = "ok"
     for tab in (first, second):
-        tab.wait_for_function("r => window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === r).lot.stars === 999", arg=BETA, timeout=30000)
+        tab.wait_for_function("r => { const p = window.__AXP.snapshot().plan.placements.find(q => q.lot.fullName === r); return Boolean(p) && p.lot.stars === 999; }", arg=BETA, timeout=30000)
         tab.wait_for_function("() => { const f = window.__AXP.diagnostics().freshness; return f.failingRepositories === 0 && f.lastSuccessfulRefreshAt > (f.lastFailureAt || ''); }", timeout=30000)
         tab.wait_for_function("!/STALE/.test(document.querySelector('#a11y-status').textContent)", timeout=30000)
     wait_until(lambda: "recovered" in github.alert_kinds(), 30, ("no recovered alert", github.alerts))

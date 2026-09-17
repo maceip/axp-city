@@ -77,6 +77,7 @@ describe("bitmap HUD redo", () => {
     expect(src).toContain("CITY_LOCAL_BROWSER");
     expect(src).toContain("refusing an anonymous hosted connection");
     expect(src).toContain("Live GitHub failures never switch to fixtures");
+    expect(src).toContain('setdefault("CITY_TRENDING", "0")');
     expect(src).not.toMatch(/DEVICEFARM|EMU_TOKEN/);
     const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
     expect(pkg.scripts["test:e2e"]).toContain("env -u PLAYWRIGHT_SERVICE_URL -u PLAYWRIGHT_SERVICE_ACCESS_TOKEN");
