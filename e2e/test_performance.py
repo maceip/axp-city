@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import ready, repo_metrics
+from conftest import HeapMeter, ready, repo_metrics
 
 SHOTS = Path(__file__).parent / "screenshots"
 SHOTS.mkdir(exist_ok=True)
@@ -225,6 +225,7 @@ def test_thousand_lots_fully_featured_meets_its_profile_budget(browser, large_se
 TRAVEL_LEGS = [("d", 2500), ("s", 2500), ("a", 2500), ("w", 2500)] * 2  # a lap around the 1,000-lot city, twice
 POOL_CAPACITY = 1500 + 400 + 800  # images + graphics + actor sprites (game/src/CityScene.ts, actors.ts)
 TERRAIN_CACHE = 96  # game/src/terrain.ts
+HEAP_PER_LOT = int(0.5 * 2**20)  # retained JS heap a new lot may add (measured ≈0.17 MB)
 
 
 def test_sustained_travel_bounds_memory_textures_and_loading(browser, large_server, backend):
@@ -240,19 +241,27 @@ def test_sustained_travel_bounds_memory_textures_and_loading(browser, large_serv
     page.evaluate("window.__AXP.select('bench/repo500')")
     page.wait_for_function("window.__AXP.diagnostics().selected === 'bench/repo500'")
     page.keyboard.press("Escape")
-    samples = [dict(leg="start", **diag(page))]
+    heap = HeapMeter(page)
+
+    def sample(leg):
+        d = diag(page)
+        d["heapQuantised"] = d.pop("heapBytes")
+        d["heapBytes"] = heap.read()  # retained heap after a collection (Chromium), else None
+        return dict(leg=leg, **d)
+
+    samples = [sample("start")]
     for index, (key, hold_ms) in enumerate(TRAVEL_LEGS):
         page.keyboard.down(key)
         page.wait_for_timeout(hold_ms)
         page.keyboard.up(key)
         page.wait_for_timeout(250)
-        samples.append(dict(leg=f"{index + 1}:{key}", **diag(page)))
+        samples.append(sample(f"{index + 1}:{key}"))
     page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=30000)
     page.wait_for_timeout(500)
-    samples.append(dict(leg="end", **diag(page)))
+    samples.append(sample("end"))
     page.screenshot(path=str(SHOTS / "sustained-travel-end.png"))
 
-    keep = ["leg", "objects", "activeObjects", "pooledImages", "actors", "drawnActors", "visibleLots", "chunks", "cachedChunks", "generatedChunks", "textures", "sheetsRequested", "assetBytesRequested", "assetsInflight", "assetsFailed", "heapBytes", "scrollX", "scrollY"]
+    keep = ["leg", "objects", "activeObjects", "pooledImages", "actors", "drawnActors", "visibleLots", "chunks", "cachedChunks", "generatedChunks", "textures", "sheetsRequested", "assetBytesRequested", "assetsInflight", "assetsFailed", "heapBytes", "heapQuantised", "scrollX", "scrollY"]
     rows = [{k: s.get(k) for k in keep} for s in samples]
     report = dict(backend=backend.describe(), driver=page.evaluate("window.__AXP.driver()"), legs=TRAVEL_LEGS, samples=rows,
                   bounds=dict(poolCapacity=POOL_CAPACITY, terrainCache=TERRAIN_CACHE), measuredAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
@@ -273,7 +282,8 @@ def test_sustained_travel_bounds_memory_textures_and_loading(browser, large_serv
     assert sheets[-1] == sheets[len(sheets) // 2] or sheets[-1] - sheets[len(sheets) // 2] <= 2, sheets
     # Textures: terrain cache + sheets + generated atlases; must not scale with distance travelled.
     assert rows[-1]["textures"] <= rows[0]["textures"] + TERRAIN_CACHE + 40, (rows[0]["textures"], rows[-1]["textures"])
-    # Memory (Chromium exposes performance.memory): second lap must not keep climbing.
+    # Memory (retained heap after a collection, Chromium via CDP): the second lap must
+    # not keep climbing — the city is the same size throughout, so any growth is a leak.
     heaps = [r["heapBytes"] for r in rows if r["heapBytes"] is not None]
     if heaps:
         half = len(heaps) // 2
@@ -302,8 +312,17 @@ def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, serve
     ready(page, server.url)
     page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=60000)
     page.wait_for_timeout(1500)
-    start = diag(page)
-    samples = [dict(t=0.0, cycle=0, **start)]
+    heap = HeapMeter(page)
+
+    def sample(**extra):
+        d = diag(page)
+        # heapBytes: retained heap after a collection (Chromium via CDP), else None;
+        # heapQuantised: what performance.memory says, kept for comparison.
+        d["heapQuantised"] = d.pop("heapBytes")
+        d["heapBytes"] = heap.read()
+        return dict(**extra, **d)
+
+    samples = [sample(t=0.0, cycle=0)]
     updates = enrolled = 0
     began = time.time()
     cycle = 0
@@ -336,7 +355,7 @@ def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, serve
         page.wait_for_function("s => window.__AXP.snapshot().plan.placements.some(p => p.lot.stars === s)", arg=repo["stars"], timeout=20000)
         remaining = SOAK_CYCLE_S - ((time.time() - began) % SOAK_CYCLE_S)
         page.wait_for_timeout(int(max(0.2, remaining) * 1000))
-        samples.append(dict(t=round(time.time() - began, 1), cycle=cycle, **diag(page)))
+        samples.append(sample(t=round(time.time() - began, 1), cycle=cycle))
     page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=30000)
     page.screenshot(path=str(SHOTS / "soak-end.png"))
     sites = []
@@ -345,7 +364,7 @@ def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, serve
         page.wait_for_function("r => window.__AXP.drawn(r) !== null", arg=f"soak/lot{i}", timeout=20000)
         sites.append(dict(repo=f"soak/lot{i}", **page.evaluate("r => window.__AXP.drawn(r)", f"soak/lot{i}")))
 
-    keep = ["t", "cycle", "revision", "totalLots", "objects", "activeObjects", "actors", "drawnActors", "cachedChunks", "textures", "sheetsRequested", "assetsInflight", "assetsFailed", "heapBytes", "connection", "zoom"]
+    keep = ["t", "cycle", "revision", "totalLots", "objects", "activeObjects", "actors", "drawnActors", "cachedChunks", "textures", "sheetsRequested", "assetsInflight", "assetsFailed", "heapBytes", "heapQuantised", "connection", "zoom"]
     rows = [{k: s.get(k) for k in keep} for s in samples]
     report = dict(backend=backend.describe(), driver=page.evaluate("window.__AXP.driver()"), seconds=SOAK_SECONDS, cycles=cycle, updates=updates, enrolled=enrolled,
                   pageErrors=errors, sites=sites, samples=rows, measuredAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
@@ -370,9 +389,13 @@ def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, serve
     assert rows[-1]["textures"] <= max(r["textures"] for r in warm) + TERRAIN_CACHE + 20, [r["textures"] for r in rows]
     sheets = [r["sheetsRequested"] for r in rows]
     assert sheets == sorted(sheets) and sheets[-1] <= 40, sheets
-    heaps = [r["heapBytes"] for r in rows if r["heapBytes"] is not None]
+    # Retained heap (after a collection) may grow with the city — each lot carries plan
+    # data, actors and history — but not with time: measured ≈0.17 MB per enrolled lot
+    # (long local runs, docs/PERFORMANCE.md); budget three times that plus 8 MB.
+    heaps = [(r["heapBytes"], r["totalLots"]) for r in rows if r["heapBytes"] is not None]
     if heaps:
-        assert heaps[-1] <= 1.35 * max(heaps[1:half + 1]) + 16 * 2**20, [round(h / 2**20, 1) for h in heaps]
+        (first, lots0), (last, lots1) = heaps[1], heaps[-1]
+        assert last <= first + HEAP_PER_LOT * (lots1 - lots0) + 8 * 2**20, (round(first / 2**20, 1), round(last / 2**20, 1), lots0, lots1)
 
 
 def test_hardware_profile_is_not_claimed_on_software_drivers(page):

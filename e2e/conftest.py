@@ -236,6 +236,28 @@ def ready(page, url):
     page.locator("#boot-card").wait_for(state="hidden")
 
 
+class HeapMeter:
+    """Retained JS heap of a page, measured rather than read from `performance.memory`.
+
+    Chromium quantises `performance.memory.usedJSHeapSize` and refreshes it only every
+    ~20 minutes, so a soak that grows the city sees one step and no trend. Through CDP
+    the page's garbage is collected first and the live heap read exactly
+    (`Runtime.getHeapUsage`), which is what a leak check needs. Other engines expose no
+    equivalent; `read()` returns None there and the callers say so."""
+
+    def __init__(self, page):
+        self.session = None
+        if page.context.browser and page.context.browser.browser_type.name == "chromium":
+            self.session = page.context.new_cdp_session(page)
+            self.session.send("HeapProfiler.enable")
+
+    def read(self):
+        if self.session is None:
+            return None
+        self.session.send("HeapProfiler.collectGarbage")
+        return int(self.session.send("Runtime.getHeapUsage")["usedSize"])
+
+
 def settled(page, timeout=10000):
     """Wait until the camera has stopped moving (a key press still pans the frame after
     it resolves on a slow renderer), then return the diagnostics of that resting state."""
