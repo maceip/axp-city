@@ -106,6 +106,21 @@ describe("bitmap HUD redo", () => {
     expect(hud).not.toMatch(/new NinePanel|from ["'].*ninepanel/);
   });
 
+  it("crops Central Park from the park feature box, not the office pad", () => {
+    const terrain = readFileSync("game/src/terrain.ts", "utf8");
+    const e2e = readFileSync("e2e/test_tileset_revamp.py", "utf8");
+    const layout = readFileSync("src/world/layout.ts", "utf8");
+    expect(terrain).toContain("park: 0x355028");
+    expect(terrain).toContain("vacant: 0x8ea070");
+    expect(terrain).toContain('CIVIC_SPRITES["city-hall"]');
+    expect(terrain).toContain("PARK_SX0 - 1");
+    expect(e2e).toContain("featureScreenBox('central-park')");
+    expect(e2e).toContain("tileset-park-flyover");
+    expect(e2e).toContain("park_forest_share");
+    expect(e2e).not.toMatch(/1040.*230/);
+    expect(layout).toContain("export const LAYOUT_VERSION = 1");
+  });
+
   it("tags freeway bike chevrons and crops them from the corridor, not the office pad", () => {
     const terrain = readFileSync("game/src/terrain.ts", "utf8");
     const city = readFileSync("game/src/CityScene.ts", "utf8");

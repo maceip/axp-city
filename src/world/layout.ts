@@ -439,6 +439,18 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     [0.2, 3.4, "plant-5"],
     [-2.2, 3.1, "plant-0"],
     [2.0, -3.2, "plant-1"],
+    [-4.0, -1.55, "plant-5"],
+    [3.85, 1.55, "plant-5"],
+    [-2.95, 0.85, "plant-2"],
+    [2.75, -0.85, "plant-3"],
+    [-0.95, -2.85, "plant-0"],
+    [1.05, 2.7, "plant-1"],
+    [-4.55, 1.75, "plant-5"],
+    [4.4, -1.7, "plant-2"],
+    [-2.55, -3.35, "plant-3"],
+    [2.45, 3.2, "plant-0"],
+    [-1.15, 3.5, "plant-1"],
+    [1.35, -3.45, "plant-5"],
   ] as const) {
     civics.push({
       kind: "plant",

@@ -89,6 +89,22 @@ def plaque_luma_stdev(path: Path) -> float:
     return statistics.pstdev(lumas) if lumas else 0.0
 
 
+def park_forest_share(path: Path) -> float:
+    """Dark forest lawn/canopy vs vacant olive (0x8ea070) and HQ stone."""
+    image = Image.open(path).convert("RGB")
+    pix = image.load()
+    n = forest = 0
+    for y in range(0, image.height, 2):
+        for x in range(0, image.width, 2):
+            r, g, b = pix[x, y]
+            n += 1
+            luma = (r + g + b) / 3
+            sat = max(r, g, b) - min(r, g, b)
+            if g > r + 6 and g > b + 4 and luma < 125 and sat > 18 and r < 135:
+                forest += 1
+    return forest / n if n else 0.0
+
+
 def cream_ink_width(path: Path) -> int:
     """Width of cream or brass HUD lettering. SwiftShader fillText grows this past the word."""
     image = Image.open(path).convert("RGB")
@@ -219,7 +235,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert info["civicCount"] > 8
         kinds = info["civicByKind"]
         assert kinds.get("office", 0) >= 1
-        assert kinds.get("plant", 0) >= 8, f"park campus still too thin: {kinds}"
+        assert kinds.get("plant", 0) >= 16, f"park campus still too thin: {kinds}"
         assert kinds.get("odd", 0) >= 1, f"missing unused odd buildings: {kinds}"
         odds = info.get("oddSprites") or []
         assert odds, f"odd civic sprites missing from diagnostics: {odds}"
@@ -340,10 +356,43 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert cream_ink_width(SHOTS / "tileset-freeway-bike.png") >= 48, "freeway chevron clip missing cream arrow ink"
         assert fw_lime < 0.12, f"freeway mark clip drifted to neon lime ({fw_k:.3f}/{fw_c:.3f}/{fw_lime:.3f})"
 
+        park_box = page.evaluate("window.__AXP.featureScreenBox('central-park')")
+        office_box = page.evaluate("window.__AXP.featureScreenBox('city-office')")
+        assert park_box and park_box["width"] > 180 and park_box["height"] > 80, f"central-park screen box missing: {park_box}"
+        assert office_box, f"city-office screen box missing: {office_box}"
+        assert park_box["width"] > office_box["width"] * 1.2, (
+            f"park flyover clip still the office pad: park={park_box} office={office_box}"
+        )
+        park_pad = 10
+        park_clip = {
+            "x": max(0, park_box["x"] - park_pad),
+            "y": max(0, park_box["y"] - park_pad),
+            "width": min(1600 - max(0, park_box["x"] - park_pad), park_box["width"] + 2 * park_pad),
+            "height": min(1000 - max(0, park_box["y"] - park_pad), park_box["height"] + 2 * park_pad),
+        }
+        page.screenshot(path=str(SHOTS / "tileset-park-flyover.png"), clip=park_clip)
+        forest = park_forest_share(SHOTS / "tileset-park-flyover.png")
+        assert forest >= 0.18, (
+            f"flyover park still reads as vacant lots ({forest:.3f} forest; clip={park_clip})"
+        )
+
         click_hud(page, "home")
         page.wait_for_timeout(500)
         page.screenshot(path=str(SHOTS / "tileset-center-office.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-street-home.png"), full_page=False)
+        home_park = page.evaluate("window.__AXP.featureScreenBox('central-park')")
+        assert home_park and home_park["width"] > 240 and home_park["height"] > 120, f"home park box missing: {home_park}"
+        home_park_clip = {
+            "x": max(0, home_park["x"] - 8),
+            "y": max(0, home_park["y"] - 8),
+            "width": min(1600 - max(0, home_park["x"] - 8), home_park["width"] + 16),
+            "height": min(1000 - max(0, home_park["y"] - 8), home_park["height"] + 16),
+        }
+        page.screenshot(path=str(SHOTS / "tileset-park-home.png"), clip=home_park_clip)
+        home_forest = park_forest_share(SHOTS / "tileset-park-home.png")
+        assert home_forest >= 0.18, (
+            f"home-zoom park still reads as vacant lots ({home_forest:.3f} forest; clip={home_park_clip})"
+        )
         home_marks = page.evaluate("window.__AXP.bikeMarkScreens()")
         plaques = [
             m

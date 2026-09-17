@@ -1,7 +1,17 @@
 import Phaser from "phaser";
 import { project } from "../../src/render/iso.js";
 import { hash01, type CityPlan, type CivicKind, tileKind } from "../../src/world/index.js";
-import { BIKE_BAND, LOT_D, SHOULDER, STRIDE_X, STRIDE_Y } from "../../src/world/constants.js";
+import {
+  BIKE_BAND,
+  LOT_D,
+  PARK_SX0,
+  PARK_SX1,
+  PARK_SY0,
+  PARK_SY1,
+  SHOULDER,
+  STRIDE_X,
+  STRIDE_Y,
+} from "../../src/world/constants.js";
 import { CHUNK_SIZE } from "../../src/game/visibility.js";
 import {
   WILD_SHEETS,
@@ -23,7 +33,7 @@ import { ensureFrame } from "./stamps.js";
 
 const trees = WILD_TREES.filter((box) => box.h >= 50 && box.w < 130);
 const COLORS: Record<string, number> = {
-  park: 0x627a4e,
+  park: 0x355028,
   freeway: 0x52606b,
   tram: 0x8f9890,
   river: 0x6a9094,
@@ -112,19 +122,27 @@ export class TerrainCache {
         const wx = chunk.x * n + i,
           wy = chunk.y * n + j;
         const kind = tileKind(wx + 0.5, wy + 0.5, plan);
+        const sx = Math.floor((wx + 0.5) / STRIDE_X);
+        const sy = Math.floor((wy + 0.5) / STRIDE_Y);
+        const parkTree =
+          kind === "park" &&
+          Math.abs(wx + 0.5 - park.x - park.w / 2) > 1.15 &&
+          Math.abs(wy + 0.5 - park.y - park.h / 2) > 0.95 &&
+          hash01(wx, wy, 8) < 0.78;
+        const fringeTree =
+          kind === "vacant" &&
+          sx >= PARK_SX0 - 1 &&
+          sx <= PARK_SX1 + 1 &&
+          sy >= PARK_SY0 - 1 &&
+          sy <= PARK_SY1 + 1 &&
+          hash01(wx, wy, 8) < 0.62;
         const plant =
-          kind === "trees" ||
-          (kind === "park" &&
-            Math.abs(wx + 0.5 - park.x - park.w / 2) > 1.6 &&
-            Math.abs(wy + 0.5 - park.y - park.h / 2) > 1.4 &&
-            hash01(wx, wy, 8) < 0.34) ||
-          (kind === "vacant" && hash01(wx, wy, 8) < 0.07);
+          kind === "trees" || parkTree || fringeTree || (kind === "vacant" && hash01(wx, wy, 8) < 0.07);
         if (!plant) continue;
         const box = trees[Math.floor(hash01(wx, wy, 19) * trees.length)];
         const a = project(wx + 0.5, wy + 0.8);
         const tree = this.images.acquire();
-        const parkTree = kind === "park";
-        const treeH = parkTree ? 96 : 55;
+        const treeH = parkTree || fringeTree ? 148 : 55;
         tree
           .setTexture(WILD_SHEETS.trees.file, ensureFrame(this.scene, WILD_SHEETS.trees.file, box))
           .setOrigin(0.5, 1)
@@ -197,7 +215,8 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
               : COLORS.vacant
           : COLORS[kind];
       const color = Phaser.Display.Color.IntegerToColor(baseColor);
-      color.lighten(hash01(wx, wy, 33) * 5);
+      if (kind === "park") color.darken(hash01(wx, wy, 33) * 6);
+      else color.lighten(hash01(wx, wy, 33) * 5);
       g.fillStyle(color.color, 1);
       g.fillPoints(
         [
@@ -311,33 +330,27 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   const cx = park.x + park.w / 2,
     cy = park.y + park.h / 2;
   const hasOffice = plan.civics?.some((c) => c.kind === "office");
-  diamond(park.x - 0.5, park.y - 0.5, park.w + 1.0, park.h + 1.0, 0x627a4e, 0.92);
-  diamond(park.x + 0.15, park.y + 0.15, park.w - 0.3, park.h - 0.3, 0x627a4e, 0.88);
-  const lawnTint = 0x6e8458;
-  for (const [lx, ly] of [
-    [park.x + 1.5, park.y + 1.35],
-    [park.x + park.w - 1.5, park.y + 1.35],
-    [park.x + 1.5, park.y + park.h - 1.15],
-    [park.x + park.w - 1.5, park.y + park.h - 1.15],
-    [park.x + park.w * 0.5, park.y + 0.85],
-    [park.x + park.w * 0.5, park.y + park.h - 0.7],
-    [park.x + 0.95, park.y + park.h * 0.48],
-    [park.x + park.w - 0.95, park.y + park.h * 0.48],
-    [park.x + park.w * 0.33, park.y + park.h * 0.28],
-    [park.x + park.w * 0.67, park.y + park.h * 0.28],
-    [park.x + park.w * 0.33, park.y + park.h * 0.72],
-    [park.x + park.w * 0.67, park.y + park.h * 0.72],
-  ] as const) {
-    stamp(GROUND_TILES.parkGrass, lx, ly, 138).setTint(lawnTint);
+  // Dark forest lawn on the reserved 2×2 only — darker than vacant 0x8ea070 so
+  // the campus reads at flyover without growing LAYOUT_VERSION 1 lot slots.
+  diamond(park.x, park.y, park.w, park.h, 0x355028, 0.97);
+  diamond(park.x + 0.12, park.y + 0.12, park.w - 0.24, park.h - 0.24, 0x2c4820, 0.94);
+  const lawnTint = 0x4a6740;
+  const canopyTint = 0x3f5c32;
+  for (let gi = 0; gi < 4; gi++) {
+    for (let gj = 0; gj < 4; gj++) {
+      const lx = park.x + 1.15 + gi * 2.4;
+      const ly = park.y + 0.95 + gj * 1.85;
+      if (Math.abs(lx - cx) < 1.35 && Math.abs(ly - cy) < 1.15) continue;
+      stamp(GROUND_TILES.parkGrass, lx, ly, 210).setTint(lawnTint);
+    }
   }
-  stamp(GROUND_TILES.parkSteps, cx, park.y + park.h - 0.45, 96).setTint(0xc4b69a);
-  // Paths: a cross and a ring around the fountain / office.
-  diamond(cx - 0.18, park.y, 0.36, park.h, 0xdccfa7);
-  diamond(park.x, cy - 0.18, park.w, 0.36, 0xdccfa7);
-  diamond(cx - 2.8, cy - 1.8, 5.6, 0.3, 0xdccfa7);
-  diamond(cx - 2.8, cy + 1.5, 5.6, 0.3, 0xdccfa7);
-  diamond(cx - 2.8, cy - 1.8, 0.3, 3.6, 0xdccfa7);
-  diamond(cx + 2.5, cy - 1.8, 0.3, 3.6, 0xdccfa7);
+  stamp(GROUND_TILES.parkSteps, cx, park.y + park.h - 0.45, 118).setTint(0xc4b69a);
+  diamond(cx - 0.16, park.y, 0.32, park.h, 0xdccfa7, 0.88);
+  diamond(park.x, cy - 0.16, park.w, 0.32, 0xdccfa7, 0.88);
+  diamond(cx - 2.6, cy - 1.65, 5.2, 0.26, 0xdccfa7, 0.88);
+  diamond(cx - 2.6, cy + 1.4, 5.2, 0.26, 0xdccfa7, 0.88);
+  diamond(cx - 2.6, cy - 1.65, 0.26, 3.3, 0xdccfa7, 0.88);
+  diamond(cx + 2.35, cy - 1.65, 0.26, 3.3, 0xdccfa7, 0.88);
   if (!hasOffice) {
     for (const [dx, dy] of [[-1.3, -1.0], [1.0, -1.0], [-1.3, 0.7], [1.0, 0.7]] as const)
       diamond(cx + dx, cy + dy, 0.5, 0.4, 0xd9a066, 0.9);
@@ -350,46 +363,84 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     fountain.strokeEllipse(center.sx, center.sy - 8, 25, 10);
     objects.push(fountain);
   }
-  // Pond in the south-east quadrant.
-  diamond(park.x + park.w * 0.62, park.y + park.h * 0.58, 2.6, 1.8, 0x6a9094);
-  stamp(GROUND_TILES.waterTile, park.x + park.w * 0.66 + 1.0, park.y + park.h * 0.62 + 1.3, 96).setTint(0x7a9a90);
-  stamp(GROUND_TILES.sandTile, park.x + park.w * 0.66 - 0.2, park.y + park.h * 0.62 + 0.3, 52);
-  // Benches and lamps along the ring path.
+  // KEEP fountain plaza in the south-east lawn — not a house, not the HQ pad.
+  diamond(cx + 1.35, cy + 1.15, 3.2, 2.2, 0x2f5a52, 0.96);
+  stamp(GROUND_TILES.waterTile, cx + 2.55, cy + 2.45, 168).setTint(0x3d6a62);
+  stamp(GROUND_TILES.sandTile, cx + 1.55, cy + 1.55, 70).setTint(0xc4b69a);
+  stamp(GROUND_TILES.parkSteps, cx + 2.15, cy + 2.95, 92).setTint(0xc4b69a);
+  const fountainAt = project(cx + 2.5, cy + 2.2);
+  const basin = scene.add.graphics().setDepth(fountainAt.sy + 2);
+  basin.fillStyle(0xdcd5b7, 1).fillEllipse(fountainAt.sx, fountainAt.sy - 6, 96, 48);
+  basin.fillStyle(0x3d6a62, 1).fillEllipse(fountainAt.sx, fountainAt.sy - 10, 74, 34);
+  basin.fillStyle(0xc5ddd8, 0.92).fillEllipse(fountainAt.sx, fountainAt.sy - 14, 30, 13);
+  basin.lineStyle(2, 0xd8eeee, 0.88);
+  basin.lineBetween(fountainAt.sx, fountainAt.sy - 48, fountainAt.sx, fountainAt.sy - 12);
+  basin.strokeEllipse(fountainAt.sx, fountainAt.sy - 18, 24, 10);
+  objects.push(basin);
+  // KEEP civic kiosk on the south-west lawn (restyled city-hall pad, not a house).
+  {
+    const kiosk = CIVIC_SPRITES["city-hall"];
+    const at = project(cx - 2.9, cy + 2.4);
+    objects.push(
+      scene.add
+        .image(at.sx, at.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, kiosk))
+        .setOrigin(0.5, 1)
+        .setDisplaySize(118, 118 * (kiosk.h / kiosk.w))
+        .setDepth(at.sy + 4),
+    );
+  }
   for (const [dx, dy] of [[-2.2, -2.15], [2.0, -2.15], [-2.2, 1.95], [2.0, 1.95]] as const)
     stamp(DECOR_BENCH, cx + dx, cy + dy, 40);
   for (const [dx, dy] of [[-3.0, -0.4], [3.0, -0.4], [-0.4, -2.9], [-0.4, 2.7]] as const)
     stamp(DECOR_LAMP, cx + dx, cy + dy, 14);
-  for (const [dx, dy, box] of [
-    [-3.6, -2.6, GROUND_TILES.treeRoundA],
-    [3.4, -2.6, GROUND_TILES.pineA],
-    [-3.6, 2.3, GROUND_TILES.pineB],
-    [3.4, 2.3, GROUND_TILES.treeRoundB],
-    [-4.2, 0.1, GROUND_TILES.pineA],
-    [4.0, 0.15, GROUND_TILES.treeRoundB],
-    [0.1, -3.4, GROUND_TILES.treeRoundA],
-    [0.2, 3.2, GROUND_TILES.pineB],
-    [-1.6, -3.1, GROUND_TILES.bushA],
-    [1.4, 2.9, GROUND_TILES.bushA],
-    [-2.8, -3.0, GROUND_TILES.bushA],
-    [2.6, -3.0, GROUND_TILES.bushA],
-    [-2.8, 2.85, GROUND_TILES.bushA],
-    [2.6, 2.85, GROUND_TILES.bushA],
-    [-4.0, -1.4, GROUND_TILES.bushA],
-    [3.8, -1.4, GROUND_TILES.bushA],
-    [-4.0, 1.4, GROUND_TILES.bushA],
-    [3.8, 1.4, GROUND_TILES.bushA],
-  ] as const)
-    stamp(box, cx + dx, cy + dy, box === GROUND_TILES.bushA ? 58 : 102).setTint(0x5f7548);
+  for (const [dx, dy, box, w] of [
+    [-3.7, -2.7, GROUND_TILES.treeRoundA, 176],
+    [-2.5, -3.2, GROUND_TILES.pineA, 164],
+    [-1.2, -3.55, GROUND_TILES.treeRoundB, 158],
+    [0.15, -3.6, GROUND_TILES.pineB, 170],
+    [1.4, -3.4, GROUND_TILES.treeRoundA, 160],
+    [2.7, -2.9, GROUND_TILES.pineA, 168],
+    [3.7, -1.8, GROUND_TILES.treeRoundB, 172],
+    [4.15, -0.35, GROUND_TILES.pineB, 166],
+    [4.05, 1.05, GROUND_TILES.treeRoundA, 170],
+    [3.55, 2.35, GROUND_TILES.pineA, 162],
+    [2.35, 3.15, GROUND_TILES.treeRoundB, 174],
+    [0.85, 3.45, GROUND_TILES.pineB, 160],
+    [-0.55, 3.4, GROUND_TILES.treeRoundA, 168],
+    [-2.0, 3.05, GROUND_TILES.pineA, 164],
+    [-3.35, 2.25, GROUND_TILES.treeRoundB, 172],
+    [-4.15, 0.85, GROUND_TILES.pineB, 166],
+    [-4.2, -0.55, GROUND_TILES.treeRoundA, 170],
+    [-3.85, -1.7, GROUND_TILES.pineA, 158],
+    [-2.15, -2.55, GROUND_TILES.bushA, 78],
+    [2.05, -2.5, GROUND_TILES.bushA, 78],
+    [-2.35, 2.55, GROUND_TILES.bushA, 80],
+    [2.2, 2.6, GROUND_TILES.bushA, 80],
+    [-4.0, 0.15, GROUND_TILES.bushA, 74],
+    [3.85, 0.2, GROUND_TILES.bushA, 74],
+    [0.05, -3.15, GROUND_TILES.bushA, 76],
+    [0.15, 3.05, GROUND_TILES.bushA, 76],
+    [-3.1, -0.95, GROUND_TILES.bushA, 70],
+    [2.95, -0.9, GROUND_TILES.bushA, 70],
+    [-3.05, 1.35, GROUND_TILES.bushA, 70],
+    [2.9, 1.4, GROUND_TILES.bushA, 70],
+  ] as const) {
+    stamp(box, cx + dx, cy + dy, w).setTint(canopyTint);
+  }
+  // Canopy/lawn overhang onto the vacant Moore ring only — never occupied lots.
   for (const v of plan.vacancies ?? []) {
-    const near =
-      v.x + 2 > park.x - 1.1 &&
-      v.x < park.x + park.w + 1.1 &&
-      v.y + 1.6 > park.y - 1.1 &&
-      v.y < park.y + park.h + 1.1;
-    if (!near) continue;
+    const fringe =
+      v.sx >= PARK_SX0 - 1 &&
+      v.sx <= PARK_SX1 + 1 &&
+      v.sy >= PARK_SY0 - 1 &&
+      v.sy <= PARK_SY1 + 1;
+    if (!fringe) continue;
+    diamond(v.x + 0.12, v.y + 0.08, 3.7, 2.15, 0x355028, 0.94);
+    stamp(GROUND_TILES.parkGrass, v.x + 1.2, v.y + 1.15, 196).setTint(lawnTint);
     const tree = hash01(v.sx, v.sy, 19) < 0.5 ? GROUND_TILES.pineA : GROUND_TILES.treeRoundB;
-    stamp(tree, v.x + 1.15, v.y + 1.35, 94).setTint(0x5f7548);
-    stamp(GROUND_TILES.bushA, v.x + 2.2, v.y + 0.85, 54).setTint(0x5f7548);
+    stamp(tree, v.x + 1.05, v.y + 1.45, 158).setTint(canopyTint);
+    stamp(GROUND_TILES.bushA, v.x + 2.35, v.y + 0.9, 78).setTint(canopyTint);
+    stamp(tree, v.x + 2.55, v.y + 1.75, 136).setTint(canopyTint);
   }
 
   for (const f of plan.features)
@@ -397,10 +448,10 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       const a = project(f.x + f.w / 2, f.kind === "tram" ? f.y + 1.2 : f.y + f.h / 2);
       placeName(
         a.sx,
-        a.sy + (f.kind === "park" ? 90 : 0),
+        a.sy + (f.kind === "park" ? 78 : 0),
         f.kind === "park" ? "CENTRAL PARK" : f.kind === "freeway" ? "NORTH FREEWAY" : "TRAM LINE",
         f.kind === "freeway" ? 0xe2dac5 : 0x45614e,
-        13,
+        f.kind === "park" ? 16 : 13,
       );
     }
 
@@ -470,7 +521,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     if (!box) continue;
     const width =
       marker.kind === "plant" && marker.id.startsWith("park-plant-")
-        ? 88
+        ? 170
         : marker.kind === "odd"
           ? oddDisplayWidth(marker.sprite, scene.cameras.main.zoom)
           : civicWidth[marker.kind] ?? 100;
