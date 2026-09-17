@@ -715,9 +715,16 @@ from PIL import Image
 im = Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA")
 x,y,w,h = 406,544,148,172
 px = im.load()
+xs=[]; ys=[]
+for yy in range(y, y+h):
+    for xx in range(x, x+w):
+        if px[xx,yy][3] >= 16:
+            xs.append(xx); ys.append(yy)
+x0,x1,y0,y1 = min(xs),max(xs),min(ys),max(ys)
+roof_y = y0 + int((y1-y0)*0.40)
 n = oval = 0
-for yy in range(int(h * 0.55)):
-    for xx in range(w):
+for yy in range(y0, roof_y):
+    for xx in range(x0, x1+1):
         r,g,b,a = px[xx,yy]
         if a < 16:
             continue
