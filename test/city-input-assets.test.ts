@@ -78,6 +78,19 @@ describe("bitmap HUD redo", () => {
     expect(city).not.toMatch(/from ["'].*ninepanel/);
   });
 
+  it("paints HUD copy once via BitmapText ink(), never Phaser.Text or fillText", () => {
+    const hud = readFileSync("game/src/HudScene.ts", "utf8");
+    const terrain = readFileSync("game/src/terrain.ts", "utf8");
+    expect(hud).toContain("function ink(");
+    expect(hud).toMatch(/scene\.add\.bitmapText\(x, y, HUD_FONT\.face, text, size\)/);
+    expect(hud).toContain('"LOT CENSUS"');
+    expect(hud).toContain('this.button("census", "CENSUS"');
+    expect(hud).not.toMatch(/add\.text\(|fillText|GameObjects\.Text/);
+    expect(terrain).toContain('"BIKE LANE"');
+    expect(terrain).toMatch(/bitmapText\(0, 1, HUD_FONT\.face, "BIKE LANE"/);
+    expect(terrain).not.toMatch(/add\.text\(|fillText|GameObjects\.Text/);
+  });
+
   it("docks the native search field inside a KEEP 9-slice well", () => {
     const hud = readFileSync("game/src/HudScene.ts", "utf8");
     const css = readFileSync("game/src/styles.css", "utf8");

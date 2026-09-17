@@ -103,6 +103,57 @@ def cream_ink_width(path: Path) -> int:
     return max(xs) - min(xs) + 1 if xs else 0
 
 
+def letter_ink_blobs(path: Path, min_col: int = 2) -> list[tuple[int, int]]:
+    """Horizontal ink runs. One BitmapText word has ~1 blob per glyph, not a doubled copy."""
+    image = Image.open(path).convert("RGB")
+    cols = [0] * image.width
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b = image.getpixel((x, y))
+            cream = r > 200 and g > 190 and b > 150
+            gold = r > 200 and g > 170 and 120 < b < 190 and r - b > 40
+            if cream or gold:
+                cols[x] += 1
+    blobs: list[tuple[int, int]] = []
+    i = 0
+    while i < len(cols):
+        if cols[i] >= min_col:
+            j = i
+            while j < len(cols) and cols[j] >= min_col:
+                j += 1
+            blobs.append((i, j - 1))
+            i = j
+        else:
+            i += 1
+    return blobs
+
+
+def save_glyph_crop(src: Path, dest: Path, pad: int = 2) -> Path:
+    """Tight cream/gold ink box so OCR-vs-stack evidence is a letter crop, not the plate."""
+    image = Image.open(src).convert("RGB")
+    xs: list[int] = []
+    ys: list[int] = []
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b = image.getpixel((x, y))
+            cream = r > 200 and g > 190 and b > 150
+            gold = r > 200 and g > 170 and 120 < b < 190 and r - b > 40
+            if cream or gold:
+                xs.append(x)
+                ys.append(y)
+    if not xs:
+        image.save(dest)
+        return dest
+    box = (
+        max(0, min(xs) - pad),
+        max(0, min(ys) - pad),
+        min(image.width, max(xs) + pad + 1),
+        min(image.height, max(ys) + pad + 1),
+    )
+    image.crop(box).save(dest)
+    return dest
+
+
 def clip_hud(page, name, dest: Path, inset_x: int = 0, inset_y: int = 0) -> Path:
     point = hud(page, name)
     width = max(8, point["width"] - 2 * inset_x)
@@ -124,6 +175,7 @@ def assert_kit_label(page, name: str, expected: str) -> None:
     assert text == expected, f"HUD {name} game text is {text!r}, expected {expected!r}"
     # Inset past plate rivets so cream span is lettering, not brass.
     dest = clip_hud(page, name, SHOTS / f"tileset-hud-label-{name}.png", inset_x=12, inset_y=4)
+    glyph = save_glyph_crop(dest, SHOTS / f"tileset-hud-glyph-{name}.png")
     ink = cream_ink_width(dest)
     scale = 14 / 32
     expected_w = len(expected) * 19 * scale
@@ -131,6 +183,11 @@ def assert_kit_label(page, name: str, expected: str) -> None:
     assert ink > expected_w * 0.65, f"{name} label ink too thin ({ink}px) for {expected!r}"
     assert abs(ink - expected_w) < abs(ink - doubled_w), (
         f"{name} stamp still reads doubled: ink {ink}px expected ~{expected_w:.0f}px doubled ~{doubled_w:.0f}px"
+    )
+    blobs = letter_ink_blobs(glyph)
+    # U/I split into two stems; a real CENSUSUS/FOLLOWW stack adds whole extra glyphs.
+    assert len(expected) - 1 <= len(blobs) <= len(expected) + 2, (
+        f"{name} glyph crop has {len(blobs)} blobs for {expected!r} (stacked copy would add letters)"
     )
 
 
@@ -343,6 +400,11 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.screenshot(path=str(title), clip={"x": 32, "y": 110, "width": 180, "height": 24})
         title_ink = cream_ink_width(title)
         assert 75 <= title_ink <= 150, f"census title stamp still dense or doubled ({title_ink}px, expected ~90px for 15px LOT CENSUS)"
+        title_glyph = save_glyph_crop(title, SHOTS / "tileset-hud-glyph-lot-census.png")
+        title_blobs = letter_ink_blobs(title_glyph)
+        assert 8 <= len(title_blobs) <= 12, (
+            f"LOT CENSUS crop is stacked/doubled ({len(title_blobs)} blobs; single BitmapText is ~10)"
+        )
         click_hud(page, "close-census")
         page.wait_for_function("window.__AXP.diagnostics().censusOpen === false")
 

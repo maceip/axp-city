@@ -881,8 +881,10 @@ print(" ".join(f"{v:.2f}" for bid in (8,9,22,24,27,47) for v in stats(bid)))
       expect(row.sat, `lot ${row.id} still a second, hotter game`).toBeLessThan(30);
     }
     expect(rows[1].luma, "Tudor 9 still a dark pixel-art cousin").toBeGreaterThan(110);
-    expect(rows[2].luma, "cabin 22 still a dark pixel-art cousin").toBeGreaterThan(105);
-    expect(rows[5].luma, "duplex 47 still a dark pixel-art cousin").toBeGreaterThan(105);
+    expect(rows[2].luma, "cabin 22 still a dark pixel-art cousin").toBeGreaterThan(130);
+    expect(rows[5].luma, "duplex 47 still a dark pixel-art cousin").toBeGreaterThan(130);
+    expect(rows[2].luma, "cabin 22 washed past catalog cube 8").toBeLessThan(rows[0].luma + 4);
+    expect(rows[5].luma, "duplex 47 washed past catalog cube 8").toBeLessThan(rows[0].luma + 4);
   });
 
   it("flattens the lot 48 store oval off the slate roof", () => {
@@ -1009,6 +1011,39 @@ print(f"{sr/n:.1f} {sg/n:.1f} {sb/n:.1f} {lime/n:.3f} {clr/cn:.1f} {clg/cn:.1f} 
     expect(mg - mr, "wild canopy still much greener than civic plants").toBeLessThan(20);
     expect(Math.abs(mg - cg), "wild vs civic foliage still in different families").toBeLessThan(28);
     expect(mr, "wild canopy still too dark/chartreuse versus civic plants").toBeGreaterThan(90);
+  });
+
+  it("packs CENSUS / LOT CENSUS / BIKE LANE as one BitmapText advance, not stacked copies", () => {
+    const script = `
+import xml.etree.ElementTree as ET
+xml = ET.parse("assets/city-sprites/hud-font-k1.xml")
+chars = {int(c.attrib["id"]): c.attrib for c in xml.find("chars")}
+
+def layout(text):
+    x = 0
+    boxes = []
+    for ch in text:
+        c = chars[ord(ch)]
+        w, xa, xo = int(c["width"]), int(c["xadvance"]), int(c["xoffset"])
+        boxes.append((x + xo, x + xo + w))
+        x += xa
+    return x, boxes
+
+for word in ("CENSUS", "LOT CENSUS", "BIKE LANE"):
+    adv, boxes = layout(word)
+    overlap = 0
+    for i in range(1, len(boxes)):
+        overlap += max(0, boxes[i-1][1] - boxes[i][0] - 4)
+    print(adv, overlap, len(word))
+`;
+    const rows = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split("\n")
+      .map((line) => line.split(/\s+/).map(Number));
+    for (const [advance, overlap, letters] of rows) {
+      expect(overlap, "HUD glyphs stack on top of each other in the atlas layout").toBe(0);
+      expect(advance, "word advance is not one letter per 19px cell").toBe(letters * 19);
+    }
   });
 
   it("ships a baseline-aligned HUD bitmap font so labels cannot double on SwiftShader", () => {

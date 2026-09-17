@@ -1933,6 +1933,78 @@ def unify_keep_catalog_vibe() -> None:
         print("saved keep vibe", band, path)
 
 
+# Cabin / duplex still sat ~107 luma after vibe unify; catalog cube 8 is ~151 cream.
+HOUSE_LUMA_LOTS = (22, 47)
+CATALOG_CREAM = (198, 188, 164)
+
+
+def _lift_keep_house_cell(cell: Image.Image, target: float = 145.0) -> Image.Image:
+    """Lift KEEP house midtones toward catalog cube cream. Alpha, door, edges stay."""
+    out = cell.copy()
+    px = out.load()
+    w, h = out.size
+    lumas: list[float] = []
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            lumas.append((r + g + b) / 3.0)
+    mean = sum(lumas) / max(len(lumas), 1)
+    delta = target - mean
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            sat = max(r, g, b) - min(r, g, b)
+            luma = (r + g + b) / 3.0
+            if g > r + 8 and g > b + 4 and sat > 16:
+                continue
+            if luma < 55 and sat < 40:
+                continue
+            mix = 0.28 if 60 <= luma <= 200 else 0.12
+            nr = r * (1 - mix) + CATALOG_CREAM[0] * mix
+            ng = g * (1 - mix) + CATALOG_CREAM[1] * mix
+            nb = b * (1 - mix) + CATALOG_CREAM[2] * mix
+            lift = delta * (0.85 if 60 <= luma <= 190 else 0.35)
+            nr += lift
+            ng += lift
+            nb += lift
+            mx, mn = max(nr, ng, nb), min(nr, ng, nb)
+            if mx - mn > 24 and mx > mn:
+                mid = (nr + ng + nb) / 3.0
+                scale = 24.0 / (mx - mn)
+                nr = mid + (nr - mid) * scale
+                ng = mid + (ng - mid) * scale
+                nb = mid + (nb - mid) * scale
+            px[x, y] = (
+                max(0, min(255, int(nr + 0.5))),
+                max(0, min(255, int(ng + 0.5))),
+                max(0, min(255, int(nb + 0.5))),
+                a,
+            )
+    return out
+
+
+def lift_keep_house_luma(target: float = 145.0) -> None:
+    """Pull cabin 22 / duplex 47 toward catalog cube 8 cream without one silhouette."""
+    sheets: dict[str, Image.Image] = {}
+    for bid in HOUSE_LUMA_LOTS:
+        band = "S" if bid <= 17 else "M" if bid <= 34 else "L"
+        path, _ids = CATALOG_SHEETS[band]
+        if band not in sheets:
+            sheets[band] = open_rgba(path)
+        x, y, w, h = CATALOG_BUILDING_BOXES[bid]
+        cell = sheets[band].crop((x, y, x + w, y + h))
+        sheets[band].paste(_lift_keep_house_cell(cell, target), (x, y))
+        print("lifted keep house", bid, "→", target, (x, y, w, h))
+    for band, kit in sheets.items():
+        path, _ids = CATALOG_SHEETS[band]
+        kit.save(path)
+        print("saved keep house lift", band, path)
+
+
 def restyle_pagoda(im: Image.Image) -> Image.Image:
     """Teal Jane pagoda roof → slate; vermilion posts → timber. Silhouette stays."""
     out = im.copy()
@@ -2939,6 +3011,8 @@ if __name__ == "__main__":
         crush_stamped_lot_chroma(24, 26.0)
     elif "--unify-keep-vibe" in sys.argv:
         unify_keep_catalog_vibe()
+    elif "--lift-keep-houses" in sys.argv:
+        lift_keep_house_luma()
     elif "--stamp-pagoda" in sys.argv:
         stamp_pagoda_vibe()
     elif "--civic-only" in sys.argv:
