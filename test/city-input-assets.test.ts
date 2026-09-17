@@ -104,7 +104,9 @@ describe("bitmap HUD redo", () => {
     expect(hud).not.toMatch(/GameObjects\.Text[^a-zA-Z]/);
     expect(terrain).toContain('"BIKE LANE"');
     expect(terrain).toMatch(/bitmapText\(0, 1, HUD_FONT\.face, "BIKE LANE"/);
-    expect(terrain).not.toMatch(/\.add\.text\(/);
+    expect(terrain).toContain("for (const label of plan.labels ?? [])");
+    expect(terrain).toContain("placeName(a.sx, a.sy, label.text, 0x3f5a44, 12)");
+    expect(terrain).not.toMatch(/\.add\s*\.\s*text\s*\(/);
     expect(terrain).not.toMatch(/fillText|GameObjects\.Text/);
   });
 
@@ -150,5 +152,28 @@ describe("bitmap HUD redo", () => {
 
   it("keeps sticky lot addresses on layout version 1", () => {
     expect(LAYOUT_VERSION).toBe(1);
+  });
+
+  it("keeps one Phaser 4 client on the shared live protocol", () => {
+    const connection = readFileSync("game/src/connection.ts", "utf8");
+    const protocol = readFileSync("src/live/protocol.ts", "utf8");
+    const server = readFileSync("src/webhooks/server.ts", "utf8");
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+      dependencies: Record<string, string>;
+      scripts: Record<string, string>;
+    };
+    expect(pkg.dependencies.phaser).toBe("4.2.1");
+    expect(pkg.scripts.build).toContain("vite build --config game/vite.config.ts");
+    expect(pkg.scripts.start).toBe("node dist/server/cli/server.js");
+    expect(connection).toContain('from "../../src/live/protocol.js"');
+    expect(connection).toContain("SNAPSHOT_SCHEMA");
+    expect(connection).toContain('if (!v.city) v.city = { name: "AXP City", kind: "standard" }');
+    expect(connection).toContain("if (!v.plan!.labels) v.plan!.labels = []");
+    expect(protocol).toContain("export const SNAPSHOT_SCHEMA = 2");
+    expect(protocol).toContain("export type CityKind = \"trending\" | \"standard\"");
+    expect(protocol).toContain("city: CityIdentity");
+    expect(server).toContain('renderer: "phaser-4"');
+    expect(server).toContain('options.clientRoot ?? "dist/game"');
+    expect(server).not.toContain("out/city.html");
   });
 });

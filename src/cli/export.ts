@@ -100,7 +100,13 @@ export async function runExport(argv = process.argv.slice(2)): Promise<string> {
     freshness: { ...snapshot.freshness, source: "fixture" },
   };
   writeFileSync(join(out, "city.json"), JSON.stringify(saved));
-  writeFileSync(join(out, "city.svg"), renderCitySvg(snapshot, { assetBase: "./assets/sprites/", title: `AXP City — saved revision ${snapshot.revision}` }));
+  writeFileSync(
+    join(out, "city.svg"),
+    renderCitySvg(snapshot, {
+      assetBase: "./assets/sprites/",
+      title: `${snapshot.city?.name ?? "AXP City"} — saved revision ${snapshot.revision}`,
+    }),
+  );
   let html = readFileSync(join(out, "index.html"), "utf8");
   html = html
     .replace(/(src|href)="\/assets\//g, '$1="./assets/')

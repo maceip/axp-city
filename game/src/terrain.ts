@@ -440,17 +440,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     }
   for (const label of plan.labels ?? []) {
     const a = project(label.x, label.y);
-    objects.push(
-      scene.add
-        .text(a.sx, a.sy, label.text, {
-          fontFamily: "monospace",
-          fontSize: "12px",
-          color: "#3f5a44",
-          letterSpacing: 2,
-        })
-        .setOrigin(0.5)
-        .setDepth(-89_500),
-    );
+    placeName(a.sx, a.sy, label.text, 0x3f5a44, 12);
   }
 
   const civicWidth: Record<CivicKind, number> = {

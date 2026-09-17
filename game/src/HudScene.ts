@@ -564,7 +564,7 @@ export class HudScene extends Phaser.Scene {
     this.snapshot = snapshot;
     this.clockOffset = Date.parse(snapshot.serverTime) - Date.now();
     this.freshness = snapshot.freshness;
-    const cityName = (snapshot.city?.name ?? "Trending City").toUpperCase();
+    const cityName = (snapshot.city?.name ?? "AXP City").toUpperCase();
     if (this.cityTitle.text !== cityName) this.cityTitle.setText(cityName);
     const trending = snapshot.trending;
     const trendNote = trending
