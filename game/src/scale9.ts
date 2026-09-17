@@ -6,7 +6,7 @@ import { ensureFrame } from "./stamps.js";
  * Canvas-safe 9-slice plaque. Phaser 4's NineSlice object is WebGL-only;
  * the HUD must draw the same way on the Canvas fallback. Corners stay
  * pixel-sized; edges and the KEEP grain center tile instead of smearing.
- * Distinct from the unused stretch panel — BitmapText ink() stays the HUD copy path.
+ * BitmapText ink() stays the HUD copy path. The old stretch NinePanel leftover is gone.
  */
 export class Scale9Plaque extends Phaser.GameObjects.Container {
   private readonly sheet: string;

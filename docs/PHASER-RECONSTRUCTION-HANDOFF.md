@@ -2,13 +2,25 @@
 
 Prepared September 16, 2026. Repository: `maceip/axp-city`.
 
-## Status and purpose
+## Status
 
-The user requested a complete written handoff, pushed to the remote, followed by an immediate stop to all work. This document records the requested implementation and the additional audit findings. **The reconstruction below is pending; this document does not implement it.**
+**Implemented on the single Phaser 4 + Node origin city.** This file is the original request and audit, not a pending second client or a second engine.
 
-Audited baseline: `33de3b59a403a2c83a6f7dacf06e07dd9515d390`, on `main`. Immediately before writing this document, a fetch confirmed local `HEAD` and `origin/main` were identical. The existing Phaser recovery was merged through [PR #3](https://github.com/maceip/axp-city/pull/3). Earlier in this session, the public `/healthz` reported that same revision, and `/api/city` contained 14 lots sourced from GitHub GraphQL. This handoff makes no application or deployment changes.
+- [PR #3](https://github.com/maceip/axp-city/pull/3) made Phaser 4 the only live city client.
+- [PR #4](https://github.com/maceip/axp-city/pull/4) implemented the 11 items and audit findings A–I.
+- [PR #5](https://github.com/maceip/axp-city/pull/5) (`7f4d186`) is the reconstruction follow-up already on `main`: multi-engine verification, low-FPS input, asset-failure reporting, HUD census and phone sheets, `GITHUB_API_URL`, storage-failure readiness, graceful worker stop, `SchemaTooNewError`, and the shared live protocol. Later [PR #6](https://github.com/maceip/axp-city/pull/6)–[#9](https://github.com/maceip/axp-city/pull/9) restyled tiles, added Trending City, and replaced the stretch `NinePanel` leftover with tiled `Scale9Plaque` (`game/src/scale9.ts`). There is no SVG live city; SVG is an export of the shared plan.
 
-The engine consolidation is real: one Phaser 4.2.1 city client and its Node server live in this repository. The prior completion claim overstated feature parity, performance verification, and operational completeness. Several features were omitted or simplified, and some remaining infrastructure was treated as more complete than the evidence supported.
+Live contracts: [ENGINE.md](ENGINE.md), [CITY.md](CITY.md), [RECONSTRUCTION-STATUS.md](RECONSTRUCTION-STATUS.md). Remaining limits (hardware GPU, physical devices, production deploy secrets) stay in the status document. They are not a second product.
+
+The rest of this file is the original 16 September request, kept as history.
+
+## Original purpose (16 September 2026)
+
+The user requested a complete written handoff, pushed to the remote, followed by an immediate stop to all work. This document recorded the requested implementation and the additional audit findings.
+
+Audited baseline: `33de3b59a403a2c83a6f7dacf06e07dd9515d390`, on `main`. Immediately before writing this document, a fetch confirmed local `HEAD` and `origin/main` were identical. The existing Phaser recovery was merged through [PR #3](https://github.com/maceip/axp-city/pull/3). Earlier in that session, the public `/healthz` reported that same revision, and `/api/city` contained 14 lots sourced from GitHub GraphQL. The handoff itself made no application or deployment changes.
+
+The engine consolidation was already real: one Phaser 4.2.1 city client and its Node server live in this repository. The prior completion claim overstated feature parity, performance verification, and operational completeness. Several features were omitted or simplified, and some remaining infrastructure was treated as more complete than the evidence supported.
 
 ## Working boundaries
 
@@ -211,6 +223,6 @@ References for operational contracts:
 - [GitHub Apps and integration credentials](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/deciding-when-to-build-a-github-app)
 - [SQLite appropriate uses](https://www.sqlite.org/whentouse.html)
 
-## Session stop boundary
+## Session stop boundary (16 September 2026)
 
-The only new deliverable authorized at the end of this session is this handoff document committed and pushed to the remote. After verifying that push, stop all work. Further reconstruction requires a subsequent user instruction.
+The only new deliverable authorized at the end of that session was this handoff document committed and pushed to the remote. Reconstruction itself landed later in PRs #4 and #5 on the same Phaser 4 city.
