@@ -34,6 +34,7 @@ describe("bitmap HUD redo", () => {
     expect(hud).toContain("function ink(");
     expect(hud).toContain("Phaser.GameObjects.BitmapText");
     expect(hud).toContain('this.button("close-census"');
+    expect(hud).toContain("private hudPanel(");
     expect(hud).not.toMatch(/new NinePanel|from ["'].*ninepanel/);
   });
 

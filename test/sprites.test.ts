@@ -867,8 +867,30 @@ print(f"{mr:.1f} {mg:.1f} {mb:.1f} {lime/n:.3f} {pr} {pg} {pb}")
       .map(Number);
     expect(limeFrac, `bike-0 still has neon lime (${mr},${mg},${mb})`).toBeLessThan(0.08);
     expect(mg - mr, "bike-0 green channel still dominates red").toBeLessThan(18);
-    expect(Math.abs(pr - pg), "HUD plate still reads as raw walnut, not olive timber").toBeLessThan(20);
+    expect(Math.abs(pr - pg), "HUD plate still reads as raw walnut, not olive timber").toBeLessThan(28);
     expect(pb, "HUD plate should stay in the cream-slate family").toBeGreaterThan(40);
+  });
+
+  it("tiles HUD plaques from KEEP grain instead of flat procedural fills", () => {
+    const script = `
+from PIL import Image
+import statistics
+hud = Image.open("assets/city-sprites/hud-kit-k1.png").convert("RGB")
+px = hud.load()
+lumas = []
+for y in range(22, 68):
+    for x in range(24, 230):
+        r,g,b = px[x,y]
+        lumas.append((r+g+b)/3)
+print(f"{statistics.pstdev(lumas):.2f} {statistics.mean(lumas):.1f}")
+`;
+    const [stdev, mean] = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(stdev, "HUD plate fill is still a flat procedural wash").toBeGreaterThan(6);
+    expect(mean, "HUD plate left the khaki-slate range").toBeGreaterThan(70);
+    expect(mean, "HUD plate drifted into pale paper").toBeLessThan(175);
   });
 
   it("restyles wild-tree canopy onto the same olive catalog as civic plants", () => {

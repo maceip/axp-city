@@ -1682,7 +1682,20 @@ def extract_fv_keep(name: str) -> Image.Image:
             spr = drop_cabin_roof_tree(spr)
         elif name in ("tudor", "duplex"):
             spr = drop_yard_hedge(spr)
-        return restyle_jane_odd(restyle(spr, sat=0.48, contrast=1.04))
+        spr = restyle_jane_odd(restyle(spr, sat=0.48, contrast=1.04))
+        if name == "tudor":
+            # Pale garden ghosts left after green drop — pad only, not tan walls.
+            px = spr.load()
+            y0 = int(spr.height * 0.82)
+            for y in range(y0, spr.height):
+                for x in range(spr.width):
+                    r, g, b, a = px[x, y]
+                    if a < 16:
+                        continue
+                    if min(r, g, b) > 198 and _keep_sat(r, g, b) < 36:
+                        px[x, y] = (0, 0, 0, 0)
+            spr = trim(spr)
+        return spr
     raise SystemExit(f"no finished exterior in {path.name}")
 
 
@@ -2034,38 +2047,165 @@ def _chamfer(x: int, y: int, w: int, h: int, c: int = 7) -> list[tuple[int, int]
     ]
 
 
-def hud_kit(_hud: Image.Image | None = None) -> tuple[Image.Image, dict]:
-    """Construction-city survey kit: beveled wood/slate plaques, brass rivets.
+# Civic KEEP crops already filtered from the attached construction/gates/bank
+# sheet + zip kits. Jane chrome is not sampled.
+# Tight pad/roof faces only — parking grain, not a tiled house or door strip.
+_HUD_KEEP_CROPS = {
+    "cream": (1342, 30, 40, 28),   # scaffold-2 roof plane
+    "khaki": (116, 349, 70, 50),   # parking asphalt → khaki
+    "slate": (116, 349, 70, 50),   # parking asphalt → slate
+    "timber": (116, 349, 70, 50),  # parking asphalt → umber timber
+}
 
-    Jane's Realty chrome is not copied or recolored. Frame sizes stay the
-    same so HudScene hit targets keep working.
+
+def _interior_crop(im: Image.Image, margin: float = 0.20) -> Image.Image:
+    w, h = im.size
+    mx, my = max(2, int(w * margin)), max(2, int(h * margin))
+    if w - 2 * mx < 8 or h - 2 * my < 8:
+        return im
+    return im.crop((mx, my, w - mx, h - my))
+
+
+def _shift_swatch(im: Image.Image, target: tuple[int, int, int], strength: float = 0.62) -> Image.Image:
+    """Keep KEEP grain, lean the mean onto catalog cream/khaki/slate."""
+    out = im.convert("RGBA")
+    px = out.load()
+    n = sr = sg = sb = 0
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            n += 1
+            sr += r
+            sg += g
+            sb += b
+    if n < 8:
+        return out
+    mr, mg, mb = sr / n, sg / n, sb / n
+    tr, tg, tb = target
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            px[x, y] = (
+                max(0, min(255, int(r + (tr - mr) * strength))),
+                max(0, min(255, int(g + (tg - mg) * strength))),
+                max(0, min(255, int(b + (tb - mb) * strength))),
+                a,
+            )
+    return out
+
+
+def keep_hud_swatches() -> dict[str, Image.Image]:
+    """Cream / khaki / slate / timber faces from restyled civic KEEP, not Jane HUD."""
+    civic_path = OUT / "civic-kit-k1.png"
+    swatches: dict[str, Image.Image] = {}
+    if civic_path.exists():
+        civic = open_rgba(civic_path)
+        targets = {
+            "cream": CREAM,
+            "khaki": WOOD_LT,
+            "slate": FOREST,
+            "timber": WOOD,
+        }
+        for name, (x, y, w, h) in _HUD_KEEP_CROPS.items():
+            crop = _interior_crop(civic.crop((x, y, x + w, y + h)))
+            if crop.getbbox():
+                swatches[name] = _shift_swatch(crop, targets[name])
+    # Catalog cream wall (lot 8 shop) if civic cladding is missing.
+    shop = OUT / "buildings-small-01-17-k1.png"
+    if shop.exists() and "cream" not in swatches:
+        wall = _interior_crop(open_rgba(shop).crop((579, 253, 701, 356)), 0.28)
+        if wall.getbbox():
+            swatches["cream"] = _shift_swatch(wall, CREAM)
+    return swatches
+
+
+def _tile_swatch(swatch: Image.Image | None, w: int, h: int, fallback: tuple[int, int, int]) -> Image.Image:
+    out = Image.new("RGBA", (w, h), fallback + (242,))
+    if swatch is None or swatch.width < 6 or swatch.height < 6:
+        return out
+    src = swatch.convert("RGBA")
+    for y in range(0, h, src.height):
+        for x in range(0, w, src.width):
+            out.paste(src, (x, y), src)
+    return out
+
+
+def _mask_polygon(w: int, h: int, pts: list[tuple[int, int]], origin: tuple[int, int]) -> Image.Image:
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).polygon([(px - origin[0], py - origin[1]) for px, py in pts], fill=255)
+    return mask
+
+
+def _paint_keep_face(
+    kit: Image.Image,
+    pts: list[tuple[int, int]],
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    swatch: Image.Image | None,
+    fallback: tuple[int, int, int],
+) -> None:
+    fill = _tile_swatch(swatch, w, h, fallback)
+    fill.putalpha(_mask_polygon(w, h, pts, (x, y)))
+    kit.alpha_composite(fill, (x, y))
+
+
+def hud_kit(_hud: Image.Image | None = None) -> tuple[Image.Image, dict]:
+    """Survey plaques tiled from restyled civic KEEP (scaffold/gate/parking/bank).
+
+    Jane chrome is not copied. Frame sizes stay the same so HudScene hit
+    targets keep working. BitmapText ink() is unchanged.
     """
     kit = Image.new("RGBA", (1024, 768), (0, 0, 0, 0))
     boxes: dict = {}
     draw = ImageDraw.Draw(kit)
+    keep = keep_hud_swatches()
+    cream = keep.get("cream")
+    khaki = keep.get("khaki")
+    slate = keep.get("slate")
+    timber = keep.get("timber")
 
     def plaque(name: str, x: int, y: int, w: int, h: int, kind: str = "slate") -> None:
-        fill = WOOD if kind == "wood" else FOREST if kind != "pulp" else PULP
-        light = WOOD_LT if kind == "wood" else SLATE_LT if kind != "pulp" else (238, 230, 204)
-        dark = WOOD_DK if kind == "wood" else SLATE_DK if kind != "pulp" else (168, 154, 118)
+        if kind == "wood":
+            swatch, fill, light, dark = timber or khaki, WOOD, WOOD_LT, WOOD_DK
+        elif kind == "pulp":
+            swatch, fill, light, dark = khaki or cream, (168, 158, 118), (214, 204, 168), (110, 100, 72)
+        else:
+            swatch, fill, light, dark = slate or khaki, FOREST, SLATE_LT, SLATE_DK
         c = 6 if min(w, h) > 40 else 4
         outer = _chamfer(x, y, w, h, c)
-        draw.polygon(outer, fill=fill + (242,), outline=BRASS + (230,))
-        # Iso bevel: light north-west, dark south-east.
+        _paint_keep_face(kit, outer, x, y, w, h, swatch, fill)
+        draw.polygon(outer, outline=BRASS + (230,))
+        frame = 5 if min(w, h) > 48 else 3
+        inner = _chamfer(x + frame, y + frame, w - 2 * frame, h - 2 * frame, max(2, c - 2))
+        _paint_keep_face(
+            kit,
+            inner,
+            x + frame,
+            y + frame,
+            w - 2 * frame,
+            h - 2 * frame,
+            swatch,
+            fill,
+        )
         draw.line([(x + c, y + 2), (x + w - c, y + 2)], fill=light + (220,), width=2)
         draw.line([(x + 2, y + c), (x + 2, y + h - c)], fill=light + (200,), width=2)
         draw.line([(x + c, y + h - 2), (x + w - c, y + h - 2)], fill=dark + (230,), width=2)
         draw.line([(x + w - 2, y + c), (x + w - 2, y + h - c)], fill=dark + (230,), width=2)
-        inset = _chamfer(x + 5, y + 5, w - 10, h - 10, max(3, c - 2))
-        draw.polygon(inset, outline=BRASS_DK + (90,))
+        draw.polygon(_chamfer(x + 5, y + 5, w - 10, h - 10, max(3, c - 2)), outline=BRASS_DK + (90,))
         for rx, ry in ((x + 9, y + 9), (x + w - 10, y + 9), (x + 9, y + h - 10), (x + w - 10, y + h - 10)):
             if w > 28 and h > 28:
                 _rivet(draw, rx, ry, 3 if min(w, h) > 50 else 2)
         if kind == "wood" and h > 60:
             draw.rectangle((x + 18, y + 4, x + w - 18, y + 11), fill=BRASS + (255,), outline=BRASS_DK + (255,))
         if kind == "pulp":
-            for line_y in range(y + 18, y + h - 8, 10):
-                draw.line([(x + 12, line_y), (x + w - 12, line_y)], fill=(196, 178, 132, 140), width=1)
+            for line_y in range(y + 18, y + h - 8, 14):
+                draw.line([(x + 12, line_y), (x + w - 12, line_y)], fill=(140, 128, 88, 90), width=1)
         boxes[name] = {"x": x, "y": y, "w": w, "h": h}
 
     plaque("plate", 8, 8, 250, 78, "wood")
@@ -2078,19 +2218,19 @@ def hud_kit(_hud: Image.Image | None = None) -> tuple[Image.Image, dict]:
     plaque("btn", 580, 100, 92, 36, "slate")
     plaque("btn-wide", 580, 148, 140, 36, "slate")
     plaque("btn-sq", 580, 196, 46, 46, "slate")
-    # Octagonal survey pad, not a Jane disc-in-a-pill.
     dpad_pts = _chamfer(740, 100, 150, 150, 28)
-    draw.polygon(dpad_pts, fill=FOREST + (242,), outline=BRASS + (230,))
+    _paint_keep_face(kit, dpad_pts, 740, 100, 150, 150, slate or khaki, FOREST)
+    draw.polygon(dpad_pts, outline=BRASS + (230,))
     draw.polygon(_chamfer(752, 112, 126, 126, 22), outline=BRASS_DK + (120,))
     for rx, ry in ((756, 116), (874, 116), (756, 234), (874, 234)):
         _rivet(draw, rx, ry, 3)
     boxes["dpad"] = {"x": 740, "y": 100, "w": 150, "h": 150}
-    # Brass survey compass (octagon, not a Jane disc-in-a-pill).
     compass = []
     for i in range(8):
         ang = math.radians(22.5 + i * 45)
         compass.append((960 + 46 * math.cos(ang), 58 + 46 * math.sin(ang)))
-    draw.polygon(compass, fill=FOREST + (242,), outline=BRASS + (240,))
+    _paint_keep_face(kit, compass, 910, 8, 100, 100, slate or khaki, FOREST)
+    draw.polygon(compass, outline=BRASS + (240,))
     draw.ellipse((930, 28, 990, 88), outline=BRASS_DK + (200,))
     draw.polygon([(960, 22), (966, 48), (960, 44), (954, 48)], fill=BRASS)
     boxes["compass"] = {"x": 910, "y": 8, "w": 100, "h": 100}
@@ -2544,7 +2684,7 @@ def main() -> None:
                 "ChatGPT family trios",
                 "CENTER_OF_MAP_HQ office compound",
                 "Attached construction / parking / gates / bank, restyled",
-                "Construction-city HUD: beveled wood/slate plaques + brass rivets (not Jane chrome)",
+                "Construction-city HUD: KEEP-textured cream/khaki/slate plaques from restyled scaffold/gate/parking/bank (not Jane chrome, not flat fills)",
                 "Jane's houses only after saturation crush",
                 "Inland odds are civic-distinct attached footprints (fence, parking, stacked gates, timber loading shed, civic kiosk) — not ChatGPT lot houses and not a second parking pad",
                 "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",

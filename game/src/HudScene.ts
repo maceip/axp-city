@@ -859,7 +859,7 @@ export class HudScene extends Phaser.Scene {
     const { rowH, font, head, headerY } = this.censusMetrics();
     const visibleRows = Math.max(1, Math.floor((H - headerY - 28) / rowH));
     this.censusScroll = Math.min(this.censusScroll, Math.max(0, rows.length - visibleRows));
-    const titleBand = this.add.rectangle(12, 10, width - 24, 56, 0x2a2e26, 0.72).setOrigin(0, 0);
+    const titleBand = this.add.rectangle(12, 10, width - 24, 56, 0x5c5340, 0.38).setOrigin(0, 0);
     this.census.add(titleBand);
     this.censusMarks.push(titleBand);
     const title = ink(this, 18, 14, "LOT CENSUS", { fontSize: "15px", color: GOLD });
@@ -873,7 +873,7 @@ export class HudScene extends Phaser.Scene {
     );
     this.census.add([title, meta]);
     this.censusHeader.push(title, meta);
-    const headBand = this.add.rectangle(12, headerY - 8, width - 24, 28, 0x2a2e26, 0.62).setOrigin(0, 0);
+    const headBand = this.add.rectangle(12, headerY - 8, width - 24, 28, 0x6a6248, 0.28).setOrigin(0, 0);
     this.census.add(headBand);
     this.censusMarks.push(headBand);
     let x = 18;
@@ -896,7 +896,7 @@ export class HudScene extends Phaser.Scene {
       const y = headerY + 28 + i * rowH;
       const selected = row.repo === this.selected?.lot.fullName;
       const band = this.add
-        .rectangle(12, y - 6, width - 24, rowH - 2, selected ? 0x5c5330 : i % 2 ? 0x3a3e34 : 0x2f332c, selected ? 0.52 : 0.42)
+        .rectangle(12, y - 6, width - 24, rowH - 2, selected ? 0x8a7a48 : i % 2 ? 0xc4b896 : 0xb8ae88, selected ? 0.36 : 0.16)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
       band.setName(`census-row-${row.repo}`);

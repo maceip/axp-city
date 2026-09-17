@@ -362,7 +362,7 @@ export const CIVIC_ODD = [
   CIVIC_SPRITES["city-hall"],
 ];
 
-/** Construction-city HUD: beveled wood/slate plaques with brass rivets. */
+/** Construction-city HUD: KEEP-textured cream/khaki/slate plaques with brass rivets. */
 export const HUD_SHEET: PropSheet = {
   file: "hud-kit-k1.png",
   width: 1024,
