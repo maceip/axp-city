@@ -833,6 +833,58 @@ print(f"{n} {chroma/max(n,1):.2f}")
     expect(sat, "lot 24 mill still reads as a second, hotter game").toBeLessThan(32);
   });
 
+  it("paints swapped KEEP lots onto the catalog cream-khaki luma range", () => {
+    const script = `
+from PIL import Image
+boxes = {
+    8: ("S", 579, 253, 122, 103),
+    9: ("S", 837, 238, 117, 118),
+    22: ("M", 1094, 4, 115, 172),
+    24: ("M", 325, 184, 118, 172),
+    27: ("M", 1097, 184, 109, 172),
+    47: ("L", 82, 544, 156, 172),
+}
+sheets = {
+    "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
+    "M": Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA"),
+    "L": Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA"),
+}
+
+def stats(bid):
+    band,x,y,w,h = boxes[bid]
+    px = sheets[band].load()
+    n = chroma = luma = 0
+    for yy in range(y, y+h):
+        for xx in range(x, x+w):
+            r,g,b,a = px[xx,yy]
+            if a < 16:
+                continue
+            n += 1
+            chroma += max(r,g,b)-min(r,g,b)
+            luma += (r+g+b)/3
+    return n, chroma/n, luma/n
+
+print(" ".join(f"{v:.2f}" for bid in (8,9,22,24,27,47) for v in stats(bid)))
+`;
+    const vals = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    const rows = [8, 9, 22, 24, 27, 47].map((id, i) => ({
+      id,
+      n: vals[i * 3],
+      sat: vals[i * 3 + 1],
+      luma: vals[i * 3 + 2],
+    }));
+    for (const row of rows) {
+      expect(row.n, `lot ${row.id} stamp vanished`).toBeGreaterThan(400);
+      expect(row.sat, `lot ${row.id} still a second, hotter game`).toBeLessThan(30);
+    }
+    expect(rows[1].luma, "Tudor 9 still a dark pixel-art cousin").toBeGreaterThan(110);
+    expect(rows[2].luma, "cabin 22 still a dark pixel-art cousin").toBeGreaterThan(105);
+    expect(rows[5].luma, "duplex 47 still a dark pixel-art cousin").toBeGreaterThan(105);
+  });
+
   it("flattens the lot 48 store oval off the slate roof", () => {
     const script = `
 from PIL import Image

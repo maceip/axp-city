@@ -78,6 +78,19 @@ describe("bitmap HUD redo", () => {
     expect(city).not.toMatch(/from ["'].*ninepanel/);
   });
 
+  it("docks the native search field inside a KEEP 9-slice well", () => {
+    const hud = readFileSync("game/src/HudScene.ts", "utf8");
+    const css = readFileSync("game/src/styles.css", "utf8");
+    const html = readFileSync("game/index.html", "utf8");
+    expect(hud).toContain("private layoutSearch(");
+    expect(hud).toContain("private dockSearch(");
+    expect(hud).toContain('this.searchWell.setName("search")');
+    expect(html).toContain('id="repo-search"');
+    expect(css).toContain("background: transparent");
+    expect(css).not.toMatch(/\.search input[\s\S]{0,280}clip-path/);
+    expect(hud).not.toMatch(/new NinePanel|from ["'].*ninepanel/);
+  });
+
   it("keeps sticky lot addresses on layout version 1", () => {
     expect(LAYOUT_VERSION).toBe(1);
   });

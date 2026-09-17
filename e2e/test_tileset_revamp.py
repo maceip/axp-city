@@ -301,6 +301,14 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert chrome["kitRail"]["kind"] == "scale9", chrome
         assert chrome["compass"]["kind"] == "image", chrome
         assert chrome["dpad"]["kind"] == "image", chrome
+        assert chrome["search"]["kind"] == "scale9", chrome
+        search = hud(page, "search")
+        assert search["width"] > 80 and search["height"] > 20
+        field = page.locator("#repo-search").bounding_box()
+        assert field, "native search field missing"
+        assert abs(field["x"] + field["width"] / 2 - search["x"]) < 48, (field, search)
+        assert abs(field["y"] + field["height"] / 2 - search["y"]) < 24, (field, search)
+        clip_hud(page, "search", SHOTS / "tileset-hud-search.png")
         clip_hud(page, "mast", SHOTS / "tileset-hud-mast.png")
         clip_hud(page, "census", SHOTS / "tileset-hud-kit-census.png", inset_x=8, inset_y=4)
         clip_hud(page, "status", SHOTS / "tileset-hud-status.png")

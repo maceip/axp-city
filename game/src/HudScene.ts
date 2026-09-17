@@ -155,6 +155,7 @@ export class HudScene extends Phaser.Scene {
   private tools!: Phaser.GameObjects.Container;
   private kitRail!: Scale9Plaque;
   private mast!: Scale9Plaque;
+  private searchWell!: Scale9Plaque;
   private listeners = new Set<(event: string, detail?: unknown) => void>();
   private constructionStamp?: string;
   private lastView?: Rect;
@@ -222,6 +223,7 @@ export class HudScene extends Phaser.Scene {
         dpadFace instanceof Scale9Plaque || dpadFace instanceof Phaser.GameObjects.Image
           ? describe(dpadFace as HudChrome)
           : { kind: "image", parts: 1 },
+      search: describe(this.searchWell),
     };
   }
 
@@ -245,6 +247,8 @@ export class HudScene extends Phaser.Scene {
     if (this.input.keyboard) this.input.keyboard.enabled = false;
     this.mast = this.hudPanel("mast", 900, 86);
     this.mast.setName("mast");
+    this.searchWell = this.hudPanel("toast", 360, 48);
+    this.searchWell.setName("search");
     this.plate = this.add.container(16, 16);
     const plateBg = this.hudPanel("plate", 250, 78);
     const title = ink(this, 14, 12, "SURVEY DESK", { fontSize: "11px", color: GOLD });
@@ -510,11 +514,49 @@ export class HudScene extends Phaser.Scene {
         y += b.height + KIT_GAP;
       }
     }
+    this.layoutSearch(small, W);
     this.coverBySheets();
     this.placeToast();
     this.layoutCard();
     this.layoutCensus();
     this.emit("layout", { small });
+  }
+
+  /**
+   * Native #repo-search stays a real text field (#5 / phones / AT). The visible
+   * chrome is the KEEP 9-slice well; the input is a transparent inset, not a
+   * second gold clip-path sitting on the mast.
+   */
+  private layoutSearch(small: boolean, W: number): void {
+    let x: number, y: number, width: number, height: number;
+    if (small) {
+      x = 16;
+      y = 100;
+      width = W - 32;
+      height = 44;
+    } else {
+      const gapL = 278;
+      const gapR = W - 344;
+      const span = Math.max(160, gapR - gapL);
+      width = Math.min(420, span);
+      height = 50;
+      x = gapL + Math.max(0, (span - width) / 2);
+      y = 28;
+    }
+    this.searchWell.setVisible(true);
+    this.searchWell.setPosition(x, y);
+    this.searchWell.setDisplaySize(width, height);
+    this.dockSearch({ x, y, width, height });
+  }
+
+  private dockSearch(frame: { x: number; y: number; width: number; height: number }): void {
+    const wrap = document.querySelector<HTMLElement>(".search");
+    if (!wrap) return;
+    wrap.style.transform = "none";
+    wrap.style.left = `${Math.round(frame.x + 10)}px`;
+    wrap.style.top = `${Math.round(frame.y + 7)}px`;
+    wrap.style.width = `${Math.max(80, Math.round(frame.width - 20))}px`;
+    wrap.style.height = `${Math.max(24, Math.round(frame.height - 14))}px`;
   }
 
   setSnapshot(snapshot: CitySnapshot): void {
@@ -1058,7 +1100,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   consumes(x: number, y: number): boolean {
-    const hits: Phaser.GameObjects.Container[] = [this.plate, this.tools, this.compass, this.massContainer, this.minimap, this.dpad];
+    const hits: Phaser.GameObjects.Container[] = [this.plate, this.tools, this.compass, this.massContainer, this.minimap, this.dpad, this.searchWell];
     for (const name of ["zoom-in", "zoom-out", "census", "capture", "svg", "motion", "follow"]) hits.push(this.buttons.get(name)!.container);
     if (this.card.visible) hits.push(this.card);
     if (this.censusOpen) hits.push(this.census);

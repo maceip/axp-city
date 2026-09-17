@@ -1835,6 +1835,104 @@ def stamp_jane_windmill() -> None:
     crush_stamped_lot_chroma(24, 26.0)
 
 
+# Cousin KEEP / Jane swaps that still read as a second, darker pixel-art game.
+KEEP_VIBE_LOTS = (9, 10, 14, 21, 22, 23, 24, 25, 27, 47)
+CATALOG_KHAKI = (136, 128, 112)
+UMBER_INK = (52, 46, 34)
+
+
+def _unify_keep_cell(cell: Image.Image) -> Image.Image:
+    """Paint KEEP pixel-art onto catalog cream-khaki-slate. Alpha silhouette stays."""
+    out = cell.copy()
+    px = out.load()
+    w, h = out.size
+    chromas: list[int] = []
+    lumas: list[float] = []
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            chromas.append(max(r, g, b) - min(r, g, b))
+            lumas.append((r + g + b) / 3.0)
+    mean_sat = sum(chromas) / max(len(chromas), 1)
+    mean_luma = sum(lumas) / max(len(lumas), 1)
+    if mean_sat > 30:
+        out = restyle_jane_odd(out)
+        px = out.load()
+    # Recolor hard black silhouettes to catalog umber — do not grow alpha.
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            sat = max(r, g, b) - min(r, g, b)
+            if luma >= 52 or sat >= 40:
+                continue
+            edge = False
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                xx, yy = x + dx, y + dy
+                if xx < 0 or yy < 0 or xx >= w or yy >= h or px[xx, yy][3] < 16:
+                    edge = True
+                    break
+            if edge:
+                px[x, y] = (*UMBER_INK, a)
+    lift = max(-6.0, min(20.0, 122.0 - mean_luma))
+    sat_scale = 24.0 / mean_sat if mean_sat > 24.0 else 1.0
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            # Cabin door / foliage — stamps, not a khaki wash.
+            if g > r + 8 and g > b + 4 and max(r, g, b) - min(r, g, b) > 16:
+                continue
+            luma = 0.299 * r + 0.587 * g + 0.114 * b
+            nr = r * 0.70 + CATALOG_KHAKI[0] * 0.30
+            ng = g * 0.70 + CATALOG_KHAKI[1] * 0.30
+            nb = b * 0.70 + CATALOG_KHAKI[2] * 0.30
+            mixed = 0.299 * nr + 0.587 * ng + 0.114 * nb
+            if mixed > 1:
+                s = luma / mixed
+                nr, ng, nb = nr * s, ng * s, nb * s
+            if 70 <= luma <= 190:
+                nr += lift * 0.65
+                ng += lift * 0.65
+                nb += lift * 0.65
+            hh, ss, vv = colorsys.rgb_to_hsv(
+                max(0, min(255, nr)) / 255.0,
+                max(0, min(255, ng)) / 255.0,
+                max(0, min(255, nb)) / 255.0,
+            )
+            rr, gg, bb = colorsys.hsv_to_rgb(hh, min(1.0, ss * sat_scale), vv)
+            px[x, y] = (
+                int(rr * 255 + 0.5),
+                int(gg * 255 + 0.5),
+                int(bb * 255 + 0.5),
+                a,
+            )
+    return out
+
+
+def unify_keep_catalog_vibe() -> None:
+    """Pull swapped KEEP lots onto the ChatGPT/solarpunk cream-khaki-slate range."""
+    sheets: dict[str, Image.Image] = {}
+    for bid in KEEP_VIBE_LOTS:
+        band = "S" if bid <= 17 else "M" if bid <= 34 else "L"
+        path, _ids = CATALOG_SHEETS[band]
+        if band not in sheets:
+            sheets[band] = open_rgba(path)
+        x, y, w, h = CATALOG_BUILDING_BOXES[bid]
+        cell = sheets[band].crop((x, y, x + w, y + h))
+        sheets[band].paste(_unify_keep_cell(cell), (x, y))
+        print("unified keep vibe", bid, "→", (x, y, w, h))
+    for band, kit in sheets.items():
+        path, _ids = CATALOG_SHEETS[band]
+        kit.save(path)
+        print("saved keep vibe", band, path)
+
+
 def restyle_pagoda(im: Image.Image) -> Image.Image:
     """Teal Jane pagoda roof → slate; vermilion posts → timber. Silhouette stays."""
     out = im.copy()
@@ -2839,6 +2937,8 @@ if __name__ == "__main__":
         stamp_jane_windmill()
     elif "--crush-lot-sat" in sys.argv:
         crush_stamped_lot_chroma(24, 26.0)
+    elif "--unify-keep-vibe" in sys.argv:
+        unify_keep_catalog_vibe()
     elif "--stamp-pagoda" in sys.argv:
         stamp_pagoda_vibe()
     elif "--civic-only" in sys.argv:
