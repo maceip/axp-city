@@ -429,24 +429,34 @@ def extract_axp_family_odds() -> dict[str, Image.Image]:
 # industrial silhouettes (not more villas, not sheet-2 catalog lots 1–10 / 18–27 / 35–44).
 VILLA_SWAP: dict[int, tuple[str, int]] = {
     11: ("M", 7),  # analytics tower
-    12: ("L", 6),  # crane-port
     13: ("L", 3),  # foundry
-    14: ("M", 1),  # research lab
-    15: ("L", 0),  # core factory
-    16: ("M", 2),  # data-center slab
-    28: ("M", 4),  # security hub
-    29: ("L", 1),  # research lab tower
-    30: ("L", 2),  # data-center slab
     31: ("L", 8),  # creative studio
     32: ("L", 5),  # community center
     33: ("M", 8),  # creative studio
-    34: ("M", 0),  # factory warehouse
     45: ("L", 7),  # analytics tower
-    46: ("L", 9),  # utility plant
-    47: ("L", 4),  # security hub
-    48: ("M", 6),  # crane-port (medium)
-    49: ("M", 9),  # utility plant (medium)
     50: ("M", 5),  # community center
+}
+
+# Sheet-1 extras that stacked on sheet-2 S/M/L species into 5+ clone families.
+# Mix solarpunk + craft-iso + Jane so the replacements do not become a new mill row.
+PLAYER_REPO = ROOT / "assets" / "city-sprites" / "player-repo"
+SOLARPUNK_SHEET = SRC2 / "solarpunk_sprite_sheet.jpg"
+CRAFT_SHEET = PLAYER_REPO / "isometric_sprite_sheet.jpg"
+JANE_REPAIR = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Repair Station.png"
+JANE_STORE = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Store.png"
+CLONE_BREAK: dict[int, tuple[str, int | str]] = {
+    12: ("sp", 8),  # lighthouse — leave crane 7/24/41
+    14: ("sp", 0),  # waterwheel — leave lab 3/20/37
+    15: ("sp", 11),  # clock tower — leave factory 4/21/38
+    16: ("craft", 4),  # kiln dome — leave data 2/19/36
+    28: ("jane", "repair"),  # Quonset — leave security 5/22/39
+    29: ("craft", 8),  # chimney works
+    30: ("craft", 9),  # pottery L-shop
+    34: ("sp", 9),  # solar duplex
+    46: ("craft", 10),  # wrapped loom tower — leave utility 10/27/44
+    47: ("sp", 1),  # clockwork cottage
+    48: ("jane", "store"),
+    49: ("craft", 14),  # kiln tower, not a second pagoda
 }
 
 
@@ -617,7 +627,7 @@ def compose_civic_kiosk(gates: list[Image.Image], w: int, h: int) -> Image.Image
 
 
 def compose_civic_depot(gates: list[Image.Image], w: int, h: int) -> Image.Image:
-    """Timber loading shed on a cream dock — not a parking pad, not a house."""
+    """Timber loading shed on a cream dock — bay door + planked face, not a parking slat."""
     cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(cell)
     cx = w / 2
@@ -628,6 +638,14 @@ def compose_civic_depot(gates: list[Image.Image], w: int, h: int) -> Image.Image
     d.polygon(
         [(cx, h * 0.50), (w * 0.74, h * 0.68), (cx, h - 8), (w * 0.26, h * 0.68)],
         fill=KHAKI_YARD,
+    )
+    for i, t in enumerate((0.56, 0.62, 0.68, 0.74)):
+        y = h * t
+        inset = 4 + i * 3
+        d.line([(w * 0.28 + inset, y), (w * 0.72 - inset, y)], fill=TIMBER, width=2)
+    d.polygon(
+        [(cx, h * 0.78), (w * 0.64, h * 0.88), (cx, h - 3), (w * 0.36, h * 0.88)],
+        fill=SLATE_POST,
     )
     roof = [(cx, 2), (w * 0.90, h * 0.22), (cx, h * 0.38), (w * 0.10, h * 0.22)]
     d.polygon(roof, fill=(108, 112, 114, 255))
@@ -641,14 +659,20 @@ def compose_civic_depot(gates: list[Image.Image], w: int, h: int) -> Image.Image
         fill=TIMBER,
     )
     d.polygon(
-        [(w * 0.30, h * 0.26), (w * 0.70, h * 0.26), (w * 0.66, h * 0.56), (w * 0.34, h * 0.56)],
+        [(w * 0.32, h * 0.26), (w * 0.68, h * 0.26), (w * 0.64, h * 0.54), (w * 0.36, h * 0.54)],
         fill=(56, 50, 40, 255),
     )
     d.rectangle([int(w * 0.16), int(h * 0.20), int(w * 0.16) + 12, int(h * 0.66)], fill=SLATE_POST)
     d.rectangle([int(w * 0.74), int(h * 0.20), int(w * 0.74) + 12, int(h * 0.66)], fill=SLATE_POST)
+    door_l, door_r = int(w * 0.34), int(w * 0.66)
+    door_t, door_b = int(h * 0.28), int(h * 0.54)
+    d.rectangle([door_l, door_t, door_r, door_b], fill=(56, 50, 40, 255))
+    for x in range(door_l + 5, door_r - 3, 7):
+        d.line([(x, door_t + 3), (x, door_b - 2)], fill=TIMBER, width=3)
+    d.rectangle([door_l, door_t, door_r, door_t + 6], fill=SLATE_POST)
     if gates:
-        g = thicken_outline(scale_to(gates[2], int(w * 0.88), int(h * 0.24)), 2)
-        cell.alpha_composite(g, ((w - g.width) // 2, int(h * 0.58)))
+        door = thicken_outline(scale_to(gates[2], int(w * 0.30), int(h * 0.18)), 2)
+        cell.alpha_composite(door, ((w - door.width) // 2, int(h * 0.32)))
     return cell
 
 
@@ -1174,6 +1198,214 @@ def stamp_diversify_villas() -> None:
         path, _ids = CATALOG_SHEETS[sheet_band]
         kit.save(path)
         print("saved diversify", sheet_band, path)
+
+
+def _resolve_sheet(*candidates: Path) -> Path:
+    for path in candidates:
+        if path.exists():
+            return path
+    raise SystemExit(f"keep sheet missing, tried: {candidates}")
+
+
+def extract_grid_keep(path: Path, idx: int, cols: int = 5, rows: int = 3) -> Image.Image:
+    """KEEP isometric grid footprint; crush grass, leave the building silhouette."""
+    im = key_near_white(open_rgba(path), thresh=236)
+    cw, ch = im.width / cols, im.height / rows
+    r, c = divmod(idx, cols)
+    cell = im.crop((int(c * cw) + 8, int(r * ch) + 8, int((c + 1) * cw) - 8, int((r + 1) * ch) - 8))
+    blobs = [b for b in components(cell, min_px=400) if b[2] > 60 and b[3] > 50]
+    blobs.sort(key=lambda b: b[2] * b[3], reverse=True)
+    if not blobs:
+        raise SystemExit(f"no keep building in {path.name} cell {idx}")
+    src = trim(blobs[0][4])
+    spr = restyle(src, sat=0.50, contrast=1.02)
+    spx = spr.load()
+    rpx = src.load()
+    for y in range(spr.height):
+        for x in range(spr.width):
+            r0, g0, b0, a0 = rpx[x, y]
+            if a0 < 16:
+                continue
+            # Drop original lush grass / yard so the stamp sits on a catalog pad.
+            if g0 > r0 + 16 and g0 > b0 + 10 and max(r0, g0, b0) - min(r0, g0, b0) > 20:
+                spx[x, y] = (0, 0, 0, 0)
+    return lift_keep_vibe(trim(spr))
+
+
+def lift_keep_vibe(im: Image.Image) -> Image.Image:
+    """Brown craft wood → khaki/cream walls so KEEP stamps share the catalog vibe."""
+    out = im.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            sat = max(r, g, b) - min(r, g, b)
+            brown = r > g + 2 and r > b + 8 and sat > 16
+            if not brown:
+                continue
+            t = 0.52
+            nr = r * (1 - t) + 168 * t
+            ng = g * (1 - t) + 158 * t
+            nb = b * (1 - t) + 118 * t
+            new_luma = (nr + ng + nb) / 3.0
+            if new_luma > 1:
+                scale = luma / new_luma
+                nr, ng, nb = nr * scale, ng * scale, nb * scale
+            px[x, y] = (_clamp_byte(nr), _clamp_byte(ng), _clamp_byte(nb), a)
+    return out
+
+
+def extract_jane_lot(kind: str) -> Image.Image:
+    """Finished Jane building from the right column — not a construction frame."""
+    path = JANE_REPAIR if kind == "repair" else JANE_STORE
+    if not path.exists():
+        raise SystemExit(f"Jane {kind} sheet missing: {path}")
+    # Backdrop is ~ (0,128,128). Broader teal key eats the finished blue roofs.
+    keyed = key_color(
+        open_rgba(path),
+        lambda r, g, b: r < 40 and g > 90 and b > 90 and abs(g - b) < 30,
+        grow=1,
+    )
+    right = keyed.crop((int(keyed.width * 0.40), 0, keyed.width, keyed.height))
+    blobs = [b for b in components(right, min_px=600) if b[2] > 60 and b[3] > 60]
+    blobs.sort(key=lambda b: (b[1], -(b[2] * b[3])))
+    for _x, _y, _w, _h, crop in blobs:
+        spr = trim(crop)
+        if is_gray_pad(spr) or is_fragment(spr):
+            continue
+        px = spr.load()
+        n = chroma = 0
+        for y in range(0, spr.height, 2):
+            for x in range(0, spr.width, 2):
+                r, g, b, a = px[x, y]
+                if a < 16:
+                    continue
+                n += 1
+                if max(r, g, b) - min(r, g, b) > 28:
+                    chroma += 1
+        if n < 80 or chroma / n < 0.12:
+            continue
+        return restyle_jane_odd(restyle(spr, sat=0.66, contrast=1.06))
+    raise SystemExit(f"Jane {kind} finished building missing")
+
+
+def extract_solarpunk_cell(idx: int) -> Image.Image:
+    """KEEP isometric solarpunk footprint (no mushroom/crystal cells)."""
+    path = _resolve_sheet(SOLARPUNK_SHEET, PLAYER_REPO / "solarpunk_sprite_sheet.jpg")
+    return extract_grid_keep(path, idx)
+
+
+def extract_craft_cell(idx: int) -> Image.Image:
+    """KEEP isometric craft footprint (no honeycomb / cathedral / greenhouse clones)."""
+    path = _resolve_sheet(CRAFT_SHEET, SRC2 / "isometric_sprite_sheet.jpg")
+    return extract_grid_keep(path, idx)
+
+
+def crush_roof_badge(im: Image.Image) -> Image.Image:
+    """Flatten leftover oval roof signs (Store plate / wrench) onto slate."""
+    out = im.copy()
+    px = out.load()
+    w, h = out.size
+    slate: list[tuple[int, int, int, int, int, int]] = []
+    badge: list[tuple[int, int]] = []
+    for y in range(int(h * 0.58)):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            sat = max(r, g, b) - min(r, g, b)
+            if luma < 130 and sat < 40:
+                slate.append((x, y, r, g, b, a))
+            elif luma > 170 and sat < 60:
+                badge.append((x, y))
+    if len(slate) > 80 and 20 < len(badge) < len(slate) * 0.45:
+        fill = slate[len(slate) // 2][2:]
+        for x, y in badge:
+            px[x, y] = fill
+    return out
+
+
+def prepare_lot_stamp(spr: Image.Image, bid: int, w: int, h: int) -> Image.Image:
+    fitted = scale_to(trim(spr), w, h)
+    return crush_roof_badge(
+        crush_poster_type(crush_catalog_orange(restyle_catalog_roof(fitted, bid), bid))
+    )
+
+
+def stamp_break_clone_clusters() -> None:
+    """Replace 5+ species stacks with unused KEEP silhouettes, not tints."""
+    sheets: dict[str, Image.Image] = {}
+    for bid, (src, key) in CLONE_BREAK.items():
+        if src == "sp":
+            spr = extract_solarpunk_cell(int(key))
+        elif src == "craft":
+            spr = extract_craft_cell(int(key))
+        elif src == "jane":
+            spr = extract_jane_lot(str(key))
+        else:
+            raise SystemExit(f"unknown clone-break source {src}")
+        sheet_band = "S" if bid <= 17 else "M" if bid <= 34 else "L"
+        path, _ids = CATALOG_SHEETS[sheet_band]
+        if sheet_band not in sheets:
+            sheets[sheet_band] = open_rgba(path)
+        x, y, w, h = CATALOG_BUILDING_BOXES[bid]
+        cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        fitted = prepare_lot_stamp(spr, bid, w, h)
+        cell.alpha_composite(fitted, ((w - fitted.width) // 2, h - fitted.height))
+        sheets[sheet_band].paste(cell, (x, y))
+        print("stamped clone-break", bid, src, key, "→", (x, y, w, h))
+    for sheet_band, kit in sheets.items():
+        path, _ids = CATALOG_SHEETS[sheet_band]
+        kit.save(path)
+        print("saved clone-break", sheet_band, path)
+
+
+def restyle_pagoda(im: Image.Image) -> Image.Image:
+    """Teal Jane pagoda roof → slate; vermilion posts → timber. Silhouette stays."""
+    out = im.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            sat = max(r, g, b) - min(r, g, b)
+            teal = (g > r + 6 and b > r + 2 and sat > 18) or (
+                g > r + 4 and b >= g - 10 and sat > 22 and luma < 210
+            )
+            vermilion = r > g + 28 and r > b + 18 and sat > 36
+            if teal:
+                t = max(0.0, min(1.0, (luma - 40) / 140))
+                px[x, y] = (
+                    int(88 + t * 36),
+                    int(92 + t * 34),
+                    int(90 + t * 32),
+                    a,
+                )
+            elif vermilion:
+                t = max(0.0, min(1.0, (luma - 40) / 140))
+                px[x, y] = (
+                    int(108 + t * 28),
+                    int(88 + t * 22),
+                    int(58 + t * 18),
+                    a,
+                )
+    return out
+
+
+def stamp_pagoda_vibe() -> None:
+    path, _ids = CATALOG_SHEETS["S"]
+    kit = open_rgba(path)
+    x, y, w, h = CATALOG_BUILDING_BOXES[17]
+    crop = restyle_pagoda(kit.crop((x, y, x + w, y + h)).copy())
+    kit.paste(crop, (x, y))
+    kit.save(path)
+    print("stamped pagoda vibe", (x, y, w, h))
 
 
 def stamp_scaffold_frames(path: Path = OUT / "civic-kit-k1.png") -> None:
@@ -1865,6 +2097,8 @@ def main() -> None:
     l_sheet.save(OUT / "buildings-large-35-50-k1.png")
     stamp_catalog_roofs()
     stamp_diversify_villas()
+    stamp_break_clone_clusters()
+    stamp_pagoda_vibe()
 
     building_boxes = {}
     for i, box in enumerate(s_boxes, 1):
@@ -1898,6 +2132,8 @@ def main() -> None:
                 "Inland odds are civic-distinct attached footprints (fence, parking, stacked gates, timber loading shed, civic kiosk) — not ChatGPT lot houses and not a second parking pad",
                 "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",
                 "White-solar villa clones among lots 11–50 swapped for unused AXP family-sheet industrial silhouettes (crane/foundry/lab/factory) — stamps, not tints",
+                "Sheet-1 extras that stacked S/M/L catalog DNA into 5+ families replaced with unused KEEP stamps (solarpunk lighthouse/mill/clock, craft kiln/chimney/pottery/loom, Jane Quonset/store) — stamps, not tints",
+                "Lot 17 pagoda restyled to slate/timber catalog vibe; silhouette stays an odd original",
                 "Lettered family-sheet poster faces (AIE / OPEN SOURCE / CLEAN COMPUTE) flattened onto cream/khaki walls",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
@@ -1978,6 +2214,10 @@ if __name__ == "__main__":
         stamp_catalog_roofs()
     elif "--stamp-villa-diversity" in sys.argv:
         stamp_diversify_villas()
+    elif "--stamp-clone-break" in sys.argv:
+        stamp_break_clone_clusters()
+    elif "--stamp-pagoda" in sys.argv:
+        stamp_pagoda_vibe()
     elif "--civic-only" in sys.argv:
         civic_boxes, hud_boxes = write_civic_and_hud()
         existing = {}

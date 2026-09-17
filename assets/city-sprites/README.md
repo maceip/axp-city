@@ -120,15 +120,20 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   olive / clay families so lots share one vibe without becoming one house.
   The white-solar villa row (ids 11–16 / 28–34 / 45–50) is diversified with
   unused AXP family-sheet industrial stamps (crane, foundry, lab, factory,
-  security, analytics) — silhouette changes, not tints. Lettered poster faces
-  (AIE / OPEN SOURCE / CLEAN COMPUTE) flatten onto the wall color. `facadeTint`
-  + `dressingProp` are a second hash so two lots that share a silhouette still
-  read as different houses.
+  security, analytics) — silhouette changes, not tints. Sheet-1 extras that
+  stacked those species into 5+ S/M/L clone families (12/14/15/16/28/29/30/34/46/47/48/49)
+  are replaced with unused KEEP stamps: solarpunk lighthouse / waterwheel /
+  clock tower / duplex / clockwork, craft kiln / chimney works / pottery /
+  loom tower / kiln tower, and Jane Quonset / store after teal-key + poster
+  crush. Lot 17 pagoda keeps its odd silhouette; teal/vermilion Jane color
+  remaps to slate/timber. Lettered poster faces (AIE / OPEN SOURCE / CLEAN
+  COMPUTE) flatten onto the wall color. `facadeTint` + `dressingProp` are a
+  second hash so two lots that share a silhouette still read as different houses.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
   stamped larger than any repo lot),   inland unused civics from the attached
   construction sheet (cream-infilled timber fence, parking pad, stacked timber
-  gates on a cream plinth, timber loading shed on a cream dock — not a second
-  parking pad — civic notice kiosk — not ChatGPT lot-catalog houses and not
+  gates on a cream plinth, timber loading shed on a cream dock with a planked
+  bay-door face — not a KEEP-gate parking slat — civic notice kiosk — not ChatGPT lot-catalog houses and not
   Jane church/villa/cottage geometry; fence/gates grow at flyover and stay
   lot-adjacent at home zoom), attached construction stages (pad→posts→roof→shell,
   never the finished bank), amenity parking, gates, `$` bank, isometric plants

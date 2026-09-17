@@ -113,7 +113,7 @@ print(f"{o6/n6:.4f} {r6-b6:.1f} {g17-r17:.1f} {g11-r11:.1f} {len(families)}")
       .map(Number);
     expect(orange6, "building 6 still has a high-chroma terracotta roof").toBeLessThan(0.05);
     expect(warm6, "building 6 roof still reads orange (R>>B)").toBeLessThan(32);
-    expect(pagodaGreen, "pagoda roof was flattened off catalog green").toBeGreaterThan(4);
+    expect(pagodaGreen, "lot 17 still has leftover Jane teal roof").toBeLessThan(8);
     expect(houseGreen, "green catalog house roof was flattened").toBeGreaterThan(0);
     expect(families, "catalog roofs collapsed to one hue family").toBeGreaterThanOrEqual(4);
   });
@@ -531,7 +531,122 @@ print(f"{ink(13):.4f} {ink(32):.4f} {ink(46):.4f}")
       .map(Number);
     expect(aie, "lot 13 still has AIE poster ink").toBeLessThan(0.04);
     expect(opensource, "lot 32 still has OPEN SOURCE poster ink").toBeLessThan(0.04);
-    expect(clean, "lot 46 still has CLEAN COMPUTE poster ink").toBeLessThan(0.04);
+    expect(clean, "lot 46 still has leftover poster ink").toBeLessThan(0.04);
+  });
+
+  it("breaks 5+ industrial clone families with unused KEEP stamps, not tints", () => {
+    const script = `
+from PIL import Image
+boxes = {
+    7: ("S", 322, 237, 123, 119),
+    12: ("S", 283, 364, 202, 172),
+    3: ("S", 579, 61, 121, 115),
+    14: ("S", 806, 364, 179, 172),
+    4: ("S", 831, 52, 129, 124),
+    15: ("S", 1053, 364, 198, 172),
+    2: ("S", 329, 56, 110, 120),
+    16: ("S", 20, 544, 215, 172),
+    5: ("S", 1087, 55, 129, 121),
+    28: ("M", 35, 364, 186, 172),
+    20: ("M", 584, 4, 111, 172),
+    29: ("M", 297, 364, 174, 172),
+    19: ("M", 333, 4, 101, 172),
+    30: ("M", 550, 364, 179, 172),
+    21: ("M", 834, 4, 124, 172),
+    34: ("M", 279, 544, 210, 172),
+    10: ("S", 1094, 239, 115, 117),
+    46: ("L", 1042, 364, 155, 172),
+    39: ("L", 122, 184, 76, 172),
+    47: ("L", 82, 544, 156, 172),
+    24: ("M", 325, 184, 118, 172),
+    48: ("L", 406, 544, 148, 172),
+    44: ("L", 448, 364, 63, 172),
+    49: ("L", 719, 544, 161, 172),
+    17: ("S", 298, 545, 171, 171),
+}
+sheets = {
+    "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
+    "M": Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA"),
+    "L": Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA"),
+}
+
+def mask(bid):
+    band, x, y, w, h = boxes[bid]
+    im = sheets[band].crop((x, y, x + w, y + h)).resize((48, 48), Image.Resampling.BILINEAR)
+    px = im.load()
+    return [px[xx, yy][3] >= 16 for yy in range(48) for xx in range(48)]
+
+def xor_frac(a, b):
+    ma, mb = mask(a), mask(b)
+    n = sum(x or y for x, y in zip(ma, mb))
+    return sum(x != y for x, y in zip(ma, mb)) / max(n, 1)
+
+print(
+    f"{xor_frac(7,12):.3f} {xor_frac(3,14):.3f} {xor_frac(4,15):.3f} {xor_frac(2,16):.3f} "
+    f"{xor_frac(5,28):.3f} {xor_frac(20,29):.3f} {xor_frac(19,30):.3f} {xor_frac(21,34):.3f} "
+    f"{xor_frac(10,46):.3f} {xor_frac(39,47):.3f} {xor_frac(24,48):.3f} {xor_frac(44,49):.3f} "
+    f"{xor_frac(17,49):.3f}"
+)
+`;
+    const vals = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    const labels = [
+      "12 vs crane 7",
+      "14 vs lab 3",
+      "15 vs factory 4",
+      "16 vs data 2",
+      "28 vs security 5",
+      "29 vs lab 20",
+      "30 vs data 19",
+      "34 vs factory 21",
+      "46 vs utility 10",
+      "47 vs security 39",
+      "48 vs crane 24",
+      "49 vs utility 44",
+      "49 vs pagoda 17",
+    ];
+    vals.forEach((v, i) => {
+      expect(v, `${labels[i]} still one species`).toBeGreaterThan(0.16);
+    });
+  });
+
+  it("restyles lot 17 onto catalog slate/timber without turning it into a villa or factory", () => {
+    const script = `
+from PIL import Image
+im = Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA")
+x,y,w,h = 298,545,171,171
+px = im.load()
+n = teal = verm = cream = slate = 0
+for yy in range(y, y+h):
+    for xx in range(x, x+w):
+        r,g,b,a = px[xx,yy]
+        if a < 16:
+            continue
+        n += 1
+        sat = max(r,g,b)-min(r,g,b)
+        luma = (r+g+b)/3
+        if g > r + 10 and b > r + 6 and sat > 28:
+            teal += 1
+        if r > g + 30 and r > b + 20 and sat > 40:
+            verm += 1
+        if r > 190 and g > 175 and b > 145 and r > b + 8:
+            cream += 1
+        if sat < 28 and 70 < luma < 160:
+            slate += 1
+print(f"{teal/n:.4f} {verm/n:.4f} {cream} {slate}")
+`;
+    const [teal, verm, cream, slate] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(teal, "lot 17 still has Jane teal roof").toBeLessThan(0.04);
+    expect(verm, "lot 17 still has vermilion Jane posts").toBeLessThan(0.04);
+    expect(cream, "lot 17 lost its cream walls").toBeGreaterThan(200);
+    expect(slate, "lot 17 lost its slate roof").toBeGreaterThan(400);
   });
 
   it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {
