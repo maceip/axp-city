@@ -35,3 +35,16 @@ A refresh whose metrics did not change (same lot signature after the freshness f
 Construction is a pure function of the server's `addedAt` and server time: grading → framing → cladding → finishing over 45 s (`CONSTRUCTION_MS`), identical for every visitor and after a reload. Cameras, selection, follow state, weather, and ambient traffic/pedestrians are local to each browser. **Shared:** the map, lots, rules, construction timestamps, and freshness. **Not shared:** actor positions, weather, camera. Two visitors see the same city, not the same traffic.
 
 This is a single-process persisted city. Run one writer against its data directory; horizontal multi-writer deployment would require a shared transactional store and fanout, which are not implemented.
+
+## Browser proof
+
+The production harness is `e2e/` (Python Playwright against the **built Phaser app** and the real HTTP/SSE server on one origin). Install Playwright in the environment that will run the suite; do not treat Azure Playwright Workspaces as required:
+
+```sh
+python3 -m pip install -r e2e/requirements.txt
+python3 -m playwright install --with-deps chromium firefox webkit
+npm run build
+CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v
+```
+
+With no `PLAYWRIGHT_SERVICE_URL`, the harness launches the local browser. `CITY_LOCAL_BROWSER=1` forces that path even if a workspace URL is injected without a token. Azure Workspaces remains optional: both URL and `PLAYWRIGHT_SERVICE_ACCESS_TOKEN` are required, and a URL without a token fails closed. Live GitHub failures never fall back to fixtures. Two-browser and reconnect tests use two local Playwright contexts, not a hosted workspace. See `e2e/README.md`.

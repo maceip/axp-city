@@ -40,7 +40,9 @@ def select(page, repo="acme/forge"):
     page.locator("#repo-search").fill(repo)
     page.locator("#repo-search").press("Enter")
     page.wait_for_function("repo => window.__AXP.diagnostics().selected === repo", arg=repo)
-    page.wait_for_timeout(450)
+    # frameLot pans 350 ms; on a slow Firefox/WebKit frame that outlasts a fixed
+    # sleep, so wait until the camera is actually at rest.
+    settled(page)
 
 
 def a11y(page, selector):
@@ -101,7 +103,7 @@ r => {
       s.pending = null;
     }
     if (stage === "complete" && "complete" in s.drawn) s.done = true;
-    else setTimeout(tick, 200);
+    else setTimeout(tick, 80);
   };
   tick();
 }
@@ -651,8 +653,6 @@ def test_custom_artwork_rule_is_rendered_only_once_approved(page, server):
     page.on("response", lambda r: fetched.append((r.url, r.status)) if "/assets/artwork/" in r.url else None)
     page.keyboard.press("m")
     page.wait_for_function("window.__AXP.diagnostics().reducedMotion && !window.__AXP.diagnostics().toastVisible", timeout=10000)
-    page.wait_for_timeout(400)
-    original = lot_pixels(page, repo)
     folder = server.rules / "repos" / repo
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "building.png").write_bytes(art)  # the fixture folder stands for the repository's .city/
@@ -664,6 +664,8 @@ def test_custom_artwork_rule_is_rendered_only_once_approved(page, server):
     assert "not approved" in a11y(page, "#a11y-selection")
     page.keyboard.press("Escape")
     page.wait_for_function("!window.__AXP.diagnostics().cardVisible")
+    page.wait_for_timeout(400)
+    original = lot_pixels(page, repo)
     assert fetched == [], fetched  # nothing unapproved is ever served or fetched
     # 2. Operator approval of that exact hash: fetched same-origin and drawn.
     (server.rules / "approved-artwork.json").write_text(json.dumps(dict(version=1, approved=[dict(repo=repo, sha256=sha)])))
@@ -671,6 +673,8 @@ def test_custom_artwork_rule_is_rendered_only_once_approved(page, server):
     page.wait_for_function("([r, s]) => { const l = window.__AXP.snapshot().plan.placements.find(p => p.lot.fullName === r).lot; return l.artwork && l.artwork.sha256 === s && !l.rulesWarning; }", arg=[repo, sha], timeout=15000)
     page.wait_for_function("([r, s]) => window.__AXP.diagnostics().assetsInflight === 0 && (window.__AXP.drawnRenderKey(r) || '').includes(s)", arg=[repo, sha], timeout=20000)
     with_art = rendered_change(page, repo, original, "approved custom artwork replaces the catalog building")
+    magentas = [c for c in with_art["cells"] if c[0] > c[1] + 18 and c[0] > c[2] + 8]
+    assert magentas, f"approved magenta artwork never reached the lot sample: mean={mean_colour(with_art)}"
     assert any(url.endswith(f"/assets/artwork/{sha}.png") and status == 200 for url, status in fetched), fetched
     page.screenshot(path=str(SHOTS / "rules-custom-artwork.png"))
     # 3. The operator revokes the approval (no restart): back to the catalog building, reason published.
@@ -860,9 +864,12 @@ def test_mobile_tap_dpad_pinch_and_layout(browser, server):
     close = hud(page, "close-card")
     page.touchscreen.tap(close["x"], close["y"])
     page.wait_for_function("!window.__AXP.diagnostics().cardVisible")
+    settled(page)
+    page.screenshot(path=str(SHOTS / "mobile-after-close.png"))
     point = page.evaluate("window.__AXP.screenPoint('acme/forge')")
     # The framed lot's tap target lies below the stacked plaques, not under the MASS bar
-    # (WebKit's taller card text used to push the framing up into it).
+    # (WebKit's taller card text used to push the framing up into it). Measure after
+    # the inspect pan has finished; a mid-pan sample sits under MASS.
     mass = hud(page, "mass")
     assert point["y"] > mass["y"] + mass["height"] / 2 + 8, (point, mass)
     page.touchscreen.tap(point["x"], point["y"])

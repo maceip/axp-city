@@ -367,12 +367,16 @@ describe("repository-owned rules", () => {
     const dir = await mkdtemp(join(tmpdir(), "axp-coalesce-"));
     let stars = 100;
     let calls = 0;
+    // Wall-clock window. 400 ms expired on GitHub-hosted runners while other
+    // vitest forks (sprites/load) descheduled this process; 5 s is still short
+    // versus production's 10 s default and keeps burst-2/3 inside the window.
+    const coalesceMs = 5_000;
     const runtime = createWebhookServer(
       {
         secret,
         adminToken: "admin",
         databasePath: join(dir, "city.sqlite"),
-        coalesceMs: 400,
+        coalesceMs,
         resolveRepository: async (fullName) => {
           calls++;
           const m = metrics({ fullName, stars, isPrivate: false });
@@ -404,7 +408,7 @@ describe("repository-owned rules", () => {
       expect(runtime.city.deliveryCounts()).toMatchObject({ pending: 2, done: 1, failed: 0 });
       expect(runtime.city.lots()[0].stars).toBe(100);
       // When the window ends the deferred deliveries run one refresh, which captures the change.
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, coalesceMs + 250));
       await runtime.drainDeliveries();
       expect(calls).toBe(2);
       expect(runtime.city.lots()[0].stars).toBe(250);
@@ -412,7 +416,7 @@ describe("repository-owned rules", () => {
     } finally {
       await stop(runtime);
     }
-  });
+  }, 20_000);
 
   it("finishes a delivery interrupted between claim and completion after a crash, and a reconnecting stream sees the change", async () => {
     const dir = await mkdtemp(join(tmpdir(), "axp-crash-"));

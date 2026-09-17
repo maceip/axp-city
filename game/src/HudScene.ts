@@ -17,7 +17,12 @@ import { yardLabel, yardPropList } from "../../src/rules/cityFiles.js";
 import type { LotPlacement } from "../../src/world/layout.js";
 import { SceneKeys } from "./Boot.js";
 import type { ConnectionState } from "./connection.js";
+import { SCALE9_FRAMES, Scale9Plaque, scale9Inset } from "./scale9.js";
 import { ensureFrame } from "./stamps.js";
+
+type HudFrame = keyof typeof HUD_FRAMES;
+type Scale9Frame = Exclude<HudFrame, "compass" | "dpad">;
+type HudChrome = Scale9Plaque | Phaser.GameObjects.Image;
 
 export interface HudActions {
   zoom(factor: number): void;
@@ -123,12 +128,12 @@ export class HudScene extends Phaser.Scene {
   private minimapView!: Phaser.GameObjects.Graphics;
   private minimapBounds = { x: 0, y: 0, width: 1, height: 1 };
   private minimapSize = { w: 180, h: 118 };
-  private minimapBg!: Phaser.GameObjects.Image;
+  private minimapBg!: Scale9Plaque;
   private card!: Phaser.GameObjects.Container;
-  private cardBg!: Phaser.GameObjects.Image;
+  private cardBg!: Scale9Plaque;
   private cardTexts: Phaser.GameObjects.BitmapText[] = [];
   private census!: Phaser.GameObjects.Container;
-  private censusBg!: Phaser.GameObjects.Image;
+  private censusBg!: Scale9Plaque;
   private censusRowsTexts: Phaser.GameObjects.BitmapText[] = [];
   private censusHeader: Phaser.GameObjects.BitmapText[] = [];
   private censusMarks: Phaser.GameObjects.GameObject[] = [];
@@ -138,18 +143,19 @@ export class HudScene extends Phaser.Scene {
   private censusFilter = "";
   private censusVisible: CensusRow[] = [];
   private toastText!: Phaser.GameObjects.BitmapText;
-  private toastBg!: Phaser.GameObjects.Image;
+  private toastBg!: Scale9Plaque;
   private toastTimer?: Phaser.Time.TimerEvent;
   private cardTimer?: Phaser.Time.TimerEvent;
   private announcedStage?: string;
   private tag!: Phaser.GameObjects.BitmapText;
-  private tagPlate!: Phaser.GameObjects.Image;
+  private tagPlate!: Scale9Plaque;
   private hint!: Phaser.GameObjects.BitmapText;
-  private hintPlate!: Phaser.GameObjects.Image;
+  private hintPlate!: Scale9Plaque;
   private dpad!: Phaser.GameObjects.Container;
   private tools!: Phaser.GameObjects.Container;
-  private kitRail!: Phaser.GameObjects.Image;
-  private mast!: Phaser.GameObjects.Image;
+  private kitRail!: Scale9Plaque;
+  private mast!: Scale9Plaque;
+  private searchWell!: Scale9Plaque;
   private listeners = new Set<(event: string, detail?: unknown) => void>();
   private constructionStamp?: string;
   private lastView?: Rect;
@@ -174,13 +180,51 @@ export class HudScene extends Phaser.Scene {
     for (const listener of this.listeners) listener(event, detail);
   }
 
-  /** Construction-city survey plaques from the civic HUD kit. */
-  private hudPanel(frame: keyof typeof HUD_FRAMES, width: number, height: number): Phaser.GameObjects.Image {
+  /** KEEP-grain plaques. Mast uses the dedicated wide face; octagon compass/dpad stay whole images. */
+  private hudPanel(frame: "compass" | "dpad", width: number, height: number): Phaser.GameObjects.Image;
+  private hudPanel(frame: Scale9Frame, width: number, height: number): Scale9Plaque;
+  private hudPanel(frame: HudFrame, width: number, height: number): HudChrome {
     const box = HUD_FRAMES[frame];
-    const img = this.add.image(0, 0, HUD_SHEET.file, ensureFrame(this, HUD_SHEET.file, box));
-    img.setOrigin(0, 0).setDisplaySize(width, height);
-    img.disableInteractive();
-    return img;
+    if (!SCALE9_FRAMES.has(frame)) {
+      const img = this.add.image(0, 0, HUD_SHEET.file, ensureFrame(this, HUD_SHEET.file, box));
+      img.setOrigin(0, 0).setDisplaySize(width, height);
+      img.disableInteractive();
+      return img;
+    }
+    const plaque = new Scale9Plaque(this, HUD_SHEET.file, box, scale9Inset(box, width, height), width, height);
+    this.add.existing(plaque);
+    return plaque;
+  }
+
+  /** Playwright / a11y: 9-slice plaques report tiled part counts, not a single smeared Image. */
+  chromeInfo(): Record<string, { kind: "scale9" | "image"; parts: number }> {
+    const describe = (obj: HudChrome): { kind: "scale9" | "image"; parts: number } =>
+      obj instanceof Scale9Plaque ? { kind: "scale9", parts: obj.partCount } : { kind: "image", parts: 1 };
+    const censusBtn = this.buttons.get("census")?.container.list[0];
+    const compassFace = this.compass.list[0];
+    const dpadFace = this.dpad.list[0];
+    return {
+      mast: describe(this.mast),
+      card: describe(this.cardBg),
+      census: describe(this.censusBg),
+      kitRail: describe(this.kitRail),
+      toast: describe(this.toastBg),
+      hint: describe(this.hintPlate),
+      minimap: describe(this.minimapBg),
+      censusBtn:
+        censusBtn instanceof Scale9Plaque || censusBtn instanceof Phaser.GameObjects.Image
+          ? describe(censusBtn)
+          : { kind: "image", parts: 0 },
+      compass:
+        compassFace instanceof Scale9Plaque || compassFace instanceof Phaser.GameObjects.Image
+          ? describe(compassFace as HudChrome)
+          : { kind: "image", parts: 1 },
+      dpad:
+        dpadFace instanceof Scale9Plaque || dpadFace instanceof Phaser.GameObjects.Image
+          ? describe(dpadFace as HudChrome)
+          : { kind: "image", parts: 1 },
+      search: describe(this.searchWell),
+    };
   }
 
   create(): void {
@@ -201,8 +245,10 @@ export class HudScene extends Phaser.Scene {
     this.constructionStamp = undefined;
     this.cameras.main.setRoundPixels(true);
     if (this.input.keyboard) this.input.keyboard.enabled = false;
-    this.mast = this.hudPanel("rail", 900, 86);
+    this.mast = this.hudPanel("mast", 900, 86);
     this.mast.setName("mast");
+    this.searchWell = this.hudPanel("toast", 360, 48);
+    this.searchWell.setName("search");
     this.plate = this.add.container(16, 16);
     const plateBg = this.hudPanel("plate", 250, 78);
     const title = ink(this, 14, 12, "SURVEY DESK", { fontSize: "11px", color: GOLD });
@@ -468,11 +514,49 @@ export class HudScene extends Phaser.Scene {
         y += b.height + KIT_GAP;
       }
     }
+    this.layoutSearch(small, W);
     this.coverBySheets();
     this.placeToast();
     this.layoutCard();
     this.layoutCensus();
     this.emit("layout", { small });
+  }
+
+  /**
+   * Native #repo-search stays a real text field (#5 / phones / AT). The visible
+   * chrome is the KEEP 9-slice well; the input is a transparent inset, not a
+   * second gold clip-path sitting on the mast.
+   */
+  private layoutSearch(small: boolean, W: number): void {
+    let x: number, y: number, width: number, height: number;
+    if (small) {
+      x = 16;
+      y = 100;
+      width = W - 32;
+      height = 44;
+    } else {
+      const gapL = 278;
+      const gapR = W - 344;
+      const span = Math.max(160, gapR - gapL);
+      width = Math.min(420, span);
+      height = 50;
+      x = gapL + Math.max(0, (span - width) / 2);
+      y = 28;
+    }
+    this.searchWell.setVisible(true);
+    this.searchWell.setPosition(x, y);
+    this.searchWell.setDisplaySize(width, height);
+    this.dockSearch({ x, y, width, height });
+  }
+
+  private dockSearch(frame: { x: number; y: number; width: number; height: number }): void {
+    const wrap = document.querySelector<HTMLElement>(".search");
+    if (!wrap) return;
+    wrap.style.transform = "none";
+    wrap.style.left = `${Math.round(frame.x + 10)}px`;
+    wrap.style.top = `${Math.round(frame.y + 7)}px`;
+    wrap.style.width = `${Math.max(80, Math.round(frame.width - 20))}px`;
+    wrap.style.height = `${Math.max(24, Math.round(frame.height - 14))}px`;
   }
 
   setSnapshot(snapshot: CitySnapshot): void {
@@ -859,7 +943,7 @@ export class HudScene extends Phaser.Scene {
     const { rowH, font, head, headerY } = this.censusMetrics();
     const visibleRows = Math.max(1, Math.floor((H - headerY - 28) / rowH));
     this.censusScroll = Math.min(this.censusScroll, Math.max(0, rows.length - visibleRows));
-    const titleBand = this.add.rectangle(12, 10, width - 24, 56, 0x2a2e26, 0.72).setOrigin(0, 0);
+    const titleBand = this.add.rectangle(12, 10, width - 24, 56, 0x5c5340, 0.38).setOrigin(0, 0);
     this.census.add(titleBand);
     this.censusMarks.push(titleBand);
     const title = ink(this, 18, 14, "LOT CENSUS", { fontSize: "15px", color: GOLD });
@@ -873,7 +957,7 @@ export class HudScene extends Phaser.Scene {
     );
     this.census.add([title, meta]);
     this.censusHeader.push(title, meta);
-    const headBand = this.add.rectangle(12, headerY - 8, width - 24, 28, 0x2a2e26, 0.62).setOrigin(0, 0);
+    const headBand = this.add.rectangle(12, headerY - 8, width - 24, 28, 0x6a6248, 0.28).setOrigin(0, 0);
     this.census.add(headBand);
     this.censusMarks.push(headBand);
     let x = 18;
@@ -896,7 +980,7 @@ export class HudScene extends Phaser.Scene {
       const y = headerY + 28 + i * rowH;
       const selected = row.repo === this.selected?.lot.fullName;
       const band = this.add
-        .rectangle(12, y - 6, width - 24, rowH - 2, selected ? 0x5c5330 : i % 2 ? 0x3a3e34 : 0x2f332c, selected ? 0.52 : 0.42)
+        .rectangle(12, y - 6, width - 24, rowH - 2, selected ? 0x8a7a48 : i % 2 ? 0xc4b896 : 0xb8ae88, selected ? 0.36 : 0.16)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
       band.setName(`census-row-${row.repo}`);
@@ -1006,15 +1090,17 @@ export class HudScene extends Phaser.Scene {
       if (!(node as Phaser.GameObjects.Container).visible) return null;
     }
     const f =
-      object instanceof Phaser.GameObjects.Image
-        ? { x: object.x - object.originX * object.displayWidth, y: object.y - object.originY * object.displayHeight, width: object.displayWidth, height: object.displayHeight }
-        : frameOf(object as Phaser.GameObjects.Container);
+      object instanceof Scale9Plaque
+        ? object.visualFrame()
+        : object instanceof Phaser.GameObjects.Image
+          ? { x: object.x - object.originX * object.displayWidth, y: object.y - object.originY * object.displayHeight, width: object.displayWidth, height: object.displayHeight }
+          : frameOf(object as Phaser.GameObjects.Container);
     if (f.width <= 0 || f.height <= 0) return null;
     return { x: f.x + f.width / 2, y: f.y + f.height / 2, width: f.width, height: f.height };
   }
 
   consumes(x: number, y: number): boolean {
-    const hits: Phaser.GameObjects.Container[] = [this.plate, this.tools, this.compass, this.massContainer, this.minimap, this.dpad];
+    const hits: Phaser.GameObjects.Container[] = [this.plate, this.tools, this.compass, this.massContainer, this.minimap, this.dpad, this.searchWell];
     for (const name of ["zoom-in", "zoom-out", "census", "capture", "svg", "motion", "follow"]) hits.push(this.buttons.get(name)!.container);
     if (this.card.visible) hits.push(this.card);
     if (this.censusOpen) hits.push(this.census);

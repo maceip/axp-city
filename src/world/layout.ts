@@ -426,6 +426,11 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       sprite,
     });
   }
+  const parkPlantPad = 1.2;
+  const clampParkPlant = (x: number, y: number) => ({
+    x: Math.min(parkOrigin.x + parkW - parkPlantPad, Math.max(parkOrigin.x + parkPlantPad, x)),
+    y: Math.min(parkOrigin.y + parkH - parkPlantPad, Math.max(parkOrigin.y + parkPlantPad, y)),
+  });
   for (const [dx, dy, sprite] of [
     [-3.4, -2.4, "plant-0"],
     [3.2, -2.3, "plant-1"],
@@ -433,12 +438,31 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     [3.1, 2.3, "plant-3"],
     [-1.8, -3.0, "plant-5"],
     [1.6, 2.8, "plant-0"],
+    [-4.4, 0.0, "plant-1"],
+    [4.2, 0.1, "plant-2"],
+    [0.0, -3.6, "plant-3"],
+    [0.2, 3.4, "plant-5"],
+    [-2.2, 3.1, "plant-0"],
+    [2.0, -3.2, "plant-1"],
+    [-4.0, -1.55, "plant-5"],
+    [3.85, 1.55, "plant-5"],
+    [-2.95, 0.85, "plant-2"],
+    [2.75, -0.85, "plant-3"],
+    [-0.95, -2.85, "plant-0"],
+    [1.05, 2.7, "plant-1"],
+    [-4.55, 1.75, "plant-5"],
+    [4.4, -1.7, "plant-2"],
+    [-2.55, -3.35, "plant-3"],
+    [2.45, 3.2, "plant-0"],
+    [-1.15, 3.5, "plant-1"],
+    [1.35, -3.45, "plant-5"],
   ] as const) {
+    const at = clampParkPlant(parkCx + dx, parkCy + dy);
     civics.push({
       kind: "plant",
       id: `park-plant-${dx}-${dy}`,
-      x: parkCx + dx,
-      y: parkCy + dy,
+      x: at.x,
+      y: at.y,
       sprite,
     });
   }

@@ -697,7 +697,8 @@ function buildingOp(place: LotPlacement, images: ImageStamp[]): void {
       repo: lot.fullName,
       tag: "building",
       url: lot.artwork.url,
-      tint: lot.facadeTint,
+      // Approved artwork is authored pixels. Facade tint is for catalog stamps.
+      tint: 0xffffff,
     });
     return;
   }

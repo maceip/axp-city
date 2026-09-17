@@ -362,7 +362,7 @@ export const CIVIC_ODD = [
   CIVIC_SPRITES["city-hall"],
 ];
 
-/** Construction-city HUD: beveled wood/slate plaques with brass rivets. */
+/** Construction-city HUD: KEEP-textured cream/khaki/slate plaques with brass rivets. */
 export const HUD_SHEET: PropSheet = {
   file: "hud-kit-k1.png",
   width: 1024,
@@ -392,6 +392,7 @@ export const HUD_FRAMES: Record<string, SpriteBox> = {
   dpad: { x: 740, y: 100, w: 150, h: 150 },
   compass: { x: 910, y: 8, w: 100, h: 100 },
   rail: { x: 740, y: 260, w: 130, h: 220 },
+  mast: { x: 8, y: 580, w: 1000, h: 86 },
 };
 
 export const GROUND_TILES: Record<string, SpriteBox> = {

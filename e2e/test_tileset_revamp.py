@@ -1,8 +1,10 @@
 """Tileset diversity, civic objects, center office, and restyled HUD.
 
 Each check reads the production Phaser scene through `window.__AXP` and
-saves screenshots. The hosted Playwright service is preferred; see conftest.
+saves screenshots. In-env Playwright (`CITY_LOCAL_BROWSER=1`) is the proof
+path; Azure Workspaces is optional. See conftest.
 """
+import statistics
 from pathlib import Path
 
 from PIL import Image
@@ -76,6 +78,34 @@ def overview_arrow_groups(path: Path, box) -> tuple[int, int]:
     return len(cream), len(groups)
 
 
+def plaque_luma_stdev(path: Path) -> float:
+    """KEEP grain should survive 9-slice tiling; a smeared stretch washes this out."""
+    image = Image.open(path).convert("RGB")
+    pix = image.load()
+    lumas = []
+    for y in range(2, max(3, image.height - 2), 2):
+        for x in range(2, max(3, image.width - 2), 2):
+            r, g, b = pix[x, y]
+            lumas.append((r + g + b) / 3)
+    return statistics.pstdev(lumas) if lumas else 0.0
+
+
+def park_forest_share(path: Path) -> float:
+    """Dark forest lawn/canopy vs vacant olive (0x8ea070) and HQ stone."""
+    image = Image.open(path).convert("RGB")
+    pix = image.load()
+    n = forest = 0
+    for y in range(0, image.height, 2):
+        for x in range(0, image.width, 2):
+            r, g, b = pix[x, y]
+            n += 1
+            luma = (r + g + b) / 3
+            sat = max(r, g, b) - min(r, g, b)
+            if g > r + 6 and g > b + 4 and luma < 125 and sat > 18 and r < 135:
+                forest += 1
+    return forest / n if n else 0.0
+
+
 def cream_ink_width(path: Path) -> int:
     """Width of cream or brass HUD lettering. SwiftShader fillText grows this past the word."""
     image = Image.open(path).convert("RGB")
@@ -88,6 +118,69 @@ def cream_ink_width(path: Path) -> int:
             if cream or gold:
                 xs.append(x)
     return max(xs) - min(xs) + 1 if xs else 0
+
+
+def letter_ink_blobs(path: Path, min_col: int = 2, merge_gap: int = 2) -> list[tuple[int, int]]:
+    """Horizontal ink runs. One BitmapText word has ~1 blob per glyph, not a doubled copy.
+
+    Firefox/WebKit rasterize KEEP glyphs with 1–2 px gutters inside C/N/U stems;
+    those are still one letter. A stacked CENSUSUS copy adds a whole extra word.
+    """
+    image = Image.open(path).convert("RGB")
+    cols = [0] * image.width
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b = image.getpixel((x, y))
+            cream = r > 200 and g > 190 and b > 150
+            gold = r > 200 and g > 170 and 120 < b < 190 and r - b > 40
+            if cream or gold:
+                cols[x] += 1
+    blobs: list[tuple[int, int]] = []
+    i = 0
+    while i < len(cols):
+        if cols[i] >= min_col:
+            j = i
+            while j < len(cols) and cols[j] >= min_col:
+                j += 1
+            blobs.append((i, j - 1))
+            i = j
+        else:
+            i += 1
+    if merge_gap and blobs:
+        merged = [blobs[0]]
+        for start, end in blobs[1:]:
+            if start - merged[-1][1] <= merge_gap:
+                merged[-1] = (merged[-1][0], end)
+            else:
+                merged.append((start, end))
+        return merged
+    return blobs
+
+
+def save_glyph_crop(src: Path, dest: Path, pad: int = 2) -> Path:
+    """Tight cream/gold ink box so OCR-vs-stack evidence is a letter crop, not the plate."""
+    image = Image.open(src).convert("RGB")
+    xs: list[int] = []
+    ys: list[int] = []
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b = image.getpixel((x, y))
+            cream = r > 200 and g > 190 and b > 150
+            gold = r > 200 and g > 170 and 120 < b < 190 and r - b > 40
+            if cream or gold:
+                xs.append(x)
+                ys.append(y)
+    if not xs:
+        image.save(dest)
+        return dest
+    box = (
+        max(0, min(xs) - pad),
+        max(0, min(ys) - pad),
+        min(image.width, max(xs) + pad + 1),
+        min(image.height, max(ys) + pad + 1),
+    )
+    image.crop(box).save(dest)
+    return dest
 
 
 def clip_hud(page, name, dest: Path, inset_x: int = 0, inset_y: int = 0) -> Path:
@@ -111,6 +204,7 @@ def assert_kit_label(page, name: str, expected: str) -> None:
     assert text == expected, f"HUD {name} game text is {text!r}, expected {expected!r}"
     # Inset past plate rivets so cream span is lettering, not brass.
     dest = clip_hud(page, name, SHOTS / f"tileset-hud-label-{name}.png", inset_x=12, inset_y=4)
+    glyph = save_glyph_crop(dest, SHOTS / f"tileset-hud-glyph-{name}.png")
     ink = cream_ink_width(dest)
     scale = 14 / 32
     expected_w = len(expected) * 19 * scale
@@ -118,6 +212,13 @@ def assert_kit_label(page, name: str, expected: str) -> None:
     assert ink > expected_w * 0.65, f"{name} label ink too thin ({ink}px) for {expected!r}"
     assert abs(ink - expected_w) < abs(ink - doubled_w), (
         f"{name} stamp still reads doubled: ink {ink}px expected ~{expected_w:.0f}px doubled ~{doubled_w:.0f}px"
+    )
+    blobs = letter_ink_blobs(glyph)
+    # KEEP glyphs split (C/P/U/R stems, Firefox/WebKit 1–2 px gutters). A stacked
+    # CENSUSUS/CAPTURECAPTURE copy still adds about another word of blobs.
+    letters = len(expected.replace(" ", ""))
+    assert letters - 2 <= len(blobs) < letters * 2 - 1, (
+        f"{name} glyph crop has {len(blobs)} blobs for {expected!r} (stacked copy would add letters)"
     )
 
 
@@ -149,7 +250,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert info["civicCount"] > 8
         kinds = info["civicByKind"]
         assert kinds.get("office", 0) >= 1
-        assert kinds.get("plant", 0) >= 4, f"missing park/vacant plants: {kinds}"
+        assert kinds.get("plant", 0) >= 16, f"park campus still too thin: {kinds}"
         assert kinds.get("odd", 0) >= 1, f"missing unused odd buildings: {kinds}"
         odds = info.get("oddSprites") or []
         assert odds, f"odd civic sprites missing from diagnostics: {odds}"
@@ -210,33 +311,103 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert len(chevrons) >= 2, f"overview painted chevrons missing: {len(chevrons)} of {len(on_screen)}"
         flyover_plaques = [m for m in on_screen if m.get("kind") == "plaque"]
         assert flyover_plaques == [], f"flyover still plaque-first: {len(flyover_plaques)} visible plaques"
-        freeway_chevrons = [m for m in chevrons if 90 < m["y"] + m["height"] / 2 < 380]
-        mark = min(
-            freeway_chevrons or chevrons,
-            key=lambda m: abs(m["x"] + m["width"] / 2 - 1040) + abs(m["y"] + m["height"] / 2 - 230),
+        corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
+        assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
+
+        def mark_center(m):
+            return m["x"] + m["width"] / 2, m["y"] + m["height"] / 2
+
+        def inside_corridor(m, box, pad=24):
+            cx, cy = mark_center(m)
+            return (
+                box["x"] - pad <= cx <= box["x"] + box["width"] + pad
+                and box["y"] - pad <= cy <= box["y"] + box["height"] + pad
+            )
+
+        freeway_chevrons = [m for m in chevrons if m.get("freeway") or inside_corridor(m, corridor)]
+        assert freeway_chevrons, (
+            f"no glance chevron on freeway-bike-lane {corridor}; glance={chevrons}"
         )
-        pad = 52
-        mark_clip = {
-            "x": max(0, mark["x"] - pad),
-            "y": max(0, mark["y"] - pad),
-            "width": min(1600, mark["x"] + mark["width"] + pad) - max(0, mark["x"] - pad),
-            "height": min(1000, mark["y"] + mark["height"] + pad) - max(0, mark["y"] - pad),
+        ccx = corridor["x"] + corridor["width"] / 2
+        ccy = corridor["y"] + corridor["height"] / 2
+        mark = min(
+            freeway_chevrons,
+            key=lambda m: abs(mark_center(m)[0] - ccx) + abs(mark_center(m)[1] - ccy),
+        )
+        pad = 16
+        raw = {
+            "x": mark["x"] - pad,
+            "y": mark["y"] - pad,
+            "width": mark["width"] + 2 * pad,
+            "height": mark["height"] + 2 * pad,
         }
+        exp = {
+            "x": corridor["x"] - 12,
+            "y": corridor["y"] - 12,
+            "width": corridor["width"] + 24,
+            "height": corridor["height"] + 24,
+        }
+        x0 = max(0, max(raw["x"], exp["x"]))
+        y0 = max(0, max(raw["y"], exp["y"]))
+        x1 = min(1600, min(raw["x"] + raw["width"], exp["x"] + exp["width"]))
+        y1 = min(1000, min(raw["y"] + raw["height"], exp["y"] + exp["height"]))
+        mark_clip = {"x": x0, "y": y0, "width": max(48, x1 - x0), "height": max(28, y1 - y0)}
         page.screenshot(path=str(SHOTS / "tileset-freeway-bike.png"), clip=mark_clip)
+        page.screenshot(
+            path=str(SHOTS / "tileset-freeway-bike-corridor.png"),
+            clip={
+                "x": max(0, corridor["x"] - 8),
+                "y": max(0, corridor["y"] - 8),
+                "width": min(1600, corridor["width"] + 16),
+                "height": min(220, corridor["height"] + 16),
+            },
+        )
         fw_k, fw_c, fw_lime = street_lane_share(
             SHOTS / "tileset-freeway-bike.png", (0, 0, int(mark_clip["width"]), int(mark_clip["height"]))
         )
         assert mark.get("kind") == "chevron", f"freeway clip still targeted a plaque: {mark}"
+        assert mark_clip["height"] <= 160, f"freeway clip still tall enough to include HQ: {mark_clip}"
         assert fw_c >= 0.04, f"freeway clip has no cream arrow body ({fw_c:.3f})"
         assert cream_ink_width(SHOTS / "tileset-freeway-bike.png") >= 48, "freeway chevron clip missing cream arrow ink"
         assert fw_lime < 0.12, f"freeway mark clip drifted to neon lime ({fw_k:.3f}/{fw_c:.3f}/{fw_lime:.3f})"
-        corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
-        assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
+
+        park_box = page.evaluate("window.__AXP.featureScreenBox('central-park')")
+        office_box = page.evaluate("window.__AXP.featureScreenBox('city-office')")
+        assert park_box and park_box["width"] > 180 and park_box["height"] > 80, f"central-park screen box missing: {park_box}"
+        assert office_box, f"city-office screen box missing: {office_box}"
+        assert park_box["width"] > office_box["width"] * 1.2, (
+            f"park flyover clip still the office pad: park={park_box} office={office_box}"
+        )
+        park_pad = 10
+        park_clip = {
+            "x": max(0, park_box["x"] - park_pad),
+            "y": max(0, park_box["y"] - park_pad),
+            "width": min(1600 - max(0, park_box["x"] - park_pad), park_box["width"] + 2 * park_pad),
+            "height": min(1000 - max(0, park_box["y"] - park_pad), park_box["height"] + 2 * park_pad),
+        }
+        page.screenshot(path=str(SHOTS / "tileset-park-flyover.png"), clip=park_clip)
+        forest = park_forest_share(SHOTS / "tileset-park-flyover.png")
+        assert forest >= 0.18, (
+            f"flyover park still reads as vacant lots ({forest:.3f} forest; clip={park_clip})"
+        )
 
         click_hud(page, "home")
         page.wait_for_timeout(500)
         page.screenshot(path=str(SHOTS / "tileset-center-office.png"), full_page=False)
         page.screenshot(path=str(SHOTS / "tileset-street-home.png"), full_page=False)
+        home_park = page.evaluate("window.__AXP.featureScreenBox('central-park')")
+        assert home_park and home_park["width"] > 240 and home_park["height"] > 120, f"home park box missing: {home_park}"
+        home_park_clip = {
+            "x": max(0, home_park["x"] - 8),
+            "y": max(0, home_park["y"] - 8),
+            "width": min(1600 - max(0, home_park["x"] - 8), home_park["width"] + 16),
+            "height": min(1000 - max(0, home_park["y"] - 8), home_park["height"] + 16),
+        }
+        page.screenshot(path=str(SHOTS / "tileset-park-home.png"), clip=home_park_clip)
+        home_forest = park_forest_share(SHOTS / "tileset-park-home.png")
+        assert home_forest >= 0.18, (
+            f"home-zoom park still reads as vacant lots ({home_forest:.3f} forest; clip={home_park_clip})"
+        )
         home_marks = page.evaluate("window.__AXP.bikeMarkScreens()")
         plaques = [
             m
@@ -275,9 +446,32 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
             return sum(sum((p - q) ** 2 for p, q in zip(ca, cb)) ** 0.5 for ca, cb in zip(x["cells"], y["cells"])) / len(x["cells"])
         assert dist(a, b) > 8 or dist(a, c) > 8 or dist(b, c) > 8, "sampled repo lots render too similarly"
 
-        for name in ("compass", "minimap", "zoom-in", "zoom-out", "home", "census", "capture", "svg", "motion", "follow", "status", "dpad", "move-east"):
+        for name in ("compass", "minimap", "zoom-in", "zoom-out", "home", "census", "capture", "svg", "motion", "follow", "status", "dpad", "move-east", "mast"):
             point = hud(page, name)
             assert point["width"] > 8 and point["height"] > 8
+        chrome = page.evaluate("window.__AXP.hudChrome()")
+        assert chrome["mast"]["kind"] == "scale9", chrome
+        assert chrome["mast"]["parts"] >= 9, f"mast is not 9-sliced: {chrome['mast']}"
+        assert chrome["mast"]["parts"] <= 15, f"mast still barcodes a narrow rail: {chrome['mast']}"
+        assert chrome["card"]["kind"] == "scale9", chrome
+        assert chrome["census"]["kind"] == "scale9", chrome
+        assert chrome["censusBtn"]["kind"] == "scale9", chrome
+        assert chrome["kitRail"]["kind"] == "scale9", chrome
+        assert chrome["compass"]["kind"] == "image", chrome
+        assert chrome["dpad"]["kind"] == "image", chrome
+        assert chrome["search"]["kind"] == "scale9", chrome
+        search = hud(page, "search")
+        assert search["width"] > 80 and search["height"] > 20
+        field = page.locator("#repo-search").bounding_box()
+        assert field, "native search field missing"
+        assert abs(field["x"] + field["width"] / 2 - search["x"]) < 48, (field, search)
+        assert abs(field["y"] + field["height"] / 2 - search["y"]) < 24, (field, search)
+        clip_hud(page, "search", SHOTS / "tileset-hud-search.png")
+        clip_hud(page, "mast", SHOTS / "tileset-hud-mast.png")
+        clip_hud(page, "census", SHOTS / "tileset-hud-kit-census.png", inset_x=8, inset_y=4)
+        clip_hud(page, "status", SHOTS / "tileset-hud-status.png")
+        mast_grain = plaque_luma_stdev(SHOTS / "tileset-hud-mast.png")
+        assert mast_grain > 5, f"mast KEEP grain washed out by stretch ({mast_grain:.2f})"
         for name, label in (
             ("census", "CENSUS"),
             ("capture", "CAPTURE"),
@@ -299,12 +493,19 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert all("…" not in c for c in crews), f"crew column still clips: {crews[:8]}"
         assert "HUMAN CREW" in crews and "QUIET LOT" in crews, crews
         page.screenshot(path=str(SHOTS / "tileset-hud-census.png"), full_page=False)
+        chrome_open = page.evaluate("window.__AXP.hudChrome()")
+        assert chrome_open["census"]["parts"] > 9, f"census board still smears the KEEP banner: {chrome_open['census']}"
         ledger = SHOTS / "tileset-hud-census-ledger.png"
         page.screenshot(path=str(ledger), clip={"x": 16, "y": 98, "width": int(frame["width"]), "height": 200})
         title = SHOTS / "tileset-hud-census-title.png"
         page.screenshot(path=str(title), clip={"x": 32, "y": 110, "width": 180, "height": 24})
         title_ink = cream_ink_width(title)
         assert 75 <= title_ink <= 150, f"census title stamp still dense or doubled ({title_ink}px, expected ~90px for 15px LOT CENSUS)"
+        title_glyph = save_glyph_crop(title, SHOTS / "tileset-hud-glyph-lot-census.png")
+        title_blobs = letter_ink_blobs(title_glyph)
+        assert 8 <= len(title_blobs) <= 12, (
+            f"LOT CENSUS crop is stacked/doubled ({len(title_blobs)} blobs; single BitmapText is ~10)"
+        )
         click_hud(page, "close-census")
         page.wait_for_function("window.__AXP.diagnostics().censusOpen === false")
 

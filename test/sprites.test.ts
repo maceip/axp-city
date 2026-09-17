@@ -267,6 +267,8 @@ describe("civic and HUD kits", () => {
     expect(oddDisplayWidth("odd-2", 0.69)).toBe(ODD_STAMP_WIDTH["odd-2"]);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);
+    expect(HUD_FRAMES.mast.w, "mast face is still the tall 130px rail").toBeGreaterThanOrEqual(900);
+    expect(HUD_FRAMES.mast.h).toBe(86);
     expect(Object.keys(CONSTRUCTION_STAGES)).toEqual(["grading", "framing", "cladding", "finishing"]);
     expect(CONSTRUCTION_STAGES.grading).toEqual(CIVIC_SPRITES["scaffold-0"]);
     expect(CONSTRUCTION_STAGES.framing).toEqual(CIVIC_SPRITES["scaffold-1"]);
@@ -709,6 +711,182 @@ print(" ".join(f"{xor_frac(a,b):.3f}" for a,b in pairs))
     });
   });
 
+  it("breaks leftover mill/clock/eco/ranch cousins with unused KEEP stamps, not tints", () => {
+    const script = `
+from PIL import Image
+boxes = {
+    6: ("S", 63, 244, 130, 112), 10: ("S", 1094, 239, 115, 117),
+    14: ("S", 806, 364, 179, 172), 23: ("M", 65, 184, 126, 172),
+    15: ("S", 1053, 364, 198, 172), 25: ("M", 573, 184, 134, 172),
+    47: ("L", 82, 544, 156, 172), 8: ("S", 579, 253, 122, 103),
+    20: ("M", 584, 4, 111, 172), 21: ("M", 834, 4, 124, 172),
+    22: ("M", 1094, 4, 115, 172), 24: ("M", 325, 184, 118, 172),
+    11: ("S", 22, 364, 211, 172), 27: ("M", 1097, 184, 109, 172),
+    9: ("S", 837, 238, 117, 118), 17: ("S", 298, 545, 171, 171),
+    7: ("S", 322, 237, 123, 119), 41: ("L", 765, 184, 70, 172),
+}
+sheets = {
+    "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
+    "M": Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA"),
+    "L": Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA"),
+}
+
+def mask(bid):
+    band, x, y, w, h = boxes[bid]
+    im = sheets[band].crop((x, y, x + w, y + h)).resize((48, 48), Image.Resampling.BILINEAR)
+    px = im.load()
+    return [px[xx, yy][3] >= 16 for yy in range(48) for xx in range(48)]
+
+def xor_frac(a, b):
+    ma, mb = mask(a), mask(b)
+    n = sum(x or y for x, y in zip(ma, mb))
+    return sum(x != y for x, y in zip(ma, mb)) / max(n, 1)
+
+pairs = [(6,10),(6,14),(6,23),(10,14),(15,25),(15,47),(25,47),(20,21),(20,22),(20,24),(11,27),(9,17),(9,11),(9,27),(7,41),(8,22),(8,47),(22,47)]
+print(" ".join(f"{xor_frac(a,b):.3f}" for a,b in pairs))
+`;
+    const vals = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    const labels = [
+      "mill 6 vs 10",
+      "mill 6 vs 14",
+      "mill 6 vs 23",
+      "mill 10 vs 14",
+      "clock 15 vs 25",
+      "clock 15 vs 47",
+      "clock 25 vs 47",
+      "eco 20 vs 21",
+      "eco 20 vs 22",
+      "eco 20 vs 24",
+      "ranch 11 vs 27",
+      "temple 9 vs pagoda 17",
+      "tudor 9 vs ranch 11",
+      "tudor 9 vs villa 27",
+      "crane 7 vs rocket 41",
+      "box 8 vs cabin 22",
+      "box 8 vs duplex 47",
+      "cabin 22 vs duplex 47",
+    ];
+    vals.forEach((v, i) => {
+      expect(v, `${labels[i]} still one cousin silhouette`).toBeGreaterThan(0.16);
+    });
+  });
+
+  it("clears the lot 22 cabin roof-tree fragment without boxing the gable", () => {
+    const script = `
+from PIL import Image
+im = Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA")
+x,y,w,h = 1094,4,115,172
+px = im.load()
+dark = green = opaque = 0
+door = 0
+for yy in range(y, y+h):
+    for xx in range(x, x+w):
+        r,g,b,a = px[xx,yy]
+        if a < 16:
+            continue
+        opaque += 1
+        if g > r + 8 and g > b + 4 and max(r,g,b)-min(r,g,b) > 16:
+            green += 1
+            if yy > y + int(h*0.55) and x + int(w*0.20) <= xx <= x + int(w*0.55):
+                door += 1
+        if yy < y + int(h*0.55) and xx > x + int(w*0.62):
+            if (r+g+b)/3 < 90 and max(r,g,b)-min(r,g,b) < 40:
+                dark += 1
+print(f"{dark} {green} {door} {opaque}")
+`;
+    const [dark, green, door, opaque] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(dark, "lot 22 still has a roof-tree fragment").toBeLessThan(28);
+    expect(door, "lot 22 lost the green door").toBeGreaterThan(8);
+    expect(green, "lot 22 has no door ink").toBeGreaterThan(8);
+    expect(opaque, "lot 22 stamp vanished").toBeGreaterThan(400);
+  });
+
+  it("keeps lot 24 a complete khaki stamp, not a mill-sail fragment", () => {
+    const script = `
+from PIL import Image
+im = Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA")
+x,y,w,h = 325,184,118,172
+px = im.load()
+n = chroma = 0
+for yy in range(y, y+h):
+    for xx in range(x, x+w):
+        r,g,b,a = px[xx,yy]
+        if a < 16:
+            continue
+        n += 1
+        chroma += max(r,g,b)-min(r,g,b)
+print(f"{n} {chroma/max(n,1):.2f}")
+`;
+    const [opaque, sat] = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(opaque, "lot 24 is still a mill-sail fragment").toBeGreaterThan(7500);
+    expect(sat, "lot 24 mill still reads as a second, hotter game").toBeLessThan(32);
+  });
+
+  it("paints swapped KEEP lots onto the catalog cream-khaki luma range", () => {
+    const script = `
+from PIL import Image
+boxes = {
+    8: ("S", 579, 253, 122, 103),
+    9: ("S", 837, 238, 117, 118),
+    22: ("M", 1094, 4, 115, 172),
+    24: ("M", 325, 184, 118, 172),
+    27: ("M", 1097, 184, 109, 172),
+    47: ("L", 82, 544, 156, 172),
+}
+sheets = {
+    "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
+    "M": Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA"),
+    "L": Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA"),
+}
+
+def stats(bid):
+    band,x,y,w,h = boxes[bid]
+    px = sheets[band].load()
+    n = chroma = luma = 0
+    for yy in range(y, y+h):
+        for xx in range(x, x+w):
+            r,g,b,a = px[xx,yy]
+            if a < 16:
+                continue
+            n += 1
+            chroma += max(r,g,b)-min(r,g,b)
+            luma += (r+g+b)/3
+    return n, chroma/n, luma/n
+
+print(" ".join(f"{v:.2f}" for bid in (8,9,22,24,27,47) for v in stats(bid)))
+`;
+    const vals = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    const rows = [8, 9, 22, 24, 27, 47].map((id, i) => ({
+      id,
+      n: vals[i * 3],
+      sat: vals[i * 3 + 1],
+      luma: vals[i * 3 + 2],
+    }));
+    for (const row of rows) {
+      expect(row.n, `lot ${row.id} stamp vanished`).toBeGreaterThan(400);
+      expect(row.sat, `lot ${row.id} still a second, hotter game`).toBeLessThan(30);
+    }
+    expect(rows[1].luma, "Tudor 9 still a dark pixel-art cousin").toBeGreaterThan(110);
+    expect(rows[2].luma, "cabin 22 still a dark pixel-art cousin").toBeGreaterThan(130);
+    expect(rows[5].luma, "duplex 47 still a dark pixel-art cousin").toBeGreaterThan(130);
+    expect(rows[2].luma, "cabin 22 washed past catalog cube 8").toBeLessThan(rows[0].luma + 4);
+    expect(rows[5].luma, "duplex 47 washed past catalog cube 8").toBeLessThan(rows[0].luma + 4);
+  });
+
   it("flattens the lot 48 store oval off the slate roof", () => {
     const script = `
 from PIL import Image
@@ -769,8 +947,30 @@ print(f"{mr:.1f} {mg:.1f} {mb:.1f} {lime/n:.3f} {pr} {pg} {pb}")
       .map(Number);
     expect(limeFrac, `bike-0 still has neon lime (${mr},${mg},${mb})`).toBeLessThan(0.08);
     expect(mg - mr, "bike-0 green channel still dominates red").toBeLessThan(18);
-    expect(Math.abs(pr - pg), "HUD plate still reads as raw walnut, not olive timber").toBeLessThan(20);
+    expect(Math.abs(pr - pg), "HUD plate still reads as raw walnut, not olive timber").toBeLessThan(28);
     expect(pb, "HUD plate should stay in the cream-slate family").toBeGreaterThan(40);
+  });
+
+  it("tiles HUD plaques from KEEP grain instead of flat procedural fills", () => {
+    const script = `
+from PIL import Image
+import statistics
+hud = Image.open("assets/city-sprites/hud-kit-k1.png").convert("RGB")
+px = hud.load()
+lumas = []
+for y in range(22, 68):
+    for x in range(24, 230):
+        r,g,b = px[x,y]
+        lumas.append((r+g+b)/3)
+print(f"{statistics.pstdev(lumas):.2f} {statistics.mean(lumas):.1f}")
+`;
+    const [stdev, mean] = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(stdev, "HUD plate fill is still a flat procedural wash").toBeGreaterThan(6);
+    expect(mean, "HUD plate left the khaki-slate range").toBeGreaterThan(70);
+    expect(mean, "HUD plate drifted into pale paper").toBeLessThan(175);
   });
 
   it("restyles wild-tree canopy onto the same olive catalog as civic plants", () => {
@@ -811,6 +1011,39 @@ print(f"{sr/n:.1f} {sg/n:.1f} {sb/n:.1f} {lime/n:.3f} {clr/cn:.1f} {clg/cn:.1f} 
     expect(mg - mr, "wild canopy still much greener than civic plants").toBeLessThan(20);
     expect(Math.abs(mg - cg), "wild vs civic foliage still in different families").toBeLessThan(28);
     expect(mr, "wild canopy still too dark/chartreuse versus civic plants").toBeGreaterThan(90);
+  });
+
+  it("packs CENSUS / LOT CENSUS / BIKE LANE as one BitmapText advance, not stacked copies", () => {
+    const script = `
+import xml.etree.ElementTree as ET
+xml = ET.parse("assets/city-sprites/hud-font-k1.xml")
+chars = {int(c.attrib["id"]): c.attrib for c in xml.find("chars")}
+
+def layout(text):
+    x = 0
+    boxes = []
+    for ch in text:
+        c = chars[ord(ch)]
+        w, xa, xo = int(c["width"]), int(c["xadvance"]), int(c["xoffset"])
+        boxes.append((x + xo, x + xo + w))
+        x += xa
+    return x, boxes
+
+for word in ("CENSUS", "LOT CENSUS", "BIKE LANE"):
+    adv, boxes = layout(word)
+    overlap = 0
+    for i in range(1, len(boxes)):
+        overlap += max(0, boxes[i-1][1] - boxes[i][0] - 4)
+    print(adv, overlap, len(word))
+`;
+    const rows = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split("\n")
+      .map((line) => line.split(/\s+/).map(Number));
+    for (const [advance, overlap, letters] of rows) {
+      expect(overlap, "HUD glyphs stack on top of each other in the atlas layout").toBe(0);
+      expect(advance, "word advance is not one letter per 19px cell").toBe(letters * 19);
+    }
   });
 
   it("ships a baseline-aligned HUD bitmap font so labels cannot double on SwiftShader", () => {

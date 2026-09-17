@@ -474,6 +474,8 @@ JANE_CHURCH = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Church.png"
 JANE_HALL = SRC2 / "PC _ Computer - Jane's Realty - Buildings - City Hall.png"
 JANE_COTTAGE = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Beach Cottage.png"
 JANE_NORWOOD = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Norwood House.png"
+JANE_VILLA = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Spanish Villa.png"
+JANE_MAP = SRC2 / "PC _ Computer - Jane's Realty - Map - Map Elements.png"
 JANE_SHEETS = {
     "repair": JANE_REPAIR,
     "store": JANE_STORE,
@@ -481,6 +483,20 @@ JANE_SHEETS = {
     "hall": JANE_HALL,
     "cottage": JANE_COTTAGE,
     "norwood": JANE_NORWOOD,
+    "villa": JANE_VILLA,
+}
+# Finished isometric exteriors only (top-left color building). Interiors, lineart,
+# joke props, SC2k tiles, and $ bank stay rejected.
+FV_KEEP = {
+    "library": SRC1 / "communitybuildings-library.png",
+    "school": SRC1 / "communitybuildings-school.png",
+    "postoffice": SRC1 / "communitybuildings-postoffice.png",
+    "civic": SRC1 / "communitybuildings-civiccenter.png",
+    "toyfactory": SRC1 / "businesses-toyfactory.png",
+    "apartment": SRC3 / "houses-apartment.png",
+    "tudor": SRC1 / "houses-tudorhouse.png",
+    "logcabin": SRC1 / "houses-logcabin.png",
+    "duplex": SRC3 / "houses-duplex.png",
 }
 ECO_LARGE = {
     3: PLAYER_REPO / "ChatGPT Image Sep 11, 2026, 10_38_02 AM (3).png",  # helipad
@@ -506,6 +522,22 @@ TRIO_BREAK: dict[int, tuple[str, int | str]] = {
     23: ("sp", 10),  # mill tower
     25: ("sp", 6),  # clock factory — keep brick 42
     11: ("jane", "norwood"),  # keep analytics 45
+}
+
+# Leftover same-silhouette cousins after trio-break: keep one of each family.
+# Unused KEEP only — not mushrooms/crystal/honeycomb/cathedral, not more eco-white
+# offices, not AXP catalog DNA, not $ bank, not FarmVille interiors.
+COUSIN_BREAK: dict[int, tuple[str, int | str]] = {
+    10: ("craft", 1),  # greenhouse — keep mill 6
+    14: ("fv", "toyfactory"),  # brick works — keep mill 6
+    23: ("fv", "library"),  # civic library
+    25: ("fv", "school"),  # keep clock tower 15
+    47: ("fv", "duplex"),  # pitched duplex — keep commercial cube 8, not a post cube
+    21: ("fv", "civic"),  # capitol — keep eco observatory 20
+    22: ("fv", "logcabin"),  # timber cabin — not a walkup cube
+    24: ("jane", "windmill"),  # Dutch mill, not a waterwheel
+    27: ("jane", "villa"),  # keep ranch 11
+    9: ("fv", "tudor"),  # keep pagoda 17; not a second temple
 }
 
 
@@ -1486,11 +1518,229 @@ def crush_roof_badge(im: Image.Image) -> Image.Image:
     return out
 
 
+# Dutch mill sails/walls are warm tan; catalog orange crush flattens them into one umber blob.
+COUSIN_SKIP_ROOF_CRUSH = {24}
+
+
 def prepare_lot_stamp(spr: Image.Image, bid: int, w: int, h: int) -> Image.Image:
     fitted = scale_to(trim(spr), w, h)
+    if bid in COUSIN_SKIP_ROOF_CRUSH:
+        return crush_roof_badge(crush_poster_type(fitted))
     return crush_roof_badge(
         crush_poster_type(crush_catalog_orange(restyle_catalog_roof(fitted, bid), bid))
     )
+
+
+def _is_lineart(spr: Image.Image) -> bool:
+    px = spr.load()
+    n = chroma = 0
+    for y in range(0, spr.height, 3):
+        for x in range(0, spr.width, 3):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            n += 1
+            if max(r, g, b) - min(r, g, b) > 22:
+                chroma += 1
+    return n > 40 and chroma / n < 0.08
+
+
+def _keep_sat(r: int, g: int, b: int) -> int:
+    return max(r, g, b) - min(r, g, b)
+
+
+def _keep_luma(r: int, g: int, b: int) -> float:
+    return (r + g + b) / 3.0
+
+
+def _is_snow_roof(r: int, g: int, b: int) -> bool:
+    return min(r, g, b) > 198 and _keep_sat(r, g, b) < 36
+
+
+def _is_keep_foliage(r: int, g: int, b: int, a: int) -> bool:
+    if a < 16 or _is_snow_roof(r, g, b):
+        return False
+    return g > r + 6 and g > b + 3 and _keep_sat(r, g, b) > 14
+
+
+def _is_keep_timber(r: int, g: int, b: int, a: int) -> bool:
+    return a >= 16 and r > g + 12 and r > b + 8 and 45 < _keep_luma(r, g, b) < 190
+
+
+def _is_dark_canopy(r: int, g: int, b: int, a: int) -> bool:
+    """Pine crown after keying — near-black / olive, not log-end rings."""
+    if a < 16 or _is_snow_roof(r, g, b) or _is_keep_timber(r, g, b, a):
+        return False
+    luma = _keep_luma(r, g, b)
+    if luma < 78 and _keep_sat(r, g, b) < 55:
+        return True
+    return g >= r - 2 and g > b and luma < 110 and _keep_sat(r, g, b) > 8
+
+
+def drop_yard_hedge(spr: Image.Image) -> Image.Image:
+    """Drop green lawn/hedge before restyle so it does not bake into a cream ghost."""
+    out = spr.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            if g > r + 10 and g > b + 6 and _keep_sat(r, g, b) > 18 and not _is_snow_roof(r, g, b):
+                px[x, y] = (0, 0, 0, 0)
+    return trim(out)
+
+
+def drop_cabin_roof_tree(spr: Image.Image) -> Image.Image:
+    """Remove the hanging pine on the right gable. Keep the green door and logs."""
+    out = spr.copy()
+    px = out.load()
+    w, h = out.size
+    x0 = int(w * 0.66)
+    y1 = int(h * 0.64)
+    for y in range(0, y1):
+        for x in range(x0, w):
+            r, g, b, a = px[x, y]
+            if _is_keep_foliage(r, g, b, a) or _is_dark_canopy(r, g, b, a):
+                px[x, y] = (0, 0, 0, 0)
+    # Close 1px bites in the snow gable without growing a new roof lobe.
+    for _ in range(8):
+        fills: list[tuple[int, int, tuple[int, int, int, int]]] = []
+        for y in range(0, y1):
+            for x in range(x0, w):
+                if px[x, y][3] >= 16:
+                    continue
+                neigh: list[tuple[int, int, int, int]] = []
+                roof_n = 0
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        if dx == 0 and dy == 0:
+                            continue
+                        xx, yy = x + dx, y + dy
+                        if 0 <= xx < w and 0 <= yy < h:
+                            rr, gg, bb, aa = px[xx, yy]
+                            if aa >= 16:
+                                neigh.append((rr, gg, bb, aa))
+                                if aa >= 16 and _keep_luma(rr, gg, bb) > 165 and _keep_sat(rr, gg, bb) < 55:
+                                    roof_n += 1
+                if roof_n >= 5 and neigh:
+                    mid = len(neigh) // 2
+                    rs = sorted(c[0] for c in neigh)
+                    gs = sorted(c[1] for c in neigh)
+                    bs = sorted(c[2] for c in neigh)
+                    fills.append((x, y, (rs[mid], gs[mid], bs[mid], 255)))
+        for x, y, col in fills:
+            px[x, y] = col
+        if not fills:
+            break
+    # Isolated dark specks left on the right ridge after the pine crown keys out.
+    for y in range(0, int(h * 0.50)):
+        for x in range(int(w * 0.70), w):
+            r, g, b, a = px[x, y]
+            if a < 16 or _is_keep_timber(r, g, b, a) or _is_snow_roof(r, g, b):
+                continue
+            if _keep_luma(r, g, b) >= 95:
+                continue
+            opaque_n = 0
+            for dy in range(-2, 3):
+                for dx in range(-2, 3):
+                    if dx == 0 and dy == 0:
+                        continue
+                    xx, yy = x + dx, y + dy
+                    if 0 <= xx < w and 0 <= yy < h and px[xx, yy][3] >= 16:
+                        opaque_n += 1
+            if opaque_n <= 8:
+                px[x, y] = (0, 0, 0, 0)
+    return trim(out)
+
+
+def extract_fv_keep(name: str) -> Image.Image:
+    """Finished isometric exterior from src1/src3 — never interiors or lineart."""
+    path = FV_KEEP.get(name)
+    if path is None or not path.exists():
+        raise SystemExit(f"fv keep {name} missing: {path}")
+    im = open_rgba(path)
+    w, h = im.size
+    cell = im.crop((0, 0, int(w * 0.42), int(h * 0.48)))
+    keyed = key_near_white(cell, thresh=232)
+    opaque = 0
+    kpx = keyed.load()
+    for y in range(0, keyed.height, 3):
+        for x in range(0, keyed.width, 3):
+            if kpx[x, y][3] >= 16:
+                opaque += 1
+    if opaque < 80:
+        keyed = key_black(cell, thresh=22)
+    blobs = [b for b in components(keyed, min_px=800) if b[2] > 70 and b[3] > 70]
+    blobs.sort(key=lambda b: b[2] * b[3], reverse=True)
+    for blob in blobs:
+        spr = trim(blob[4])
+        if _is_lineart(spr) or is_gray_pad(spr):
+            continue
+        # Drop yard / roof-tree while foliage is still green — restyle turns pines umber.
+        if name == "logcabin":
+            spr = drop_cabin_roof_tree(spr)
+        elif name in ("tudor", "duplex"):
+            spr = drop_yard_hedge(spr)
+        spr = restyle_jane_odd(restyle(spr, sat=0.48, contrast=1.04))
+        if name == "tudor":
+            # Pale garden ghosts left after green drop — pad only, not tan walls.
+            px = spr.load()
+            y0 = int(spr.height * 0.82)
+            for y in range(y0, spr.height):
+                for x in range(spr.width):
+                    r, g, b, a = px[x, y]
+                    if a < 16:
+                        continue
+                    if min(r, g, b) > 198 and _keep_sat(r, g, b) < 36:
+                        px[x, y] = (0, 0, 0, 0)
+            spr = trim(spr)
+        return spr
+    raise SystemExit(f"no finished exterior in {path.name}")
+
+
+def extract_jane_windmill() -> Image.Image:
+    """One Dutch mill from the map sheet — not the stacked column, not a waterwheel.
+
+    sat=0.48 matches FV KEEP / grid KEEP so the mill does not read as a second game.
+    """
+    path = JANE_MAP
+    if not path.exists():
+        raise SystemExit(f"Jane windmill sheet missing: {path}")
+    # Blades of neighboring mills touch; crop one measured cell instead of the column.
+    keyed = key_teal(open_rgba(path).crop((0, 8, 128, 128)))
+    blobs = [b for b in components(keyed, min_px=280) if b[2] > 40 and b[3] > 48]
+    blobs.sort(key=lambda b: b[2] * b[3], reverse=True)
+    if not blobs:
+        raise SystemExit("Jane windmill missing")
+    spr = trim(blobs[0][4])
+    px = spr.load()
+    for y in range(spr.height):
+        for x in range(spr.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            # Yard grass + fence hedge — keep tan timber and cream sails.
+            if g > r + 8 and g > b + 4 and max(r, g, b) - min(r, g, b) > 16:
+                px[x, y] = (0, 0, 0, 0)
+    spr = restyle(trim(spr), sat=0.48, contrast=1.06)
+    # Terracotta roof only. restyle_jane_odd would also flatten tan walls into the sails.
+    px = spr.load()
+    for y in range(spr.height):
+        for x in range(spr.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            if 8 <= h * 360 <= 40 and s >= 0.28 and v >= 0.35 and r > b + 20 and r > g + 8:
+                t = max(0.0, min(1.0, ((r + g + b) / 3 - 40) / 140))
+                px[x, y] = (
+                    int(108 + t * 36),
+                    int(98 + t * 28),
+                    int(78 + t * 22),
+                    a,
+                )
+    return spr
 
 
 def extract_keep_stamp(src: str, key: int | str) -> Image.Image:
@@ -1499,9 +1749,13 @@ def extract_keep_stamp(src: str, key: int | str) -> Image.Image:
     if src == "craft":
         return extract_craft_cell(int(key))
     if src == "jane":
+        if key == "windmill":
+            return extract_jane_windmill()
         return extract_jane_lot(str(key))
     if src == "eco":
         return extract_eco_large(int(key))
+    if src == "fv":
+        return extract_fv_keep(str(key))
     raise SystemExit(f"unknown keep source {src}")
 
 
@@ -1534,6 +1788,221 @@ def stamp_break_catalog_trios() -> None:
     """Keep one catalog size per species; replace the extras. Restamp lot 48 oval."""
     stamp_keep_map(TRIO_BREAK, "trio-break")
     stamp_keep_map({48: CLONE_BREAK[48]}, "store-badge")
+
+
+def stamp_break_cousin_clusters() -> None:
+    """Replace leftover mill/clock/eco/ranch cousins with unused KEEP silhouettes."""
+    stamp_keep_map(COUSIN_BREAK, "cousin-break")
+
+
+def crush_stamped_lot_chroma(bid: int, target: float = 26.0) -> float:
+    """Pull one stamped lot's chroma toward the khaki catalog without moving silhouette."""
+    band = "S" if bid <= 17 else "M" if bid <= 34 else "L"
+    path, _ids = CATALOG_SHEETS[band]
+    kit = open_rgba(path)
+    x, y, w, h = CATALOG_BUILDING_BOXES[bid]
+    cell = kit.crop((x, y, x + w, y + h))
+    px = cell.load()
+    chromas: list[int] = []
+    for yy in range(h):
+        for xx in range(w):
+            r, g, b, a = px[xx, yy]
+            if a < 16:
+                continue
+            chromas.append(max(r, g, b) - min(r, g, b))
+    mean = sum(chromas) / max(len(chromas), 1)
+    if mean <= target:
+        print("lot", bid, "chroma", round(mean, 1), "already <=", target)
+        return mean
+    scale = target / mean
+    for yy in range(h):
+        for xx in range(w):
+            r, g, b, a = px[xx, yy]
+            if a < 16:
+                continue
+            hh, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+            nr, ng, nb = colorsys.hsv_to_rgb(hh, min(1.0, s * scale), v)
+            px[xx, yy] = (int(nr * 255 + 0.5), int(ng * 255 + 0.5), int(nb * 255 + 0.5), a)
+    kit.paste(cell, (x, y))
+    kit.save(path)
+    print("crushed lot", bid, "chroma", round(mean, 1), "→", target, "scale", round(scale, 3), path)
+    return target
+
+
+def stamp_jane_windmill() -> None:
+    """Restamp the Dutch mill, then crush leftover sail/roof chroma onto khaki KEEP."""
+    stamp_keep_map({24: ("jane", "windmill")}, "jane-windmill")
+    crush_stamped_lot_chroma(24, 26.0)
+
+
+# Cousin KEEP / Jane swaps that still read as a second, darker pixel-art game.
+KEEP_VIBE_LOTS = (9, 10, 14, 21, 22, 23, 24, 25, 27, 47)
+CATALOG_KHAKI = (136, 128, 112)
+UMBER_INK = (52, 46, 34)
+
+
+def _unify_keep_cell(cell: Image.Image) -> Image.Image:
+    """Paint KEEP pixel-art onto catalog cream-khaki-slate. Alpha silhouette stays."""
+    out = cell.copy()
+    px = out.load()
+    w, h = out.size
+    chromas: list[int] = []
+    lumas: list[float] = []
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            chromas.append(max(r, g, b) - min(r, g, b))
+            lumas.append((r + g + b) / 3.0)
+    mean_sat = sum(chromas) / max(len(chromas), 1)
+    mean_luma = sum(lumas) / max(len(lumas), 1)
+    if mean_sat > 30:
+        out = restyle_jane_odd(out)
+        px = out.load()
+    # Recolor hard black silhouettes to catalog umber — do not grow alpha.
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            luma = (r + g + b) / 3.0
+            sat = max(r, g, b) - min(r, g, b)
+            if luma >= 52 or sat >= 40:
+                continue
+            edge = False
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                xx, yy = x + dx, y + dy
+                if xx < 0 or yy < 0 or xx >= w or yy >= h or px[xx, yy][3] < 16:
+                    edge = True
+                    break
+            if edge:
+                px[x, y] = (*UMBER_INK, a)
+    lift = max(-6.0, min(20.0, 122.0 - mean_luma))
+    sat_scale = 24.0 / mean_sat if mean_sat > 24.0 else 1.0
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            # Cabin door / foliage — stamps, not a khaki wash.
+            if g > r + 8 and g > b + 4 and max(r, g, b) - min(r, g, b) > 16:
+                continue
+            luma = 0.299 * r + 0.587 * g + 0.114 * b
+            nr = r * 0.70 + CATALOG_KHAKI[0] * 0.30
+            ng = g * 0.70 + CATALOG_KHAKI[1] * 0.30
+            nb = b * 0.70 + CATALOG_KHAKI[2] * 0.30
+            mixed = 0.299 * nr + 0.587 * ng + 0.114 * nb
+            if mixed > 1:
+                s = luma / mixed
+                nr, ng, nb = nr * s, ng * s, nb * s
+            if 70 <= luma <= 190:
+                nr += lift * 0.65
+                ng += lift * 0.65
+                nb += lift * 0.65
+            hh, ss, vv = colorsys.rgb_to_hsv(
+                max(0, min(255, nr)) / 255.0,
+                max(0, min(255, ng)) / 255.0,
+                max(0, min(255, nb)) / 255.0,
+            )
+            rr, gg, bb = colorsys.hsv_to_rgb(hh, min(1.0, ss * sat_scale), vv)
+            px[x, y] = (
+                int(rr * 255 + 0.5),
+                int(gg * 255 + 0.5),
+                int(bb * 255 + 0.5),
+                a,
+            )
+    return out
+
+
+def unify_keep_catalog_vibe() -> None:
+    """Pull swapped KEEP lots onto the ChatGPT/solarpunk cream-khaki-slate range."""
+    sheets: dict[str, Image.Image] = {}
+    for bid in KEEP_VIBE_LOTS:
+        band = "S" if bid <= 17 else "M" if bid <= 34 else "L"
+        path, _ids = CATALOG_SHEETS[band]
+        if band not in sheets:
+            sheets[band] = open_rgba(path)
+        x, y, w, h = CATALOG_BUILDING_BOXES[bid]
+        cell = sheets[band].crop((x, y, x + w, y + h))
+        sheets[band].paste(_unify_keep_cell(cell), (x, y))
+        print("unified keep vibe", bid, "→", (x, y, w, h))
+    for band, kit in sheets.items():
+        path, _ids = CATALOG_SHEETS[band]
+        kit.save(path)
+        print("saved keep vibe", band, path)
+
+
+# Cabin / duplex still sat ~107 luma after vibe unify; catalog cube 8 is ~151 cream.
+HOUSE_LUMA_LOTS = (22, 47)
+CATALOG_CREAM = (198, 188, 164)
+
+
+def _lift_keep_house_cell(cell: Image.Image, target: float = 145.0) -> Image.Image:
+    """Lift KEEP house midtones toward catalog cube cream. Alpha, door, edges stay."""
+    out = cell.copy()
+    px = out.load()
+    w, h = out.size
+    lumas: list[float] = []
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            lumas.append((r + g + b) / 3.0)
+    mean = sum(lumas) / max(len(lumas), 1)
+    delta = target - mean
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            sat = max(r, g, b) - min(r, g, b)
+            luma = (r + g + b) / 3.0
+            if g > r + 8 and g > b + 4 and sat > 16:
+                continue
+            if luma < 55 and sat < 40:
+                continue
+            mix = 0.28 if 60 <= luma <= 200 else 0.12
+            nr = r * (1 - mix) + CATALOG_CREAM[0] * mix
+            ng = g * (1 - mix) + CATALOG_CREAM[1] * mix
+            nb = b * (1 - mix) + CATALOG_CREAM[2] * mix
+            lift = delta * (0.85 if 60 <= luma <= 190 else 0.35)
+            nr += lift
+            ng += lift
+            nb += lift
+            mx, mn = max(nr, ng, nb), min(nr, ng, nb)
+            if mx - mn > 24 and mx > mn:
+                mid = (nr + ng + nb) / 3.0
+                scale = 24.0 / (mx - mn)
+                nr = mid + (nr - mid) * scale
+                ng = mid + (ng - mid) * scale
+                nb = mid + (nb - mid) * scale
+            px[x, y] = (
+                max(0, min(255, int(nr + 0.5))),
+                max(0, min(255, int(ng + 0.5))),
+                max(0, min(255, int(nb + 0.5))),
+                a,
+            )
+    return out
+
+
+def lift_keep_house_luma(target: float = 145.0) -> None:
+    """Pull cabin 22 / duplex 47 toward catalog cube 8 cream without one silhouette."""
+    sheets: dict[str, Image.Image] = {}
+    for bid in HOUSE_LUMA_LOTS:
+        band = "S" if bid <= 17 else "M" if bid <= 34 else "L"
+        path, _ids = CATALOG_SHEETS[band]
+        if band not in sheets:
+            sheets[band] = open_rgba(path)
+        x, y, w, h = CATALOG_BUILDING_BOXES[bid]
+        cell = sheets[band].crop((x, y, x + w, y + h))
+        sheets[band].paste(_lift_keep_house_cell(cell, target), (x, y))
+        print("lifted keep house", bid, "→", target, (x, y, w, h))
+    for band, kit in sheets.items():
+        path, _ids = CATALOG_SHEETS[band]
+        kit.save(path)
+        print("saved keep house lift", band, path)
 
 
 def restyle_pagoda(im: Image.Image) -> Image.Image:
@@ -1791,38 +2260,173 @@ def _chamfer(x: int, y: int, w: int, h: int, c: int = 7) -> list[tuple[int, int]
     ]
 
 
-def hud_kit(_hud: Image.Image | None = None) -> tuple[Image.Image, dict]:
-    """Construction-city survey kit: beveled wood/slate plaques, brass rivets.
+# Civic KEEP crops already filtered from the attached construction/gates/bank
+# sheet + zip kits. Jane chrome is not sampled.
+# Tight pad/roof faces only — parking grain, not a tiled house or door strip.
+_HUD_KEEP_CROPS = {
+    "cream": (1342, 30, 40, 28),   # scaffold-2 roof plane
+    "khaki": (116, 349, 70, 50),   # parking asphalt → khaki
+    "slate": (116, 349, 70, 50),   # parking asphalt → slate
+    "timber": (116, 349, 70, 50),  # parking asphalt → umber timber
+}
 
-    Jane's Realty chrome is not copied or recolored. Frame sizes stay the
-    same so HudScene hit targets keep working.
+
+def _interior_crop(im: Image.Image, margin: float = 0.20) -> Image.Image:
+    w, h = im.size
+    mx, my = max(2, int(w * margin)), max(2, int(h * margin))
+    if w - 2 * mx < 8 or h - 2 * my < 8:
+        return im
+    return im.crop((mx, my, w - mx, h - my))
+
+
+def _shift_swatch(im: Image.Image, target: tuple[int, int, int], strength: float = 0.62) -> Image.Image:
+    """Keep KEEP grain, lean the mean onto catalog cream/khaki/slate."""
+    out = im.convert("RGBA")
+    px = out.load()
+    n = sr = sg = sb = 0
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            n += 1
+            sr += r
+            sg += g
+            sb += b
+    if n < 8:
+        return out
+    mr, mg, mb = sr / n, sg / n, sb / n
+    tr, tg, tb = target
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            px[x, y] = (
+                max(0, min(255, int(r + (tr - mr) * strength))),
+                max(0, min(255, int(g + (tg - mg) * strength))),
+                max(0, min(255, int(b + (tb - mb) * strength))),
+                a,
+            )
+    return out
+
+
+def keep_hud_swatches() -> dict[str, Image.Image]:
+    """Cream / khaki / slate / timber faces from restyled civic KEEP, not Jane HUD."""
+    civic_path = OUT / "civic-kit-k1.png"
+    swatches: dict[str, Image.Image] = {}
+    if civic_path.exists():
+        civic = open_rgba(civic_path)
+        targets = {
+            "cream": CREAM,
+            "khaki": WOOD_LT,
+            "slate": FOREST,
+            "timber": WOOD,
+        }
+        for name, (x, y, w, h) in _HUD_KEEP_CROPS.items():
+            crop = _interior_crop(civic.crop((x, y, x + w, y + h)))
+            if crop.getbbox():
+                swatches[name] = _shift_swatch(crop, targets[name])
+    # Catalog cream wall (lot 8 shop) if civic cladding is missing.
+    shop = OUT / "buildings-small-01-17-k1.png"
+    if shop.exists() and "cream" not in swatches:
+        wall = _interior_crop(open_rgba(shop).crop((579, 253, 701, 356)), 0.28)
+        if wall.getbbox():
+            swatches["cream"] = _shift_swatch(wall, CREAM)
+    return swatches
+
+
+def _tile_swatch(swatch: Image.Image | None, w: int, h: int, fallback: tuple[int, int, int], mirror: bool = True) -> Image.Image:
+    """Tile KEEP grain. Mirror odd cells so a wide mast is not a barcode."""
+    out = Image.new("RGBA", (w, h), fallback + (242,))
+    if swatch is None or swatch.width < 6 or swatch.height < 6:
+        return out
+    src = swatch.convert("RGBA")
+    for y in range(0, h, src.height):
+        row = y // src.height
+        for x in range(0, w, src.width):
+            col = x // src.width
+            cell = src
+            if mirror and col % 2:
+                cell = cell.transpose(Image.FLIP_LEFT_RIGHT)
+            if mirror and row % 2:
+                cell = cell.transpose(Image.FLIP_TOP_BOTTOM)
+            out.paste(cell, (x, y), cell)
+    return out
+
+
+def _mask_polygon(w: int, h: int, pts: list[tuple[int, int]], origin: tuple[int, int]) -> Image.Image:
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).polygon([(px - origin[0], py - origin[1]) for px, py in pts], fill=255)
+    return mask
+
+
+def _paint_keep_face(
+    kit: Image.Image,
+    pts: list[tuple[int, int]],
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    swatch: Image.Image | None,
+    fallback: tuple[int, int, int],
+) -> None:
+    fill = _tile_swatch(swatch, w, h, fallback)
+    fill.putalpha(_mask_polygon(w, h, pts, (x, y)))
+    kit.alpha_composite(fill, (x, y))
+
+
+def hud_kit(_hud: Image.Image | None = None) -> tuple[Image.Image, dict]:
+    """Survey plaques tiled from restyled civic KEEP (scaffold/gate/parking/bank).
+
+    Jane chrome is not copied. Frame sizes stay the same so HudScene hit
+    targets keep working. BitmapText ink() is unchanged.
     """
     kit = Image.new("RGBA", (1024, 768), (0, 0, 0, 0))
     boxes: dict = {}
     draw = ImageDraw.Draw(kit)
+    keep = keep_hud_swatches()
+    cream = keep.get("cream")
+    khaki = keep.get("khaki")
+    slate = keep.get("slate")
+    timber = keep.get("timber")
 
     def plaque(name: str, x: int, y: int, w: int, h: int, kind: str = "slate") -> None:
-        fill = WOOD if kind == "wood" else FOREST if kind != "pulp" else PULP
-        light = WOOD_LT if kind == "wood" else SLATE_LT if kind != "pulp" else (238, 230, 204)
-        dark = WOOD_DK if kind == "wood" else SLATE_DK if kind != "pulp" else (168, 154, 118)
+        if kind == "wood":
+            swatch, fill, light, dark = timber or khaki, WOOD, WOOD_LT, WOOD_DK
+        elif kind == "pulp":
+            swatch, fill, light, dark = khaki or cream, (168, 158, 118), (214, 204, 168), (110, 100, 72)
+        else:
+            swatch, fill, light, dark = slate or khaki, FOREST, SLATE_LT, SLATE_DK
         c = 6 if min(w, h) > 40 else 4
         outer = _chamfer(x, y, w, h, c)
-        draw.polygon(outer, fill=fill + (242,), outline=BRASS + (230,))
-        # Iso bevel: light north-west, dark south-east.
+        _paint_keep_face(kit, outer, x, y, w, h, swatch, fill)
+        draw.polygon(outer, outline=BRASS + (230,))
+        frame = 5 if min(w, h) > 48 else 3
+        inner = _chamfer(x + frame, y + frame, w - 2 * frame, h - 2 * frame, max(2, c - 2))
+        _paint_keep_face(
+            kit,
+            inner,
+            x + frame,
+            y + frame,
+            w - 2 * frame,
+            h - 2 * frame,
+            swatch,
+            fill,
+        )
         draw.line([(x + c, y + 2), (x + w - c, y + 2)], fill=light + (220,), width=2)
         draw.line([(x + 2, y + c), (x + 2, y + h - c)], fill=light + (200,), width=2)
         draw.line([(x + c, y + h - 2), (x + w - c, y + h - 2)], fill=dark + (230,), width=2)
         draw.line([(x + w - 2, y + c), (x + w - 2, y + h - c)], fill=dark + (230,), width=2)
-        inset = _chamfer(x + 5, y + 5, w - 10, h - 10, max(3, c - 2))
-        draw.polygon(inset, outline=BRASS_DK + (90,))
+        draw.polygon(_chamfer(x + 5, y + 5, w - 10, h - 10, max(3, c - 2)), outline=BRASS_DK + (90,))
         for rx, ry in ((x + 9, y + 9), (x + w - 10, y + 9), (x + 9, y + h - 10), (x + w - 10, y + h - 10)):
             if w > 28 and h > 28:
                 _rivet(draw, rx, ry, 3 if min(w, h) > 50 else 2)
         if kind == "wood" and h > 60:
             draw.rectangle((x + 18, y + 4, x + w - 18, y + 11), fill=BRASS + (255,), outline=BRASS_DK + (255,))
         if kind == "pulp":
-            for line_y in range(y + 18, y + h - 8, 10):
-                draw.line([(x + 12, line_y), (x + w - 12, line_y)], fill=(196, 178, 132, 140), width=1)
+            for line_y in range(y + 18, y + h - 8, 14):
+                draw.line([(x + 12, line_y), (x + w - 12, line_y)], fill=(140, 128, 88, 90), width=1)
         boxes[name] = {"x": x, "y": y, "w": w, "h": h}
 
     plaque("plate", 8, 8, 250, 78, "wood")
@@ -1835,23 +2439,26 @@ def hud_kit(_hud: Image.Image | None = None) -> tuple[Image.Image, dict]:
     plaque("btn", 580, 100, 92, 36, "slate")
     plaque("btn-wide", 580, 148, 140, 36, "slate")
     plaque("btn-sq", 580, 196, 46, 46, "slate")
-    # Octagonal survey pad, not a Jane disc-in-a-pill.
     dpad_pts = _chamfer(740, 100, 150, 150, 28)
-    draw.polygon(dpad_pts, fill=FOREST + (242,), outline=BRASS + (230,))
+    _paint_keep_face(kit, dpad_pts, 740, 100, 150, 150, slate or khaki, FOREST)
+    draw.polygon(dpad_pts, outline=BRASS + (230,))
     draw.polygon(_chamfer(752, 112, 126, 126, 22), outline=BRASS_DK + (120,))
     for rx, ry in ((756, 116), (874, 116), (756, 234), (874, 234)):
         _rivet(draw, rx, ry, 3)
     boxes["dpad"] = {"x": 740, "y": 100, "w": 150, "h": 150}
-    # Brass survey compass (octagon, not a Jane disc-in-a-pill).
     compass = []
     for i in range(8):
         ang = math.radians(22.5 + i * 45)
         compass.append((960 + 46 * math.cos(ang), 58 + 46 * math.sin(ang)))
-    draw.polygon(compass, fill=FOREST + (242,), outline=BRASS + (240,))
+    _paint_keep_face(kit, compass, 910, 8, 100, 100, slate or khaki, FOREST)
+    draw.polygon(compass, outline=BRASS + (240,))
     draw.ellipse((930, 28, 990, 88), outline=BRASS_DK + (200,))
     draw.polygon([(960, 22), (966, 48), (960, 44), (954, 48)], fill=BRASS)
     boxes["compass"] = {"x": 910, "y": 8, "w": 100, "h": 100}
     plaque("rail", 740, 260, 130, 220, "wood")
+    # Wide KEEP mast — 9-slice this, not the tall 130px rail, so desktop
+    # stretch is ~1.6× instead of a 16-wide barcode of house-shaped tiles.
+    plaque("mast", 8, 580, 1000, 86, "wood")
     return kit, boxes
 
 
@@ -2272,6 +2879,7 @@ def main() -> None:
     stamp_break_clone_clusters()
     stamp_pagoda_vibe()
     stamp_break_catalog_trios()
+    stamp_break_cousin_clusters()
 
     building_boxes = {}
     for i, box in enumerate(s_boxes, 1):
@@ -2300,13 +2908,16 @@ def main() -> None:
                 "ChatGPT family trios",
                 "CENTER_OF_MAP_HQ office compound",
                 "Attached construction / parking / gates / bank, restyled",
-                "Construction-city HUD: beveled wood/slate plaques + brass rivets (not Jane chrome)",
+                "Construction-city HUD: KEEP-textured cream/khaki/slate plaques from restyled scaffold/gate/parking/bank (not Jane chrome, not flat fills)",
                 "Jane's houses only after saturation crush",
                 "Inland odds are civic-distinct attached footprints (fence, parking, stacked gates, timber loading shed, civic kiosk) — not ChatGPT lot houses and not a second parking pad",
                 "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",
                 "White-solar villa clones among lots 11–50 swapped for unused AXP family-sheet industrial silhouettes (crane/foundry/lab/factory) — stamps, not tints",
                 "Sheet-1 extras that stacked S/M/L catalog DNA into 5+ families replaced with unused KEEP stamps (solarpunk lighthouse/mill/clock, craft kiln/chimney/pottery/loom, Jane Quonset/store) — stamps, not tints",
                 "Remaining catalog S/M/L trios keep one original size; extras use unused KEEP (spa/workshop/mill/temple/church/hall/cottage/norwood + eco observatory/helipad/orchard/conservatory)",
+                "Leftover mill/clock/eco-white/ranch cousins keep one of each family; extras use unused KEEP (greenhouse, Dutch mill, Spanish villa, restyled src1/src3 finished exteriors)",
+                "Temple cousins 9/17 keep one pagoda (lot 17); lot 9 is a restyled Tudor exterior, not a second eave stack",
+                "Boxy lots 8/22/47 keep original commercial 8; 22 is a log cabin (roof-tree dropped) and 47 a pitched duplex, not one cube species",
                 "Lot 17 pagoda restyled to slate/timber catalog vibe; silhouette stays an odd original",
                 "Lettered family-sheet poster faces (AIE / OPEN SOURCE / CLEAN COMPUTE) flattened onto cream/khaki walls",
                 "styleui + fruit-tree plants, restyled",
@@ -2392,6 +3003,16 @@ if __name__ == "__main__":
         stamp_break_clone_clusters()
     elif "--stamp-trio-break" in sys.argv:
         stamp_break_catalog_trios()
+    elif "--stamp-cousin-break" in sys.argv:
+        stamp_break_cousin_clusters()
+    elif "--stamp-jane-windmill" in sys.argv:
+        stamp_jane_windmill()
+    elif "--crush-lot-sat" in sys.argv:
+        crush_stamped_lot_chroma(24, 26.0)
+    elif "--unify-keep-vibe" in sys.argv:
+        unify_keep_catalog_vibe()
+    elif "--lift-keep-houses" in sys.argv:
+        lift_keep_house_luma()
     elif "--stamp-pagoda" in sys.argv:
         stamp_pagoda_vibe()
     elif "--civic-only" in sys.argv:

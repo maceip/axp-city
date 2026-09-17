@@ -1,7 +1,17 @@
 import Phaser from "phaser";
 import { project } from "../../src/render/iso.js";
 import { hash01, type CityPlan, type CivicKind, tileKind } from "../../src/world/index.js";
-import { BIKE_BAND, LOT_D, SHOULDER, STRIDE_X, STRIDE_Y } from "../../src/world/constants.js";
+import {
+  BIKE_BAND,
+  LOT_D,
+  PARK_SX0,
+  PARK_SX1,
+  PARK_SY0,
+  PARK_SY1,
+  SHOULDER,
+  STRIDE_X,
+  STRIDE_Y,
+} from "../../src/world/constants.js";
 import { CHUNK_SIZE } from "../../src/game/visibility.js";
 import {
   WILD_SHEETS,
@@ -23,7 +33,7 @@ import { ensureFrame } from "./stamps.js";
 
 const trees = WILD_TREES.filter((box) => box.h >= 50 && box.w < 130);
 const COLORS: Record<string, number> = {
-  park: 0x7a9460,
+  park: 0x355028,
   freeway: 0x52606b,
   tram: 0x8f9890,
   river: 0x6a9094,
@@ -112,22 +122,23 @@ export class TerrainCache {
         const wx = chunk.x * n + i,
           wy = chunk.y * n + j;
         const kind = tileKind(wx + 0.5, wy + 0.5, plan);
+        const parkTree =
+          kind === "park" &&
+          Math.abs(wx + 0.5 - park.x - park.w / 2) > 1.15 &&
+          Math.abs(wy + 0.5 - park.y - park.h / 2) > 0.95 &&
+          hash01(wx, wy, 8) < 0.78;
         const plant =
-          kind === "trees" ||
-          (kind === "park" &&
-            Math.abs(wx + 0.5 - park.x - park.w / 2) > 1.4 &&
-            Math.abs(wy + 0.5 - park.y - park.h / 2) > 1.2 &&
-            hash01(wx, wy, 8) < 0.16) ||
-          (kind === "vacant" && hash01(wx, wy, 8) < 0.07);
+          kind === "trees" || parkTree || (kind === "vacant" && hash01(wx, wy, 8) < 0.07);
         if (!plant) continue;
         const box = trees[Math.floor(hash01(wx, wy, 19) * trees.length)];
         const a = project(wx + 0.5, wy + 0.8);
         const tree = this.images.acquire();
+        const treeH = parkTree ? 108 : 55;
         tree
           .setTexture(WILD_SHEETS.trees.file, ensureFrame(this.scene, WILD_SHEETS.trees.file, box))
           .setOrigin(0.5, 1)
           .setPosition(a.sx, a.sy)
-          .setDisplaySize(box.w * (55 / box.h), 55)
+          .setDisplaySize(box.w * (treeH / box.h), treeH)
           .setDepth(a.sy);
         treeImages.push(tree);
       }
@@ -195,7 +206,8 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
               : COLORS.vacant
           : COLORS[kind];
       const color = Phaser.Display.Color.IntegerToColor(baseColor);
-      color.lighten(hash01(wx, wy, 33) * 5);
+      if (kind === "park") color.darken(hash01(wx, wy, 33) * 6);
+      else color.lighten(hash01(wx, wy, 33) * 5);
       g.fillStyle(color.color, 1);
       g.fillPoints(
         [
@@ -238,20 +250,20 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
         g.fillStyle(0x2a2820, 1);
         g.fillPoints(
           [
-            { x: cx + 24, y: cy + 4 },
-            { x: cx - 20, y: cy - 13 },
-            { x: cx - 5, y: cy + 2 },
-            { x: cx - 18, y: cy + 17 },
+            { x: cx + 28, y: cy + 6 },
+            { x: cx - 24, y: cy - 16 },
+            { x: cx - 4, y: cy + 3 },
+            { x: cx - 22, y: cy + 20 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
         g.fillStyle(0xf4ecd0, 1);
         g.fillPoints(
           [
-            { x: cx + 16, y: cy + 4 },
-            { x: cx - 12, y: cy - 8 },
-            { x: cx - 2, y: cy + 2 },
-            { x: cx - 11, y: cy + 13 },
+            { x: cx + 20, y: cy + 5 },
+            { x: cx - 14, y: cy - 10 },
+            { x: cx - 1, y: cy + 3 },
+            { x: cx - 13, y: cy + 16 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
@@ -309,27 +321,27 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   const cx = park.x + park.w / 2,
     cy = park.y + park.h / 2;
   const hasOffice = plan.civics?.some((c) => c.kind === "office");
-  diamond(park.x + 0.2, park.y + 0.2, park.w - 0.4, park.h - 0.4, 0x7a9460, 0.72);
-  const lawnTint = 0x8a9c70;
-  for (const [lx, ly] of [
-    [park.x + 1.5, park.y + 1.35],
-    [park.x + park.w - 1.5, park.y + 1.35],
-    [park.x + 1.5, park.y + park.h - 1.15],
-    [park.x + park.w - 1.5, park.y + park.h - 1.15],
-    [park.x + park.w * 0.5, park.y + 0.85],
-    [park.x + 0.95, park.y + park.h * 0.48],
-    [park.x + park.w - 0.95, park.y + park.h * 0.48],
-  ] as const) {
-    stamp(GROUND_TILES.parkGrass, lx, ly, 128).setTint(lawnTint);
+  // Dark forest lawn on the reserved 2×2 only — darker than vacant 0x8ea070 so
+  // the campus reads at flyover without growing LAYOUT_VERSION 1 lot slots.
+  diamond(park.x, park.y, park.w, park.h, 0x355028, 0.97);
+  diamond(park.x + 0.12, park.y + 0.12, park.w - 0.24, park.h - 0.24, 0x2c4820, 0.94);
+  const lawnTint = 0x4a6740;
+  const canopyTint = 0x3f5c32;
+  for (let gi = 0; gi < 4; gi++) {
+    for (let gj = 0; gj < 4; gj++) {
+      const lx = park.x + 1.15 + gi * 2.4;
+      const ly = park.y + 0.95 + gj * 1.85;
+      if (Math.abs(lx - cx) < 1.35 && Math.abs(ly - cy) < 1.15) continue;
+      stamp(GROUND_TILES.parkGrass, lx, ly, 148).setTint(lawnTint);
+    }
   }
-  stamp(GROUND_TILES.parkSteps, cx, park.y + park.h - 0.45, 96).setTint(0xc4b69a);
-  // Paths: a cross and a ring around the fountain / office.
-  diamond(cx - 0.18, park.y, 0.36, park.h, 0xdccfa7);
-  diamond(park.x, cy - 0.18, park.w, 0.36, 0xdccfa7);
-  diamond(cx - 2.8, cy - 1.8, 5.6, 0.3, 0xdccfa7);
-  diamond(cx - 2.8, cy + 1.5, 5.6, 0.3, 0xdccfa7);
-  diamond(cx - 2.8, cy - 1.8, 0.3, 3.6, 0xdccfa7);
-  diamond(cx + 2.5, cy - 1.8, 0.3, 3.6, 0xdccfa7);
+  stamp(GROUND_TILES.parkSteps, cx, park.y + park.h - 0.45, 118).setTint(0xc4b69a);
+  diamond(cx - 0.16, park.y, 0.32, park.h, 0xdccfa7, 0.88);
+  diamond(park.x, cy - 0.16, park.w, 0.32, 0xdccfa7, 0.88);
+  diamond(cx - 2.6, cy - 1.65, 5.2, 0.26, 0xdccfa7, 0.88);
+  diamond(cx - 2.6, cy + 1.4, 5.2, 0.26, 0xdccfa7, 0.88);
+  diamond(cx - 2.6, cy - 1.65, 0.26, 3.3, 0xdccfa7, 0.88);
+  diamond(cx + 2.35, cy - 1.65, 0.26, 3.3, 0xdccfa7, 0.88);
   if (!hasOffice) {
     for (const [dx, dy] of [[-1.3, -1.0], [1.0, -1.0], [-1.3, 0.7], [1.0, 0.7]] as const)
       diamond(cx + dx, cy + dy, 0.5, 0.4, 0xd9a066, 0.9);
@@ -342,34 +354,88 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     fountain.strokeEllipse(center.sx, center.sy - 8, 25, 10);
     objects.push(fountain);
   }
-  // Pond in the south-east quadrant.
-  diamond(park.x + park.w * 0.62, park.y + park.h * 0.58, 2.6, 1.8, 0x6a9094);
-  stamp(GROUND_TILES.waterTile, park.x + park.w * 0.66 + 1.0, park.y + park.h * 0.62 + 1.3, 96).setTint(0x7a9a90);
-  stamp(GROUND_TILES.sandTile, park.x + park.w * 0.66 - 0.2, park.y + park.h * 0.62 + 0.3, 52);
-  // Benches and lamps along the ring path.
+  // KEEP fountain plaza in the south-east lawn — not a house, not the HQ pad.
+  diamond(cx + 1.35, cy + 1.15, 3.2, 2.2, 0x2f5a52, 0.96);
+  stamp(GROUND_TILES.waterTile, cx + 2.55, cy + 2.45, 168).setTint(0x3d6a62);
+  stamp(GROUND_TILES.sandTile, cx + 1.55, cy + 1.55, 70).setTint(0xc4b69a);
+  stamp(GROUND_TILES.parkSteps, cx + 2.15, cy + 2.95, 92).setTint(0xc4b69a);
+  const fountainAt = project(cx + 2.5, cy + 2.2);
+  const basin = scene.add.graphics().setDepth(fountainAt.sy + 2);
+  basin.fillStyle(0xdcd5b7, 1).fillEllipse(fountainAt.sx, fountainAt.sy - 6, 96, 48);
+  basin.fillStyle(0x3d6a62, 1).fillEllipse(fountainAt.sx, fountainAt.sy - 10, 74, 34);
+  basin.fillStyle(0xc5ddd8, 0.92).fillEllipse(fountainAt.sx, fountainAt.sy - 14, 30, 13);
+  basin.lineStyle(2, 0xd8eeee, 0.88);
+  basin.lineBetween(fountainAt.sx, fountainAt.sy - 48, fountainAt.sx, fountainAt.sy - 12);
+  basin.strokeEllipse(fountainAt.sx, fountainAt.sy - 18, 24, 10);
+  objects.push(basin);
+  // KEEP civic kiosk on the south-west lawn (restyled city-hall pad, not a house).
+  {
+    const kiosk = CIVIC_SPRITES["city-hall"];
+    const at = project(cx - 2.9, cy + 2.4);
+    objects.push(
+      scene.add
+        .image(at.sx, at.sy, CIVIC_SHEET.file, ensureFrame(scene, CIVIC_SHEET.file, kiosk))
+        .setOrigin(0.5, 1)
+        .setDisplaySize(118, 118 * (kiosk.h / kiosk.w))
+        .setDepth(at.sy + 4),
+    );
+  }
   for (const [dx, dy] of [[-2.2, -2.15], [2.0, -2.15], [-2.2, 1.95], [2.0, 1.95]] as const)
     stamp(DECOR_BENCH, cx + dx, cy + dy, 40);
   for (const [dx, dy] of [[-3.0, -0.4], [3.0, -0.4], [-0.4, -2.9], [-0.4, 2.7]] as const)
     stamp(DECOR_LAMP, cx + dx, cy + dy, 14);
-  for (const [dx, dy, box] of [
-    [-3.6, -2.6, GROUND_TILES.treeRoundA],
-    [3.4, -2.6, GROUND_TILES.pineA],
-    [-3.6, 2.3, GROUND_TILES.pineB],
-    [3.4, 2.3, GROUND_TILES.treeRoundB],
-    [-1.6, -3.1, GROUND_TILES.bushA],
-    [1.4, 2.9, GROUND_TILES.bushA],
-  ] as const)
-    stamp(box, cx + dx, cy + dy, box === GROUND_TILES.bushA ? 48 : 78).setTint(0x7d8f64);
+  for (const [dx, dy, box, w] of [
+    [-3.2, -2.3, GROUND_TILES.treeRoundA, 118],
+    [-2.1, -2.7, GROUND_TILES.pineA, 112],
+    [-0.9, -3.0, GROUND_TILES.treeRoundB, 108],
+    [0.15, -3.05, GROUND_TILES.pineB, 116],
+    [1.2, -2.85, GROUND_TILES.treeRoundA, 110],
+    [2.3, -2.4, GROUND_TILES.pineA, 114],
+    [3.15, -1.5, GROUND_TILES.treeRoundB, 116],
+    [3.45, -0.3, GROUND_TILES.pineB, 112],
+    [3.4, 0.9, GROUND_TILES.treeRoundA, 114],
+    [2.95, 2.0, GROUND_TILES.pineA, 110],
+    [1.95, 2.65, GROUND_TILES.treeRoundB, 116],
+    [0.7, 2.9, GROUND_TILES.pineB, 108],
+    [-0.45, 2.85, GROUND_TILES.treeRoundA, 114],
+    [-1.7, 2.55, GROUND_TILES.pineA, 110],
+    [-2.8, 1.9, GROUND_TILES.treeRoundB, 116],
+    [-3.45, 0.7, GROUND_TILES.pineB, 112],
+    [-3.5, -0.45, GROUND_TILES.treeRoundA, 114],
+    [-3.2, -1.45, GROUND_TILES.pineA, 108],
+    [-1.85, -2.15, GROUND_TILES.bushA, 64],
+    [1.75, -2.1, GROUND_TILES.bushA, 64],
+    [-1.95, 2.15, GROUND_TILES.bushA, 66],
+    [1.85, 2.2, GROUND_TILES.bushA, 66],
+    [-3.35, 0.15, GROUND_TILES.bushA, 62],
+    [3.2, 0.2, GROUND_TILES.bushA, 62],
+    [0.05, -2.65, GROUND_TILES.bushA, 64],
+    [0.15, 2.55, GROUND_TILES.bushA, 64],
+  ] as const) {
+    stamp(box, cx + dx, cy + dy, w).setTint(canopyTint);
+  }
+  // Vacant Moore-ring lawn only. Tall fringe trees used to cover neighbouring lot crowns.
+  for (const v of plan.vacancies ?? []) {
+    const fringe =
+      v.sx >= PARK_SX0 - 1 &&
+      v.sx <= PARK_SX1 + 1 &&
+      v.sy >= PARK_SY0 - 1 &&
+      v.sy <= PARK_SY1 + 1;
+    if (!fringe) continue;
+    diamond(v.x + 0.12, v.y + 0.08, 3.7, 2.15, 0x355028, 0.94);
+    stamp(GROUND_TILES.parkGrass, v.x + 1.2, v.y + 1.15, 128).setTint(lawnTint);
+    stamp(GROUND_TILES.bushA, v.x + 2.2, v.y + 0.95, 58).setTint(canopyTint);
+  }
 
   for (const f of plan.features)
     if (f.kind !== "plaza" && f.kind !== "river" && f.kind !== "bike" && f.kind !== "office") {
       const a = project(f.x + f.w / 2, f.kind === "tram" ? f.y + 1.2 : f.y + f.h / 2);
       placeName(
         a.sx,
-        a.sy + (f.kind === "park" ? 90 : 0),
+        a.sy + (f.kind === "park" ? 78 : 0),
         f.kind === "park" ? "CENTRAL PARK" : f.kind === "freeway" ? "NORTH FREEWAY" : "TRAM LINE",
         f.kind === "freeway" ? 0xe2dac5 : 0x45614e,
-        13,
+        f.kind === "park" ? 16 : 13,
       );
     }
 
@@ -409,26 +475,13 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       }
     }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
-    const chevronStep = glance ? 3 : Math.max(2, Math.ceil(span / 6));
+    const chevronStep = glance ? 2 : Math.max(2, Math.ceil(span / 6));
     const labelStep = glance ? 3 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      if (glance) {
-        const at = project(laneX + 2.4, streetY + band * 0.5);
-        const chevron = scene.add
-          .image(at.sx, at.sy, "bike-chevron-k1")
-          .setOrigin(0.5)
-          .setDisplaySize(168, 58)
-          .setDepth(at.sy + 28);
-        chevron.setData("bikeLaneMark", true);
-        chevron.setData("bikeLaneGlance", true);
-        chevron.setData("bikeLaneChevron", true);
-        chevron.setData("markScreenW", 168);
-        chevron.setData("markScreenH", 58);
-        objects.push(chevron);
-      } else {
-        objects.push(paintIsoChevron(scene, laneX + 2.0, streetY + band * 0.5, false));
-      }
+      const ch = paintIsoChevron(scene, laneX + 2.0, streetY + band * 0.5, glance);
+      if (glance) ch.setData("bikeLaneFreeway", true);
+      objects.push(ch);
     }
     for (let sx = plan.slotBounds.minSx + 2; sx <= plan.slotBounds.maxSx; sx += labelStep) {
       const at = project(
@@ -452,7 +505,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     if (!box) continue;
     const width =
       marker.kind === "plant" && marker.id.startsWith("park-plant-")
-        ? 88
+        ? 108
         : marker.kind === "odd"
           ? oddDisplayWidth(marker.sprite, scene.cameras.main.zoom)
           : civicWidth[marker.kind] ?? 100;
@@ -569,36 +622,39 @@ function dressOfficeCourtyard(
 ): void {
   const g = scene.add.graphics().setDepth(officeDepth + 6);
   const p = (x: number, y: number) => new Phaser.Math.Vector2(ox + x, oy + y);
-  g.fillStyle(0x7a9460, 0.92);
-  g.fillPoints([p(0, -36), p(138, -112), p(0, -176), p(-138, -112)], true);
+  g.fillStyle(0x627a4e, 0.94);
+  g.fillPoints([p(0, -36), p(148, -118), p(0, -188), p(-148, -118)], true);
   g.fillStyle(0xdccfa7, 0.94);
-  g.fillPoints([p(0, -58), p(86, -112), p(0, -158), p(-86, -112)], true);
-  g.fillPoints([p(18, -40), p(62, -58), p(28, -78), p(-8, -58)], true);
-  g.fillStyle(0x8a9c70, 0.92);
-  g.fillPoints([p(0, -76), p(54, -112), p(0, -140), p(-54, -112)], true);
+  g.fillPoints([p(0, -58), p(92, -118), p(0, -168), p(-92, -118)], true);
+  g.fillPoints([p(18, -40), p(68, -62), p(30, -84), p(-10, -62)], true);
+  g.fillStyle(0x6e8458, 0.94);
+  g.fillPoints([p(0, -80), p(60, -118), p(0, -148), p(-60, -118)], true);
   g.fillStyle(0xdcd5b7, 1);
-  g.fillEllipse(ox, oy - 112, 52, 26);
+  g.fillEllipse(ox, oy - 118, 64, 32);
   g.fillStyle(0x6a9094, 1);
-  g.fillEllipse(ox, oy - 114, 36, 17);
+  g.fillEllipse(ox, oy - 120, 44, 20);
   g.fillStyle(0xc5ddd8, 0.9);
-  g.fillEllipse(ox, oy - 116, 15, 7);
+  g.fillEllipse(ox, oy - 122, 18, 8);
   objects.push(g);
   for (const [dx, dy] of [
-    [-82, -98],
-    [82, -98],
+    [-88, -102],
+    [88, -102],
+    [0, -72],
   ] as const) {
     objects.push(
       scene.add
         .image(ox + dx, oy + dy, GROUND_SHEET.file, ensureFrame(scene, GROUND_SHEET.file, DECOR_BENCH))
         .setOrigin(0.5, 1)
-        .setDisplaySize(30, 30 * (DECOR_BENCH.h / DECOR_BENCH.w))
+        .setDisplaySize(34, 34 * (DECOR_BENCH.h / DECOR_BENCH.w))
         .setDepth(officeDepth + 8),
     );
   }
   for (const [dx, dy, sprite, w] of [
-    [-104, -122, "plant-2", 40],
-    [106, -124, "plant-3", 40],
-    [-8, -154, "plant-5", 34],
+    [-110, -126, "plant-2", 52],
+    [112, -128, "plant-3", 52],
+    [-8, -162, "plant-5", 44],
+    [-58, -148, "plant-0", 48],
+    [56, -150, "plant-1", 48],
   ] as const) {
     const pot = CIVIC_SPRITES[sprite];
     objects.push(

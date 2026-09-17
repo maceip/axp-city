@@ -48,6 +48,20 @@ curl --fail https://demo.glint.sh/readyz
 
 `renderer` must be `phaser-4`, `buildRevision` must equal the deployed commit, and `/readyz` must show `clientBundle`, `storageWritable`, and `githubFresh` true with no backlog. Then open `/city` in desktop and mobile browsers: inspect a building, pan/zoom, open the census, and exercise a signed webhook through the public URL. The browser must report Phaser 4.2.1 and receive a current snapshot after reconnect. Staleness alerts (`CITY_ALERT_URL`) are exercised by the reconciler when the last successful refresh exceeds `CITY_STALE_AFTER_MS`.
 
+## Cloud Agent / in-env browser proof
+
+The live site is proven on `secure.build` as above. A Cloud Agent VM (or any machine without Azure Playwright credentials) proves the same Phaser build with **in-env Playwright**:
+
+```sh
+python3 -m pip install -r e2e/requirements.txt
+python3 -m playwright install --with-deps chromium firefox webkit
+npm test && npm run typecheck && npm run build
+env -u PLAYWRIGHT_SERVICE_URL -u PLAYWRIGHT_SERVICE_ACCESS_TOKEN \
+  CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v
+```
+
+`CITY_LOCAL_BROWSER=1` ignores a workspace URL that may be present without a token. SwiftShader (`CITY_SOFTWARE_GL=1`) is acceptable in-env proof when the VM has no GPU. Do not use Device Farm / `EMU_TOKEN` for this path. Live GitHub failures must not fall back to fixtures. This does not replace a production deploy.
+
 ## Roll back application code
 
 ```sh

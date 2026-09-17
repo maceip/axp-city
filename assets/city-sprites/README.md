@@ -143,8 +143,9 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   never the finished bank), amenity parking, gates, `$` bank, isometric plants
   from the v5 ground kit, and full-size restyled road/bike tiles that read at
   overview zoom (not the leftover 4px diamonds).
-- `hud-kit-k1.png` — olive-slate + gold panels painted to Jane's chrome sizes
-  so the overlay matches the catalog vibe; leftover orange HUD is not used.
+- `hud-kit-k1.png` — KEEP-textured cream/khaki/slate plaques from restyled
+  scaffold/gate/parking/bank (not Jane chrome, not flat fills). Leftover
+  orange HUD is not used. Overlay copy is BitmapText on Scale9Plaque.
 
 Rejected on sight: waterfall photo from Jane's map pack, FarmVille rooms,
 photoreal apple tree icons, robot/vehicle sheets that clash at lot scale.

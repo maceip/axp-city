@@ -170,6 +170,7 @@ describe("Phaser scene planning", () => {
     expect(art.url).toBe("/assets/artwork/abab.png");
     expect(art.box).toEqual({ x: 0, y: 0, w: 200, h: 260 });
     expect(art.box.w * art.scaleX).toBeLessThanOrEqual(168.0001);
+    expect(art.tint).toBe(0xffffff);
   });
   it("derives freeway traffic, a tram that stops at Park Station, and park pedestrians from the plan", () => {
     const plan = planCity(
