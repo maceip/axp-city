@@ -36,8 +36,8 @@ jobs:
       fail-fast: false
       matrix:
         # Chromium runs the whole suite including the 1,000-lot performance
-        # scenarios; Firefox and WebKit run the visual, support and export
-        # suites so the support matrix in docs/SUPPORT.md stays verified.
+        # scenarios; Firefox and WebKit run tileset, visual, support, export
+        # and local-live suites so the support matrix in docs/SUPPORT.md stays verified.
         engine: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -61,7 +61,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Browser suite (local ${{ matrix.engine }} — not hosted proof)
         if: matrix.engine != 'chromium'
-        run: python -m pytest e2e/test_city_visual.py e2e/test_support.py e2e/test_exports.py e2e/test_live_local.py -v
+        run: python -m pytest e2e/test_tileset_revamp.py e2e/test_city_visual.py e2e/test_support.py e2e/test_exports.py e2e/test_live_local.py -v
         env:
           CITY_LOCAL_BROWSER: "1"
           CITY_BROWSER: ${{ matrix.engine }}

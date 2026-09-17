@@ -40,7 +40,9 @@ def select(page, repo="acme/forge"):
     page.locator("#repo-search").fill(repo)
     page.locator("#repo-search").press("Enter")
     page.wait_for_function("repo => window.__AXP.diagnostics().selected === repo", arg=repo)
-    page.wait_for_timeout(450)
+    # frameLot pans 350 ms; on a slow Firefox/WebKit frame that outlasts a fixed
+    # sleep, so wait until the camera is actually at rest.
+    settled(page)
 
 
 def a11y(page, selector):
@@ -862,9 +864,12 @@ def test_mobile_tap_dpad_pinch_and_layout(browser, server):
     close = hud(page, "close-card")
     page.touchscreen.tap(close["x"], close["y"])
     page.wait_for_function("!window.__AXP.diagnostics().cardVisible")
+    settled(page)
+    page.screenshot(path=str(SHOTS / "mobile-after-close.png"))
     point = page.evaluate("window.__AXP.screenPoint('acme/forge')")
     # The framed lot's tap target lies below the stacked plaques, not under the MASS bar
-    # (WebKit's taller card text used to push the framing up into it).
+    # (WebKit's taller card text used to push the framing up into it). Measure after
+    # the inspect pan has finished; a mid-pan sample sits under MASS.
     mass = hud(page, "mass")
     assert point["y"] > mass["y"] + mass["height"] / 2 + 8, (point, mass)
     page.touchscreen.tap(point["x"], point["y"])

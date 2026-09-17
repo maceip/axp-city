@@ -120,8 +120,12 @@ def cream_ink_width(path: Path) -> int:
     return max(xs) - min(xs) + 1 if xs else 0
 
 
-def letter_ink_blobs(path: Path, min_col: int = 2) -> list[tuple[int, int]]:
-    """Horizontal ink runs. One BitmapText word has ~1 blob per glyph, not a doubled copy."""
+def letter_ink_blobs(path: Path, min_col: int = 2, merge_gap: int = 2) -> list[tuple[int, int]]:
+    """Horizontal ink runs. One BitmapText word has ~1 blob per glyph, not a doubled copy.
+
+    Firefox/WebKit rasterize KEEP glyphs with 1–2 px gutters inside C/N/U stems;
+    those are still one letter. A stacked CENSUSUS copy adds a whole extra word.
+    """
     image = Image.open(path).convert("RGB")
     cols = [0] * image.width
     for y in range(image.height):
@@ -142,6 +146,14 @@ def letter_ink_blobs(path: Path, min_col: int = 2) -> list[tuple[int, int]]:
             i = j
         else:
             i += 1
+    if merge_gap and blobs:
+        merged = [blobs[0]]
+        for start, end in blobs[1:]:
+            if start - merged[-1][1] <= merge_gap:
+                merged[-1] = (merged[-1][0], end)
+            else:
+                merged.append((start, end))
+        return merged
     return blobs
 
 
