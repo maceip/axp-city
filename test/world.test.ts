@@ -64,6 +64,13 @@ describe("planCity", () => {
     expect(office?.sprite).toBe("office");
     expect(plan.civics.filter((c) => c.kind === "plant").length).toBeGreaterThan(8);
     expect(plan.civics.filter((c) => c.id.startsWith("park-plant-")).length).toBeGreaterThan(16);
+    const parkBox = plan.features.find((f) => f.id === "central-park")!;
+    for (const plant of plan.civics.filter((c) => c.id.startsWith("park-plant-"))) {
+      expect(plant.x).toBeGreaterThan(parkBox.x);
+      expect(plant.x).toBeLessThan(parkBox.x + parkBox.w);
+      expect(plant.y).toBeGreaterThan(parkBox.y);
+      expect(plant.y).toBeLessThan(parkBox.y + parkBox.h);
+    }
     expect(plan.civics.some((c) => c.kind === "odd")).toBe(true);
     expect(plan.civics.some((c) => c.kind === "gate")).toBe(true);
     expect(plan.civics.filter((c) => c.kind === "road").length).toBeGreaterThan(3);

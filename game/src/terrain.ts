@@ -122,27 +122,18 @@ export class TerrainCache {
         const wx = chunk.x * n + i,
           wy = chunk.y * n + j;
         const kind = tileKind(wx + 0.5, wy + 0.5, plan);
-        const sx = Math.floor((wx + 0.5) / STRIDE_X);
-        const sy = Math.floor((wy + 0.5) / STRIDE_Y);
         const parkTree =
           kind === "park" &&
           Math.abs(wx + 0.5 - park.x - park.w / 2) > 1.15 &&
           Math.abs(wy + 0.5 - park.y - park.h / 2) > 0.95 &&
           hash01(wx, wy, 8) < 0.78;
-        const fringeTree =
-          kind === "vacant" &&
-          sx >= PARK_SX0 - 1 &&
-          sx <= PARK_SX1 + 1 &&
-          sy >= PARK_SY0 - 1 &&
-          sy <= PARK_SY1 + 1 &&
-          hash01(wx, wy, 8) < 0.62;
         const plant =
-          kind === "trees" || parkTree || fringeTree || (kind === "vacant" && hash01(wx, wy, 8) < 0.07);
+          kind === "trees" || parkTree || (kind === "vacant" && hash01(wx, wy, 8) < 0.07);
         if (!plant) continue;
         const box = trees[Math.floor(hash01(wx, wy, 19) * trees.length)];
         const a = project(wx + 0.5, wy + 0.8);
         const tree = this.images.acquire();
-        const treeH = parkTree || fringeTree ? 148 : 55;
+        const treeH = parkTree ? 108 : 55;
         tree
           .setTexture(WILD_SHEETS.trees.file, ensureFrame(this.scene, WILD_SHEETS.trees.file, box))
           .setOrigin(0.5, 1)
@@ -341,7 +332,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       const lx = park.x + 1.15 + gi * 2.4;
       const ly = park.y + 0.95 + gj * 1.85;
       if (Math.abs(lx - cx) < 1.35 && Math.abs(ly - cy) < 1.15) continue;
-      stamp(GROUND_TILES.parkGrass, lx, ly, 210).setTint(lawnTint);
+      stamp(GROUND_TILES.parkGrass, lx, ly, 148).setTint(lawnTint);
     }
   }
   stamp(GROUND_TILES.parkSteps, cx, park.y + park.h - 0.45, 118).setTint(0xc4b69a);
@@ -394,40 +385,36 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   for (const [dx, dy] of [[-3.0, -0.4], [3.0, -0.4], [-0.4, -2.9], [-0.4, 2.7]] as const)
     stamp(DECOR_LAMP, cx + dx, cy + dy, 14);
   for (const [dx, dy, box, w] of [
-    [-3.7, -2.7, GROUND_TILES.treeRoundA, 176],
-    [-2.5, -3.2, GROUND_TILES.pineA, 164],
-    [-1.2, -3.55, GROUND_TILES.treeRoundB, 158],
-    [0.15, -3.6, GROUND_TILES.pineB, 170],
-    [1.4, -3.4, GROUND_TILES.treeRoundA, 160],
-    [2.7, -2.9, GROUND_TILES.pineA, 168],
-    [3.7, -1.8, GROUND_TILES.treeRoundB, 172],
-    [4.15, -0.35, GROUND_TILES.pineB, 166],
-    [4.05, 1.05, GROUND_TILES.treeRoundA, 170],
-    [3.55, 2.35, GROUND_TILES.pineA, 162],
-    [2.35, 3.15, GROUND_TILES.treeRoundB, 174],
-    [0.85, 3.45, GROUND_TILES.pineB, 160],
-    [-0.55, 3.4, GROUND_TILES.treeRoundA, 168],
-    [-2.0, 3.05, GROUND_TILES.pineA, 164],
-    [-3.35, 2.25, GROUND_TILES.treeRoundB, 172],
-    [-4.15, 0.85, GROUND_TILES.pineB, 166],
-    [-4.2, -0.55, GROUND_TILES.treeRoundA, 170],
-    [-3.85, -1.7, GROUND_TILES.pineA, 158],
-    [-2.15, -2.55, GROUND_TILES.bushA, 78],
-    [2.05, -2.5, GROUND_TILES.bushA, 78],
-    [-2.35, 2.55, GROUND_TILES.bushA, 80],
-    [2.2, 2.6, GROUND_TILES.bushA, 80],
-    [-4.0, 0.15, GROUND_TILES.bushA, 74],
-    [3.85, 0.2, GROUND_TILES.bushA, 74],
-    [0.05, -3.15, GROUND_TILES.bushA, 76],
-    [0.15, 3.05, GROUND_TILES.bushA, 76],
-    [-3.1, -0.95, GROUND_TILES.bushA, 70],
-    [2.95, -0.9, GROUND_TILES.bushA, 70],
-    [-3.05, 1.35, GROUND_TILES.bushA, 70],
-    [2.9, 1.4, GROUND_TILES.bushA, 70],
+    [-3.2, -2.3, GROUND_TILES.treeRoundA, 118],
+    [-2.1, -2.7, GROUND_TILES.pineA, 112],
+    [-0.9, -3.0, GROUND_TILES.treeRoundB, 108],
+    [0.15, -3.05, GROUND_TILES.pineB, 116],
+    [1.2, -2.85, GROUND_TILES.treeRoundA, 110],
+    [2.3, -2.4, GROUND_TILES.pineA, 114],
+    [3.15, -1.5, GROUND_TILES.treeRoundB, 116],
+    [3.45, -0.3, GROUND_TILES.pineB, 112],
+    [3.4, 0.9, GROUND_TILES.treeRoundA, 114],
+    [2.95, 2.0, GROUND_TILES.pineA, 110],
+    [1.95, 2.65, GROUND_TILES.treeRoundB, 116],
+    [0.7, 2.9, GROUND_TILES.pineB, 108],
+    [-0.45, 2.85, GROUND_TILES.treeRoundA, 114],
+    [-1.7, 2.55, GROUND_TILES.pineA, 110],
+    [-2.8, 1.9, GROUND_TILES.treeRoundB, 116],
+    [-3.45, 0.7, GROUND_TILES.pineB, 112],
+    [-3.5, -0.45, GROUND_TILES.treeRoundA, 114],
+    [-3.2, -1.45, GROUND_TILES.pineA, 108],
+    [-1.85, -2.15, GROUND_TILES.bushA, 64],
+    [1.75, -2.1, GROUND_TILES.bushA, 64],
+    [-1.95, 2.15, GROUND_TILES.bushA, 66],
+    [1.85, 2.2, GROUND_TILES.bushA, 66],
+    [-3.35, 0.15, GROUND_TILES.bushA, 62],
+    [3.2, 0.2, GROUND_TILES.bushA, 62],
+    [0.05, -2.65, GROUND_TILES.bushA, 64],
+    [0.15, 2.55, GROUND_TILES.bushA, 64],
   ] as const) {
     stamp(box, cx + dx, cy + dy, w).setTint(canopyTint);
   }
-  // Canopy/lawn overhang onto the vacant Moore ring only — never occupied lots.
+  // Vacant Moore-ring lawn only. Tall fringe trees used to cover neighbouring lot crowns.
   for (const v of plan.vacancies ?? []) {
     const fringe =
       v.sx >= PARK_SX0 - 1 &&
@@ -436,11 +423,8 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       v.sy <= PARK_SY1 + 1;
     if (!fringe) continue;
     diamond(v.x + 0.12, v.y + 0.08, 3.7, 2.15, 0x355028, 0.94);
-    stamp(GROUND_TILES.parkGrass, v.x + 1.2, v.y + 1.15, 196).setTint(lawnTint);
-    const tree = hash01(v.sx, v.sy, 19) < 0.5 ? GROUND_TILES.pineA : GROUND_TILES.treeRoundB;
-    stamp(tree, v.x + 1.05, v.y + 1.45, 158).setTint(canopyTint);
-    stamp(GROUND_TILES.bushA, v.x + 2.35, v.y + 0.9, 78).setTint(canopyTint);
-    stamp(tree, v.x + 2.55, v.y + 1.75, 136).setTint(canopyTint);
+    stamp(GROUND_TILES.parkGrass, v.x + 1.2, v.y + 1.15, 128).setTint(lawnTint);
+    stamp(GROUND_TILES.bushA, v.x + 2.2, v.y + 0.95, 58).setTint(canopyTint);
   }
 
   for (const f of plan.features)
@@ -521,7 +505,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     if (!box) continue;
     const width =
       marker.kind === "plant" && marker.id.startsWith("park-plant-")
-        ? 170
+        ? 108
         : marker.kind === "odd"
           ? oddDisplayWidth(marker.sprite, scene.cameras.main.zoom)
           : civicWidth[marker.kind] ?? 100;
