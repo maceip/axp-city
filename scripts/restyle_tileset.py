@@ -1700,7 +1700,10 @@ def extract_fv_keep(name: str) -> Image.Image:
 
 
 def extract_jane_windmill() -> Image.Image:
-    """One Dutch mill from the map sheet — not the stacked column, not a waterwheel."""
+    """One Dutch mill from the map sheet — not the stacked column, not a waterwheel.
+
+    sat=0.48 matches FV KEEP / grid KEEP so the mill does not read as a second game.
+    """
     path = JANE_MAP
     if not path.exists():
         raise SystemExit(f"Jane windmill sheet missing: {path}")
@@ -1720,7 +1723,7 @@ def extract_jane_windmill() -> Image.Image:
             # Yard grass + fence hedge — keep tan timber and cream sails.
             if g > r + 8 and g > b + 4 and max(r, g, b) - min(r, g, b) > 16:
                 px[x, y] = (0, 0, 0, 0)
-    spr = restyle(trim(spr), sat=0.55, contrast=1.06)
+    spr = restyle(trim(spr), sat=0.48, contrast=1.06)
     # Terracotta roof only. restyle_jane_odd would also flatten tan walls into the sails.
     px = spr.load()
     for y in range(spr.height):
@@ -1790,6 +1793,46 @@ def stamp_break_catalog_trios() -> None:
 def stamp_break_cousin_clusters() -> None:
     """Replace leftover mill/clock/eco/ranch cousins with unused KEEP silhouettes."""
     stamp_keep_map(COUSIN_BREAK, "cousin-break")
+
+
+def crush_stamped_lot_chroma(bid: int, target: float = 26.0) -> float:
+    """Pull one stamped lot's chroma toward the khaki catalog without moving silhouette."""
+    band = "S" if bid <= 17 else "M" if bid <= 34 else "L"
+    path, _ids = CATALOG_SHEETS[band]
+    kit = open_rgba(path)
+    x, y, w, h = CATALOG_BUILDING_BOXES[bid]
+    cell = kit.crop((x, y, x + w, y + h))
+    px = cell.load()
+    chromas: list[int] = []
+    for yy in range(h):
+        for xx in range(w):
+            r, g, b, a = px[xx, yy]
+            if a < 16:
+                continue
+            chromas.append(max(r, g, b) - min(r, g, b))
+    mean = sum(chromas) / max(len(chromas), 1)
+    if mean <= target:
+        print("lot", bid, "chroma", round(mean, 1), "already <=", target)
+        return mean
+    scale = target / mean
+    for yy in range(h):
+        for xx in range(w):
+            r, g, b, a = px[xx, yy]
+            if a < 16:
+                continue
+            hh, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+            nr, ng, nb = colorsys.hsv_to_rgb(hh, min(1.0, s * scale), v)
+            px[xx, yy] = (int(nr * 255 + 0.5), int(ng * 255 + 0.5), int(nb * 255 + 0.5), a)
+    kit.paste(cell, (x, y))
+    kit.save(path)
+    print("crushed lot", bid, "chroma", round(mean, 1), "→", target, "scale", round(scale, 3), path)
+    return target
+
+
+def stamp_jane_windmill() -> None:
+    """Restamp the Dutch mill, then crush leftover sail/roof chroma onto khaki KEEP."""
+    stamp_keep_map({24: ("jane", "windmill")}, "jane-windmill")
+    crush_stamped_lot_chroma(24, 26.0)
 
 
 def restyle_pagoda(im: Image.Image) -> Image.Image:
@@ -2781,6 +2824,10 @@ if __name__ == "__main__":
         stamp_break_catalog_trios()
     elif "--stamp-cousin-break" in sys.argv:
         stamp_break_cousin_clusters()
+    elif "--stamp-jane-windmill" in sys.argv:
+        stamp_jane_windmill()
+    elif "--crush-lot-sat" in sys.argv:
+        crush_stamped_lot_chroma(24, 26.0)
     elif "--stamp-pagoda" in sys.argv:
         stamp_pagoda_vibe()
     elif "--civic-only" in sys.argv:

@@ -807,6 +807,30 @@ print(f"{dark} {green} {door} {opaque}")
     expect(opaque, "lot 22 stamp vanished").toBeGreaterThan(400);
   });
 
+  it("crushes Jane mill chroma onto the khaki KEEP/solarpunk range", () => {
+    const script = `
+from PIL import Image
+im = Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA")
+x,y,w,h = 325,184,118,172
+px = im.load()
+n = chroma = 0
+for yy in range(y, y+h):
+    for xx in range(x, x+w):
+        r,g,b,a = px[xx,yy]
+        if a < 16:
+            continue
+        n += 1
+        chroma += max(r,g,b)-min(r,g,b)
+print(f"{n} {chroma/max(n,1):.2f}")
+`;
+    const [opaque, sat] = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(opaque, "lot 24 mill stamp vanished").toBeGreaterThan(400);
+    expect(sat, "lot 24 mill still reads as a second, hotter game").toBeLessThan(32);
+  });
+
   it("flattens the lot 48 store oval off the slate roof", () => {
     const script = `
 from PIL import Image

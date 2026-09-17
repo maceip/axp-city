@@ -372,6 +372,7 @@ export class CityScene extends Phaser.Scene {
         if (!this.hudReady) return null;
         return this.hud.labelText(name);
       },
+      hudChrome: () => (this.hudReady ? this.hud.chromeInfo() : {}),
       censusPaintedCrew: () => (this.hudReady ? this.hud.censusPaintedCrew() : []),
       inspectPainted: () => (this.hudReady ? this.hud.inspectPainted() : []),
       bikeMarkScreens: () => {

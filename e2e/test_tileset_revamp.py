@@ -3,6 +3,7 @@
 Each check reads the production Phaser scene through `window.__AXP` and
 saves screenshots. The hosted Playwright service is preferred; see conftest.
 """
+import statistics
 from pathlib import Path
 
 from PIL import Image
@@ -74,6 +75,18 @@ def overview_arrow_groups(path: Path, box) -> tuple[int, int]:
         return 0, 0
     groups = {x // 160 for x, _y in cream}
     return len(cream), len(groups)
+
+
+def plaque_luma_stdev(path: Path) -> float:
+    """KEEP grain should survive 9-slice tiling; a smeared stretch washes this out."""
+    image = Image.open(path).convert("RGB")
+    pix = image.load()
+    lumas = []
+    for y in range(2, max(3, image.height - 2), 2):
+        for x in range(2, max(3, image.width - 2), 2):
+            r, g, b = pix[x, y]
+            lumas.append((r + g + b) / 3)
+    return statistics.pstdev(lumas) if lumas else 0.0
 
 
 def cream_ink_width(path: Path) -> int:
@@ -275,9 +288,23 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
             return sum(sum((p - q) ** 2 for p, q in zip(ca, cb)) ** 0.5 for ca, cb in zip(x["cells"], y["cells"])) / len(x["cells"])
         assert dist(a, b) > 8 or dist(a, c) > 8 or dist(b, c) > 8, "sampled repo lots render too similarly"
 
-        for name in ("compass", "minimap", "zoom-in", "zoom-out", "home", "census", "capture", "svg", "motion", "follow", "status", "dpad", "move-east"):
+        for name in ("compass", "minimap", "zoom-in", "zoom-out", "home", "census", "capture", "svg", "motion", "follow", "status", "dpad", "move-east", "mast"):
             point = hud(page, name)
             assert point["width"] > 8 and point["height"] > 8
+        chrome = page.evaluate("window.__AXP.hudChrome()")
+        assert chrome["mast"]["kind"] == "scale9", chrome
+        assert chrome["mast"]["parts"] > 9, f"mast still one smeared KEEP tile: {chrome['mast']}"
+        assert chrome["card"]["kind"] == "scale9", chrome
+        assert chrome["census"]["kind"] == "scale9", chrome
+        assert chrome["censusBtn"]["kind"] == "scale9", chrome
+        assert chrome["kitRail"]["kind"] == "scale9", chrome
+        assert chrome["compass"]["kind"] == "image", chrome
+        assert chrome["dpad"]["kind"] == "image", chrome
+        clip_hud(page, "mast", SHOTS / "tileset-hud-mast.png")
+        clip_hud(page, "census", SHOTS / "tileset-hud-kit-census.png", inset_x=8, inset_y=4)
+        clip_hud(page, "status", SHOTS / "tileset-hud-status.png")
+        mast_grain = plaque_luma_stdev(SHOTS / "tileset-hud-mast.png")
+        assert mast_grain > 5, f"mast KEEP grain washed out by stretch ({mast_grain:.2f})"
         for name, label in (
             ("census", "CENSUS"),
             ("capture", "CAPTURE"),
@@ -299,6 +326,8 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert all("…" not in c for c in crews), f"crew column still clips: {crews[:8]}"
         assert "HUMAN CREW" in crews and "QUIET LOT" in crews, crews
         page.screenshot(path=str(SHOTS / "tileset-hud-census.png"), full_page=False)
+        chrome_open = page.evaluate("window.__AXP.hudChrome()")
+        assert chrome_open["census"]["parts"] > 9, f"census board still smears the KEEP banner: {chrome_open['census']}"
         ledger = SHOTS / "tileset-hud-census-ledger.png"
         page.screenshot(path=str(ledger), clip={"x": 16, "y": 98, "width": int(frame["width"]), "height": 200})
         title = SHOTS / "tileset-hud-census-title.png"

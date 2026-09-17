@@ -38,6 +38,22 @@ describe("bitmap HUD redo", () => {
     expect(hud).not.toMatch(/new NinePanel|from ["'].*ninepanel/);
   });
 
+  it("tiles rectangular HUD plaques with Scale9Plaque instead of stretching KEEP faces", () => {
+    const hud = readFileSync("game/src/HudScene.ts", "utf8");
+    const scale9 = readFileSync("game/src/scale9.ts", "utf8");
+    expect(hud).toContain('from "./scale9.js"');
+    expect(hud).toContain("new Scale9Plaque");
+    expect(hud).toContain("SCALE9_FRAMES");
+    expect(hud).toContain("chromeInfo");
+    expect(scale9).toContain("export class Scale9Plaque");
+    expect(scale9).toContain("tile instead of smearing");
+    expect(scale9).toContain("c === 1");
+    expect(scale9).toContain("r === 1");
+    expect(scale9).toContain("Octagon compass/dpad");
+    expect(scale9).not.toMatch(/NinePanel|from ["'].*ninepanel/);
+    expect(scale9).toContain("Phaser 4's NineSlice object is WebGL-only");
+  });
+
   it("keeps sticky lot addresses on layout version 1", () => {
     expect(LAYOUT_VERSION).toBe(1);
   });
