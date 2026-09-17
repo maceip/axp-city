@@ -158,6 +158,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert "odd-2" in odds, f"fence enclosure missing from inland odds: {odds}"
         assert "odd-4" in odds, f"stacked gates missing from inland odds: {odds}"
         assert "city-hall" in odds, f"civic kiosk missing from inland odds: {odds}"
+        assert "odd-6" in odds, f"civic depot missing from inland odds: {odds}"
         widths = info.get("oddStampWidths") or {}
         home = info.get("oddHomeWidths") or {}
         assert widths.get("odd-2", 0) >= 200, f"fence stamp still flyover-thin: {widths}"

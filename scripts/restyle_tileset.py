@@ -385,30 +385,64 @@ def stamp_jane_odd_frames(path: Path = OUT / "civic-kit-k1.png") -> None:
     print("crushed Jane church/villa/mill/hall onto catalog cream-slate")
 
 
-def extract_axp_family_odds() -> dict[str, Image.Image]:
-    """Single large buildings from the unused AXP family sheet (not S/M/L lot grid)."""
+def extract_axp_family_band(band: str) -> list[Image.Image]:
+    """S/M/L evolutions from the unused AXP family sheet (one size per cell)."""
     if not AXP_FAMILY_SHEET.exists():
         raise SystemExit(f"AXP family sheet missing: {AXP_FAMILY_SHEET}")
     im = key_near_white(open_rgba(AXP_FAMILY_SHEET), thresh=236)
     w, h = im.size
     rows = [(70, 500), (500, h)]
     cols = 5
+    frac = {"S": (0.02, 0.28), "M": (0.22, 0.58), "L": (0.55, 0.99)}[band]
+    min_w, min_h, min_px = {
+        "S": (30, 40, 200),
+        "M": (50, 60, 400),
+        "L": (80, 90, 500),
+    }[band]
     cells: list[Image.Image] = []
     for y0, y1 in rows:
         cw = w / cols
         for c in range(cols):
-            x0 = int(c * cw + cw * 0.55)
-            x1 = int((c + 1) * cw - 4)
+            x0 = int(c * cw + cw * frac[0])
+            x1 = int(c * cw + cw * frac[1]) if frac[1] < 0.99 else int((c + 1) * cw - 4)
             cell = im.crop((x0, y0, x1, y1))
-            blobs = [b for b in components(cell, min_px=500) if b[2] > 80 and b[3] > 90]
+            blobs = [b for b in components(cell, min_px=min_px) if b[2] > min_w and b[3] > min_h]
             blobs.sort(key=lambda b: (b[3], b[2] * b[3]), reverse=True)
             if not blobs:
-                raise SystemExit(f"no AXP family building in cell {len(cells)}")
+                raise SystemExit(f"no AXP family {band} building in cell {len(cells)}")
             cells.append(restyle(trim(blobs[0][4]), sat=0.78, contrast=1.04))
-    picked = {}
-    for name, idx in AXP_ODD_CELLS.items():
-        picked[name] = cells[idx]
-    return picked
+    return cells
+
+
+def extract_axp_family_cells() -> list[Image.Image]:
+    """Large buildings from the unused AXP family sheet (right column of each trio)."""
+    return extract_axp_family_band("L")
+
+
+def extract_axp_family_odds() -> dict[str, Image.Image]:
+    """Kept as a source. Inland odds must not stamp these — they clone lot 1–50."""
+    cells = extract_axp_family_cells()
+    return {name: cells[idx] for name, idx in AXP_ODD_CELLS.items()}
+
+
+# White-solar villa clones among lots 11–16 / 28–34 / 45–50 → unused family-sheet
+# industrial silhouettes (not more villas, not sheet-2 catalog lots 1–10 / 18–27 / 35–44).
+VILLA_SWAP: dict[int, tuple[str, int]] = {
+    12: ("L", 6),  # crane-port
+    13: ("L", 3),  # foundry
+    14: ("M", 1),  # research lab
+    15: ("L", 0),  # core factory
+    29: ("L", 1),  # research lab tower
+    30: ("L", 2),  # data-center slab
+    31: ("L", 8),  # creative studio
+    32: ("L", 5),  # community center
+    34: ("M", 0),  # factory warehouse
+    45: ("L", 7),  # analytics tower
+    46: ("L", 9),  # utility plant
+    47: ("L", 4),  # security hub
+    48: ("M", 6),  # crane-port (medium)
+    49: ("M", 9),  # utility plant (medium)
+}
 
 
 def key_attached_paper(im: Image.Image) -> Image.Image:
@@ -577,6 +611,42 @@ def compose_civic_kiosk(gates: list[Image.Image], w: int, h: int) -> Image.Image
     return cell
 
 
+def compose_civic_depot(gates: list[Image.Image], w: int, h: int) -> Image.Image:
+    """Timber loading shed on a cream dock — not a parking pad, not a house."""
+    cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(cell)
+    cx = w / 2
+    d.polygon(
+        [(cx, h * 0.36), (w - 3, h * 0.66), (cx, h - 2), (3, h * 0.66)],
+        fill=CREAM_YARD,
+    )
+    d.polygon(
+        [(cx, h * 0.50), (w * 0.74, h * 0.68), (cx, h - 8), (w * 0.26, h * 0.68)],
+        fill=KHAKI_YARD,
+    )
+    roof = [(cx, 2), (w * 0.90, h * 0.22), (cx, h * 0.38), (w * 0.10, h * 0.22)]
+    d.polygon(roof, fill=(108, 112, 114, 255))
+    d.polygon(
+        [(cx, 8), (w * 0.78, h * 0.22), (cx, h * 0.34), (w * 0.22, h * 0.22)],
+        fill=(88, 92, 94, 255),
+    )
+    d.line([roof[0], roof[1], roof[2], roof[3], roof[0]], fill=SLATE_POST, width=3)
+    d.polygon(
+        [(w * 0.20, h * 0.24), (w * 0.80, h * 0.24), (w * 0.74, h * 0.58), (w * 0.26, h * 0.58)],
+        fill=TIMBER,
+    )
+    d.polygon(
+        [(w * 0.32, h * 0.28), (w * 0.68, h * 0.28), (w * 0.64, h * 0.54), (w * 0.36, h * 0.54)],
+        fill=(56, 50, 40, 255),
+    )
+    d.rectangle([int(w * 0.18), int(h * 0.22), int(w * 0.18) + 10, int(h * 0.64)], fill=SLATE_POST)
+    d.rectangle([int(w * 0.74), int(h * 0.22), int(w * 0.74) + 10, int(h * 0.64)], fill=SLATE_POST)
+    if gates:
+        g = thicken_outline(scale_to(gates[2], int(w * 0.82), int(h * 0.22)), 2)
+        cell.alpha_composite(g, ((w - g.width) // 2, int(h * 0.60)))
+    return cell
+
+
 def compose_readable_gates(gates: list[Image.Image], w: int, h: int) -> Image.Image:
     """Cream iso plinth + stacked timber gates. Readable mass at flyover."""
     cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
@@ -637,12 +707,7 @@ def extract_civic_distinct_odds() -> dict[str, Image.Image]:
     out["odd-4"] = compose_readable_gates(gates, w, h)
 
     w, h = boxes["odd-6"][2], boxes["odd-6"][3]
-    depot = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    pad = scale_to(park, w, int(h * 0.82))
-    depot.alpha_composite(pad, ((w - pad.width) // 2, h - pad.height))
-    g = scale_to(gates[2], w - 10, int(h * 0.36))
-    depot.alpha_composite(g, ((w - g.width) // 2, 4))
-    out["odd-6"] = depot
+    out["odd-6"] = compose_civic_depot(gates, w, h)
 
     w, h = boxes["city-hall"][2], boxes["city-hall"][3]
     out["city-hall"] = compose_civic_kiosk(gates, w, h)
@@ -660,7 +725,7 @@ def stamp_civic_distinct_odds(path: Path = OUT / "civic-kit-k1.png") -> None:
         kit.paste(cell, (x, y))
         print("stamped", name, "civic-distinct", cell.size, "→", (x, y, w, h))
     kit.save(path)
-    print("replaced catalog-clone odds with civic-distinct parking/fence/gates/kiosk")
+    print("replaced catalog-clone odds with civic-distinct fence/parking/gates/depot/kiosk")
 
 
 def stamp_catalog_odds(path: Path = OUT / "civic-kit-k1.png") -> None:
@@ -782,6 +847,30 @@ def restyle_catalog_roof(im: Image.Image, building_id: int) -> Image.Image:
     return out
 
 
+def crush_catalog_orange(im: Image.Image, building_id: int) -> Image.Image:
+    """Pull leftover high-chroma orange walls onto the catalog roof family."""
+    out = im.copy()
+    px = out.load()
+    fr, fg, fb = ROOF_FAMILIES[building_id % 4]
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a < 16 or not is_high_chroma_orange_roof(r, g, b):
+                continue
+            h, s, _v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+            t = 0.86 if s < 0.48 else 0.94
+            nr = r * (1 - t) + fr * t
+            ng = g * (1 - t) + fg * t
+            nb = b * (1 - t) + fb * t
+            luma = 0.299 * r + 0.587 * g + 0.114 * b
+            new_luma = 0.299 * nr + 0.587 * ng + 0.114 * nb
+            if new_luma > 1:
+                scale = luma / new_luma
+                nr, ng, nb = nr * scale, ng * scale, nb * scale
+            px[x, y] = (_clamp_byte(nr), _clamp_byte(ng), _clamp_byte(nb), a)
+    return out
+
+
 def stamp_catalog_roofs() -> None:
     """Remap terracotta roofs in place. Sprite boxes and silhouettes stay put."""
     for name, (path, ids) in CATALOG_SHEETS.items():
@@ -794,6 +883,35 @@ def stamp_catalog_roofs() -> None:
             n += 1
         kit.save(path)
         print("stamped catalog roofs", name, n, "→", path)
+
+
+def stamp_diversify_villas() -> None:
+    """Replace the most cloned suburban villas with unused family footprints."""
+    family: dict[str, list[Image.Image]] = {}
+    sheets: dict[str, Image.Image] = {}
+    for bid, (fam_band, idx) in VILLA_SWAP.items():
+        if fam_band not in family:
+            family[fam_band] = extract_axp_family_band(fam_band)
+        sheet_band = "S" if bid <= 17 else "M" if bid <= 34 else "L"
+        path, _ids = CATALOG_SHEETS[sheet_band]
+        if sheet_band not in sheets:
+            sheets[sheet_band] = open_rgba(path)
+        x, y, w, h = CATALOG_BUILDING_BOXES[bid]
+        spr = crush_catalog_orange(
+            restyle_catalog_roof(
+                restyle(scale_to(trim(family[fam_band][idx]), w, h), sat=0.62, contrast=1.02),
+                bid,
+            ),
+            bid,
+        )
+        cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        cell.alpha_composite(spr, ((w - spr.width) // 2, h - spr.height))
+        sheets[sheet_band].paste(cell, (x, y))
+        print("stamped villa-swap", bid, fam_band, idx, "→", (x, y, w, h))
+    for sheet_band, kit in sheets.items():
+        path, _ids = CATALOG_SHEETS[sheet_band]
+        kit.save(path)
+        print("saved diversify", sheet_band, path)
 
 
 def stamp_scaffold_frames(path: Path = OUT / "civic-kit-k1.png") -> None:
@@ -1484,6 +1602,7 @@ def main() -> None:
     m_sheet.save(OUT / "buildings-medium-18-34-k1.png")
     l_sheet.save(OUT / "buildings-large-35-50-k1.png")
     stamp_catalog_roofs()
+    stamp_diversify_villas()
 
     building_boxes = {}
     for i, box in enumerate(s_boxes, 1):
@@ -1514,8 +1633,9 @@ def main() -> None:
                 "Attached construction / parking / gates / bank, restyled",
                 "Construction-city HUD: beveled wood/slate plaques + brass rivets (not Jane chrome)",
                 "Jane's houses only after saturation crush",
-                "Inland odds are civic-distinct attached footprints (fence, parking, stacked gates, depot, civic kiosk) — not ChatGPT lot houses",
+                "Inland odds are civic-distinct attached footprints (fence, parking, stacked gates, timber loading shed, civic kiosk) — not ChatGPT lot houses and not a second parking pad",
                 "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",
+                "White-solar villa clones among lots 11–50 swapped for unused AXP family-sheet industrial silhouettes (crane/foundry/lab/factory) — stamps, not tints",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
             ],
@@ -1527,6 +1647,8 @@ def main() -> None:
                 "robot crew sheet (existing atlas already covers crew)",
                 "construction vehicles sheet (scale clash with people)",
                 "raw Jane's orange HUD",
+                "Jane church/villa/cottage as unused civic odds",
+                "AXP family-sheet lot-clones as unused civic odds",
             ],
         },
     }
@@ -1591,6 +1713,8 @@ if __name__ == "__main__":
         stamp_civic_distinct_odds()
     elif "--stamp-catalog-roofs" in sys.argv:
         stamp_catalog_roofs()
+    elif "--stamp-villa-diversity" in sys.argv:
+        stamp_diversify_villas()
     elif "--civic-only" in sys.argv:
         civic_boxes, hud_boxes = write_civic_and_hud()
         existing = {}

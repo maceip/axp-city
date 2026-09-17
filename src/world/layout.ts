@@ -401,8 +401,8 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       });
     }
   }
-  // Fence + stacked gates must actually appear inland (hashed rolls often skip them).
-  for (const sprite of ["odd-2", "odd-4", "city-hall"] as const) {
+  // Fence, stacked gates, kiosk, and depot must actually appear inland (hashed rolls often skip them).
+  for (const sprite of ["odd-2", "odd-4", "city-hall", "odd-6"] as const) {
     if (civics.some((c) => c.kind === "odd" && c.sprite === sprite)) continue;
     const taken = new Set(
       civics

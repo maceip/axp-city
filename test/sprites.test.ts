@@ -380,7 +380,7 @@ n4,g4,d4,k4,c4,f4 = stats((919, 8, 108, 122))
 n6,g6,d6,k6,c6,f6 = stats((1208, 319, 159, 157))
 nh,gh,dh,kh,ch,fh = stats((436, 8, 144, 125))
 nl,gl,dl,kl,cl,fl = stats((765, 4, 70, 172), "L")
-print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f} {n6} {g6} {k6} {nh} {gh} {dh} {ch} {gl}")
+print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f} {n6} {g6} {k6} {c6} {d6} {nh} {gh} {dh} {ch} {gl}")
 `;
     const [
       n2,
@@ -399,6 +399,8 @@ print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f}
       n6,
       glass6,
       khaki6,
+      cream6,
+      dark6,
       nh,
       glassH,
       darkH,
@@ -423,7 +425,10 @@ print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f}
     expect(cream4, "odd-4 lost its cream plinth").toBeGreaterThan(400);
     expect(dark4, "odd-4 lost timber posts").toBeGreaterThan(200);
     expect(n6, "odd-6 depot emptied").toBeGreaterThan(2500);
-    expect(khaki6, "odd-6 lost its parking+gate depot pad").toBeGreaterThan(4000);
+    expect(khaki6, "odd-6 still reads as a second parking pad").toBeLessThan(khaki3 * 0.55);
+    expect(cream6, "odd-6 lost its cream loading dock").toBeGreaterThan(800);
+    expect(dark6, "odd-6 lost its timber shed / slate roof").toBeGreaterThan(800);
+    expect(glass6, "odd-6 still reads as a catalog glass house").toBeLessThan(80);
     expect(nh, "city-hall kiosk emptied").toBeGreaterThan(2000);
     expect(glassH / nh, "city-hall still reads as a catalog glass hub").toBeLessThan(0.12);
     expect(creamH, "city-hall is still a cottage, not a civic kiosk pad").toBeGreaterThan(2000);
@@ -431,6 +436,50 @@ print(f"{n2} {g2} {d2} {c2} {f2:.3f} {n3} {g3} {k3} {n4} {g4} {d4} {c4} {f4:.3f}
     expect(catalogGlass, "lot catalog glass tower missing — comparison invalid").toBeGreaterThan(800);
     expect(glass2 + glass3, "inland odds still carry catalog glass").toBeLessThan(catalogGlass * 0.1);
     expect(cream2, "fence and parking should stay different silhouettes").toBeGreaterThan(khaki3 * 0.05);
+  });
+
+  it("diversifies white-solar villa stamps instead of tinting one house family", () => {
+    const script = `
+from PIL import Image
+boxes = {
+    11: ("S", 22, 364, 211, 172),
+    12: ("S", 283, 364, 202, 172),
+    13: ("S", 546, 364, 187, 172),
+    28: ("M", 35, 364, 186, 172),
+    29: ("M", 297, 364, 174, 172),
+    31: ("M", 815, 364, 162, 172),
+    45: ("L", 718, 364, 163, 172),
+    47: ("L", 82, 544, 156, 172),
+}
+sheets = {
+    "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
+    "M": Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA"),
+    "L": Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA"),
+}
+
+def mask(bid):
+    band, x, y, w, h = boxes[bid]
+    im = sheets[band].crop((x, y, x + w, y + h)).resize((48, 48), Image.Resampling.BILINEAR)
+    return [p[3] >= 16 for p in im.getdata()]
+
+def xor_frac(a, b):
+    ma, mb = mask(a), mask(b)
+    n = sum(x or y for x, y in zip(ma, mb))
+    return sum(x != y for x, y in zip(ma, mb)) / max(n, 1)
+
+print(f"{xor_frac(11,12):.3f} {xor_frac(11,13):.3f} {xor_frac(28,29):.3f} {xor_frac(28,31):.3f} {xor_frac(45,47):.3f}")
+`;
+    const [s12, s13, m29, m31, l47] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(s12, "lots 11 and 12 still share one villa silhouette").toBeGreaterThan(0.18);
+    expect(s13, "lots 11 and 13 still share one villa silhouette").toBeGreaterThan(0.18);
+    expect(m29, "lots 28 and 29 still share one villa silhouette").toBeGreaterThan(0.18);
+    expect(m31, "lots 28 and 31 still share one villa silhouette").toBeGreaterThan(0.18);
+    expect(l47, "lots 45 and 47 still share one villa silhouette").toBeGreaterThan(0.18);
   });
 
   it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {

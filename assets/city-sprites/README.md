@@ -118,14 +118,17 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   pagoda (id 17), packed on a 5-column grid. Repo lots pick `buildingId`
   1–50 as before; high-chroma terracotta roofs remap to umber / slate /
   olive / clay families so lots share one vibe without becoming one house.
-  `facadeTint` + `dressingProp` are a second hash so two lots that share a
-  silhouette still read as different houses.
+  The white-solar villa row (ids 11–16 / 28–34 / 45–50) is diversified with
+  unused AXP family-sheet industrial stamps (crane, foundry, lab, factory) —
+  silhouette changes, not tints. `facadeTint` + `dressingProp` are a second
+  hash so two lots that share a silhouette still read as different houses.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
   stamped larger than any repo lot),   inland unused civics from the attached
   construction sheet (cream-infilled timber fence, parking pad, stacked timber
-  gates on a cream plinth, parking+gate depot, civic notice kiosk — not ChatGPT
-  lot-catalog houses and not Jane church/villa/cottage geometry; fence/gates
-  grow at flyover and stay lot-adjacent at home zoom), attached construction stages (pad→posts→roof→shell,
+  gates on a cream plinth, timber loading shed on a cream dock — not a second
+  parking pad — civic notice kiosk — not ChatGPT lot-catalog houses and not
+  Jane church/villa/cottage geometry; fence/gates grow at flyover and stay
+  lot-adjacent at home zoom), attached construction stages (pad→posts→roof→shell,
   never the finished bank), amenity parking, gates, `$` bank, isometric plants
   from the v5 ground kit, and full-size restyled road/bike tiles that read at
   overview zoom (not the leftover 4px diamonds).
