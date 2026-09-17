@@ -44,7 +44,8 @@ The production harness is `e2e/` (Python Playwright against the **built Phaser a
 python3 -m pip install -r e2e/requirements.txt
 python3 -m playwright install --with-deps chromium firefox webkit
 npm run build
-CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v
+env -u PLAYWRIGHT_SERVICE_URL -u PLAYWRIGHT_SERVICE_ACCESS_TOKEN \
+  CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v
 ```
 
-With no `PLAYWRIGHT_SERVICE_URL`, the harness launches the local browser. `CITY_LOCAL_BROWSER=1` forces that path even if a workspace URL is injected without a token. Azure Workspaces remains optional: both URL and `PLAYWRIGHT_SERVICE_ACCESS_TOKEN` are required, and a URL without a token fails closed. Live GitHub failures never fall back to fixtures. Two-browser and reconnect tests use two local Playwright contexts, not a hosted workspace. See `e2e/README.md`.
+With no `PLAYWRIGHT_SERVICE_URL`, the harness launches the local browser. `CITY_LOCAL_BROWSER=1` forces that path even if a workspace URL is injected without a token. Unset `PLAYWRIGHT_SERVICE_*` so Azure cannot become the gate. Azure Workspaces remains optional: both URL and `PLAYWRIGHT_SERVICE_ACCESS_TOKEN` are required, and a URL without a token fails closed. Live GitHub failures never fall back to fixtures. Two-browser and reconnect tests use two local Playwright contexts, not a hosted workspace. See `e2e/README.md`.

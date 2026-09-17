@@ -83,10 +83,11 @@ npm run typecheck
 npm run build
 python3 -m pip install -r e2e/requirements.txt
 python3 -m playwright install --with-deps chromium firefox webkit
-CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v
+env -u PLAYWRIGHT_SERVICE_URL -u PLAYWRIGHT_SERVICE_ACCESS_TOKEN \
+  CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v
 ```
 
-Install Playwright in the environment that will run the suite. `CITY_LOCAL_BROWSER=1` is the in-env proof path (local Chromium; `CITY_SOFTWARE_GL=1` uses SwiftShader when the machine has no GPU). Azure Playwright Workspaces is optional: both `PLAYWRIGHT_SERVICE_URL` and `PLAYWRIGHT_SERVICE_ACCESS_TOKEN` are required, and a URL without a token fails closed instead of silently using another browser or fixtures. `npm run test:e2e` sets `CITY_LOCAL_BROWSER=1`.
+Install Playwright in the environment that will run the suite (Cloud Agent VM included — not optional, not Azure). `CITY_LOCAL_BROWSER=1` is the in-env proof path (local Chromium; `CITY_SOFTWARE_GL=1` uses SwiftShader when the machine has no GPU). Unset `PLAYWRIGHT_SERVICE_*` so an injected workspace URL without a token cannot become the gate. Azure Playwright Workspaces is optional: both `PLAYWRIGHT_SERVICE_URL` and `PLAYWRIGHT_SERVICE_ACCESS_TOKEN` are required, and a URL without a token fails closed instead of silently using another browser or fixtures. `npm run test:e2e` unsets those variables and sets `CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1`.
 
 The browser suite uses the **production build and the real HTTP/SSE server**. It covers routes and assets, picking, camera and HUD controls, census and MASS, actor persistence across the viewport edge, follow, two browsers receiving rule and metric updates, reconnect and restart, staged construction, rename and removal, reduced motion, mobile touch/pinch, Canvas fallback, the unsupported-browser screen, WebGL context loss, resize, PNG/SVG/offline exports, and 1,000-lot performance. Screenshots and `performance.json` go to `e2e/screenshots/`.
 

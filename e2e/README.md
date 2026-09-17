@@ -5,12 +5,13 @@ npm ci
 npm run build
 python3 -m pip install -r e2e/requirements.txt
 python3 -m playwright install --with-deps chromium firefox webkit
-CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v
+env -u PLAYWRIGHT_SERVICE_URL -u PLAYWRIGHT_SERVICE_ACCESS_TOKEN \
+  CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v
 ```
 
 ## Where the browser runs
 
-**In-env Playwright is the default proof path.** Install the Python package and browsers on the machine that runs the suite (`python3 -m playwright install --with-deps chromium firefox webkit`). With no `PLAYWRIGHT_SERVICE_URL`, `conftest.py` launches that local browser. `CITY_LOCAL_BROWSER=1` forces the local path even if a workspace URL is present in the environment (Cloud Agent VMs often inject `PLAYWRIGHT_SERVICE_URL` without a token). Chromium is the default engine (`CITY_SOFTWARE_GL=1` forces SwiftShader, `CITY_DISABLE_WEBGL=1` forces the Canvas path); `CITY_BROWSER=firefox` / `CITY_BROWSER=webkit` select the other engines (`HEADED=1` shows the window). Gestures that Chromium receives through CDP (the pinch) are delivered to Firefox and WebKit as DOM `TouchEvent`s on the canvas, which is what Phaser's touch manager listens to. Every report records which backend actually ran (`backend` in `performance.json`).
+**In-env Playwright is the default proof path.** Install the Python package and browsers on the machine that runs the suite (`python3 -m playwright install --with-deps chromium firefox webkit`) — including Cloud Agent VMs. Azure hosted Playwright is not the gate. With no `PLAYWRIGHT_SERVICE_URL`, `conftest.py` launches that local browser. `CITY_LOCAL_BROWSER=1` forces the local path even if a workspace URL is present (Cloud Agent VMs often inject `PLAYWRIGHT_SERVICE_URL` without a token). Unset `PLAYWRIGHT_SERVICE_*` as well so an incomplete workspace URL cannot become the gate. Chromium is the default engine (`CITY_SOFTWARE_GL=1` forces SwiftShader, `CITY_DISABLE_WEBGL=1` forces the Canvas path); `CITY_BROWSER=firefox` / `CITY_BROWSER=webkit` select the other engines (`HEADED=1` shows the window). Gestures that Chromium receives through CDP (the pinch) are delivered to Firefox and WebKit as DOM `TouchEvent`s on the canvas, which is what Phaser's touch manager listens to. Every report records which backend actually ran (`backend` in `performance.json`).
 
 Azure Playwright Workspaces remains optional, not deleted. When `PLAYWRIGHT_SERVICE_URL` is set and `CITY_LOCAL_BROWSER` is not `1`, `conftest.py` connects with `PLAYWRIGHT_SERVICE_ACCESS_TOKEN` as a bearer token (plus `os`, `runId`, `api-version` query parameters) and exposes this machine's loopback to the remote browser (`expose_network="<loopback>"`). A URL without a token fails closed (`refusing an anonymous hosted connection`) instead of connecting anonymously or silently using another browser. Live GitHub failures never fall back to fixtures. Optional: `PLAYWRIGHT_SERVICE_OS` (`linux`/`windows`), `PLAYWRIGHT_SERVICE_RUN_ID`.
 

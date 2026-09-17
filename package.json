@@ -23,7 +23,7 @@
     "dev": "tsx src/cli/server.ts --dev --offline",
     "build": "vite build --config game/vite.config.ts && tsc -p tsconfig.server.json && node scripts/build-info.mjs",
     "start": "node dist/server/cli/server.js",
-    "test:e2e": "CITY_LOCAL_BROWSER=1 python3 -m pytest e2e -v"
+    "test:e2e": "env -u PLAYWRIGHT_SERVICE_URL -u PLAYWRIGHT_SERVICE_ACCESS_TOKEN CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v"
   },
   "dependencies": {
     "phaser": "4.2.1"

@@ -77,6 +77,10 @@ describe("bitmap HUD redo", () => {
     expect(src).toContain("refusing an anonymous hosted connection");
     expect(src).toContain("Live GitHub failures never switch to fixtures");
     expect(src).not.toMatch(/DEVICEFARM|EMU_TOKEN/);
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
+    expect(pkg.scripts["test:e2e"]).toContain("env -u PLAYWRIGHT_SERVICE_URL -u PLAYWRIGHT_SERVICE_ACCESS_TOKEN");
+    expect(pkg.scripts["test:e2e"]).toContain("CITY_LOCAL_BROWSER=1");
+    expect(pkg.scripts["test:e2e"]).toContain("CITY_SOFTWARE_GL=1");
   });
 
   it("isolates the unused stretch panel so it cannot become the HUD", () => {
