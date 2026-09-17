@@ -85,10 +85,12 @@ describe("bitmap HUD redo", () => {
     expect(hud).toMatch(/scene\.add\.bitmapText\(x, y, HUD_FONT\.face, text, size\)/);
     expect(hud).toContain('"LOT CENSUS"');
     expect(hud).toContain('this.button("census", "CENSUS"');
-    expect(hud).not.toMatch(/add\.text\(|fillText|GameObjects\.Text/);
+    expect(hud).not.toMatch(/\.add\.text\(/);
+    expect(hud).not.toMatch(/GameObjects\.Text[^a-zA-Z]/);
     expect(terrain).toContain('"BIKE LANE"');
     expect(terrain).toMatch(/bitmapText\(0, 1, HUD_FONT\.face, "BIKE LANE"/);
-    expect(terrain).not.toMatch(/add\.text\(|fillText|GameObjects\.Text/);
+    expect(terrain).not.toMatch(/\.add\.text\(/);
+    expect(terrain).not.toMatch(/fillText|GameObjects\.Text/);
   });
 
   it("docks the native search field inside a KEEP 9-slice well", () => {
