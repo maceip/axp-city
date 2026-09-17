@@ -23,7 +23,7 @@ import { ensureFrame } from "./stamps.js";
 
 const trees = WILD_TREES.filter((box) => box.h >= 50 && box.w < 130);
 const COLORS: Record<string, number> = {
-  park: 0x7a9460,
+  park: 0x627a4e,
   freeway: 0x52606b,
   tram: 0x8f9890,
   river: 0x6a9094,
@@ -115,19 +115,21 @@ export class TerrainCache {
         const plant =
           kind === "trees" ||
           (kind === "park" &&
-            Math.abs(wx + 0.5 - park.x - park.w / 2) > 1.4 &&
-            Math.abs(wy + 0.5 - park.y - park.h / 2) > 1.2 &&
-            hash01(wx, wy, 8) < 0.16) ||
+            Math.abs(wx + 0.5 - park.x - park.w / 2) > 1.6 &&
+            Math.abs(wy + 0.5 - park.y - park.h / 2) > 1.4 &&
+            hash01(wx, wy, 8) < 0.34) ||
           (kind === "vacant" && hash01(wx, wy, 8) < 0.07);
         if (!plant) continue;
         const box = trees[Math.floor(hash01(wx, wy, 19) * trees.length)];
         const a = project(wx + 0.5, wy + 0.8);
         const tree = this.images.acquire();
+        const parkTree = kind === "park";
+        const treeH = parkTree ? 72 : 55;
         tree
           .setTexture(WILD_SHEETS.trees.file, ensureFrame(this.scene, WILD_SHEETS.trees.file, box))
           .setOrigin(0.5, 1)
           .setPosition(a.sx, a.sy)
-          .setDisplaySize(box.w * (55 / box.h), 55)
+          .setDisplaySize(box.w * (treeH / box.h), treeH)
           .setDepth(a.sy);
         treeImages.push(tree);
       }
@@ -238,20 +240,20 @@ function rasterizeChunk(scene: Phaser.Scene, cx: number, cy: number, plan: CityP
         g.fillStyle(0x2a2820, 1);
         g.fillPoints(
           [
-            { x: cx + 24, y: cy + 4 },
-            { x: cx - 20, y: cy - 13 },
-            { x: cx - 5, y: cy + 2 },
-            { x: cx - 18, y: cy + 17 },
+            { x: cx + 28, y: cy + 6 },
+            { x: cx - 24, y: cy - 16 },
+            { x: cx - 4, y: cy + 3 },
+            { x: cx - 22, y: cy + 20 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
         g.fillStyle(0xf4ecd0, 1);
         g.fillPoints(
           [
-            { x: cx + 16, y: cy + 4 },
-            { x: cx - 12, y: cy - 8 },
-            { x: cx - 2, y: cy + 2 },
-            { x: cx - 11, y: cy + 13 },
+            { x: cx + 20, y: cy + 5 },
+            { x: cx - 14, y: cy - 10 },
+            { x: cx - 1, y: cy + 3 },
+            { x: cx - 13, y: cy + 16 },
           ].map((q) => new Phaser.Math.Vector2(q.x, q.y)),
           true,
         );
@@ -309,18 +311,23 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   const cx = park.x + park.w / 2,
     cy = park.y + park.h / 2;
   const hasOffice = plan.civics?.some((c) => c.kind === "office");
-  diamond(park.x + 0.2, park.y + 0.2, park.w - 0.4, park.h - 0.4, 0x7a9460, 0.72);
-  const lawnTint = 0x8a9c70;
+  diamond(park.x + 0.2, park.y + 0.2, park.w - 0.4, park.h - 0.4, 0x627a4e, 0.88);
+  const lawnTint = 0x6e8458;
   for (const [lx, ly] of [
     [park.x + 1.5, park.y + 1.35],
     [park.x + park.w - 1.5, park.y + 1.35],
     [park.x + 1.5, park.y + park.h - 1.15],
     [park.x + park.w - 1.5, park.y + park.h - 1.15],
     [park.x + park.w * 0.5, park.y + 0.85],
+    [park.x + park.w * 0.5, park.y + park.h - 0.7],
     [park.x + 0.95, park.y + park.h * 0.48],
     [park.x + park.w - 0.95, park.y + park.h * 0.48],
+    [park.x + park.w * 0.33, park.y + park.h * 0.28],
+    [park.x + park.w * 0.67, park.y + park.h * 0.28],
+    [park.x + park.w * 0.33, park.y + park.h * 0.72],
+    [park.x + park.w * 0.67, park.y + park.h * 0.72],
   ] as const) {
-    stamp(GROUND_TILES.parkGrass, lx, ly, 128).setTint(lawnTint);
+    stamp(GROUND_TILES.parkGrass, lx, ly, 138).setTint(lawnTint);
   }
   stamp(GROUND_TILES.parkSteps, cx, park.y + park.h - 0.45, 96).setTint(0xc4b69a);
   // Paths: a cross and a ring around the fountain / office.
@@ -356,10 +363,22 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     [3.4, -2.6, GROUND_TILES.pineA],
     [-3.6, 2.3, GROUND_TILES.pineB],
     [3.4, 2.3, GROUND_TILES.treeRoundB],
+    [-4.2, 0.1, GROUND_TILES.pineA],
+    [4.0, 0.15, GROUND_TILES.treeRoundB],
+    [0.1, -3.4, GROUND_TILES.treeRoundA],
+    [0.2, 3.2, GROUND_TILES.pineB],
     [-1.6, -3.1, GROUND_TILES.bushA],
     [1.4, 2.9, GROUND_TILES.bushA],
+    [-2.8, -3.0, GROUND_TILES.bushA],
+    [2.6, -3.0, GROUND_TILES.bushA],
+    [-2.8, 2.85, GROUND_TILES.bushA],
+    [2.6, 2.85, GROUND_TILES.bushA],
+    [-4.0, -1.4, GROUND_TILES.bushA],
+    [3.8, -1.4, GROUND_TILES.bushA],
+    [-4.0, 1.4, GROUND_TILES.bushA],
+    [3.8, 1.4, GROUND_TILES.bushA],
   ] as const)
-    stamp(box, cx + dx, cy + dy, box === GROUND_TILES.bushA ? 48 : 78).setTint(0x7d8f64);
+    stamp(box, cx + dx, cy + dy, box === GROUND_TILES.bushA ? 52 : 86).setTint(0x5f7548);
 
   for (const f of plan.features)
     if (f.kind !== "plaza" && f.kind !== "river" && f.kind !== "bike" && f.kind !== "office") {
@@ -409,22 +428,22 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       }
     }
     const span = plan.slotBounds.maxSx - plan.slotBounds.minSx + 1;
-    const chevronStep = glance ? 3 : Math.max(2, Math.ceil(span / 6));
+    const chevronStep = glance ? 2 : Math.max(2, Math.ceil(span / 6));
     const labelStep = glance ? 3 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
       if (glance) {
-        const at = project(laneX + 2.4, streetY + band * 0.5);
+        const at = project(laneX + 2.4, streetY + band * 0.55);
         const chevron = scene.add
           .image(at.sx, at.sy, "bike-chevron-k1")
           .setOrigin(0.5)
-          .setDisplaySize(168, 58)
+          .setDisplaySize(208, 72)
           .setDepth(at.sy + 28);
         chevron.setData("bikeLaneMark", true);
         chevron.setData("bikeLaneGlance", true);
         chevron.setData("bikeLaneChevron", true);
-        chevron.setData("markScreenW", 168);
-        chevron.setData("markScreenH", 58);
+        chevron.setData("markScreenW", 208);
+        chevron.setData("markScreenH", 72);
         objects.push(chevron);
       } else {
         objects.push(paintIsoChevron(scene, laneX + 2.0, streetY + band * 0.5, false));
@@ -569,36 +588,39 @@ function dressOfficeCourtyard(
 ): void {
   const g = scene.add.graphics().setDepth(officeDepth + 6);
   const p = (x: number, y: number) => new Phaser.Math.Vector2(ox + x, oy + y);
-  g.fillStyle(0x7a9460, 0.92);
-  g.fillPoints([p(0, -36), p(138, -112), p(0, -176), p(-138, -112)], true);
+  g.fillStyle(0x627a4e, 0.94);
+  g.fillPoints([p(0, -36), p(148, -118), p(0, -188), p(-148, -118)], true);
   g.fillStyle(0xdccfa7, 0.94);
-  g.fillPoints([p(0, -58), p(86, -112), p(0, -158), p(-86, -112)], true);
-  g.fillPoints([p(18, -40), p(62, -58), p(28, -78), p(-8, -58)], true);
-  g.fillStyle(0x8a9c70, 0.92);
-  g.fillPoints([p(0, -76), p(54, -112), p(0, -140), p(-54, -112)], true);
+  g.fillPoints([p(0, -58), p(92, -118), p(0, -168), p(-92, -118)], true);
+  g.fillPoints([p(18, -40), p(68, -62), p(30, -84), p(-10, -62)], true);
+  g.fillStyle(0x6e8458, 0.94);
+  g.fillPoints([p(0, -80), p(60, -118), p(0, -148), p(-60, -118)], true);
   g.fillStyle(0xdcd5b7, 1);
-  g.fillEllipse(ox, oy - 112, 52, 26);
+  g.fillEllipse(ox, oy - 118, 64, 32);
   g.fillStyle(0x6a9094, 1);
-  g.fillEllipse(ox, oy - 114, 36, 17);
+  g.fillEllipse(ox, oy - 120, 44, 20);
   g.fillStyle(0xc5ddd8, 0.9);
-  g.fillEllipse(ox, oy - 116, 15, 7);
+  g.fillEllipse(ox, oy - 122, 18, 8);
   objects.push(g);
   for (const [dx, dy] of [
-    [-82, -98],
-    [82, -98],
+    [-88, -102],
+    [88, -102],
+    [0, -72],
   ] as const) {
     objects.push(
       scene.add
         .image(ox + dx, oy + dy, GROUND_SHEET.file, ensureFrame(scene, GROUND_SHEET.file, DECOR_BENCH))
         .setOrigin(0.5, 1)
-        .setDisplaySize(30, 30 * (DECOR_BENCH.h / DECOR_BENCH.w))
+        .setDisplaySize(34, 34 * (DECOR_BENCH.h / DECOR_BENCH.w))
         .setDepth(officeDepth + 8),
     );
   }
   for (const [dx, dy, sprite, w] of [
-    [-104, -122, "plant-2", 40],
-    [106, -124, "plant-3", 40],
-    [-8, -154, "plant-5", 34],
+    [-110, -126, "plant-2", 52],
+    [112, -128, "plant-3", 52],
+    [-8, -162, "plant-5", 44],
+    [-58, -148, "plant-0", 48],
+    [56, -150, "plant-1", 48],
   ] as const) {
     const pot = CIVIC_SPRITES[sprite];
     objects.push(

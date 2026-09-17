@@ -62,7 +62,7 @@ describe("planCity", () => {
     expect(plan.features.some((f) => f.kind === "bike")).toBe(true);
     const office = plan.civics.find((c) => c.kind === "office");
     expect(office?.sprite).toBe("office");
-    expect(plan.civics.filter((c) => c.kind === "plant").length).toBeGreaterThan(4);
+    expect(plan.civics.filter((c) => c.kind === "plant").length).toBeGreaterThan(8);
     expect(plan.civics.some((c) => c.kind === "odd")).toBe(true);
     expect(plan.civics.some((c) => c.kind === "gate")).toBe(true);
     expect(plan.civics.filter((c) => c.kind === "road").length).toBeGreaterThan(3);

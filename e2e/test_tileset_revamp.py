@@ -219,7 +219,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert info["civicCount"] > 8
         kinds = info["civicByKind"]
         assert kinds.get("office", 0) >= 1
-        assert kinds.get("plant", 0) >= 4, f"missing park/vacant plants: {kinds}"
+        assert kinds.get("plant", 0) >= 8, f"park campus still too thin: {kinds}"
         assert kinds.get("odd", 0) >= 1, f"missing unused odd buildings: {kinds}"
         odds = info.get("oddSprites") or []
         assert odds, f"odd civic sprites missing from diagnostics: {odds}"
