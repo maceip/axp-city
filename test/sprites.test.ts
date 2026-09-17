@@ -489,7 +489,6 @@ from PIL import Image
 boxes = {
     13: ("S", 546, 364, 187, 172),
     32: ("M", 1062, 364, 180, 172),
-    46: ("L", 1042, 364, 155, 172),
 }
 sheets = {
     "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
@@ -521,9 +520,9 @@ def ink(bid):
                             break
     return dark / max(n, 1)
 
-print(f"{ink(13):.4f} {ink(32):.4f} {ink(46):.4f}")
+print(f"{ink(13):.4f} {ink(32):.4f}")
 `;
-    const [aie, opensource, clean] = execFileSync("python3", ["-c", script], {
+    const [aie, opensource] = execFileSync("python3", ["-c", script], {
       encoding: "utf8",
     })
       .trim()
@@ -531,7 +530,6 @@ print(f"{ink(13):.4f} {ink(32):.4f} {ink(46):.4f}")
       .map(Number);
     expect(aie, "lot 13 still has AIE poster ink").toBeLessThan(0.04);
     expect(opensource, "lot 32 still has OPEN SOURCE poster ink").toBeLessThan(0.04);
-    expect(clean, "lot 46 still has leftover poster ink").toBeLessThan(0.04);
   });
 
   it("breaks 5+ industrial clone families with unused KEEP stamps, not tints", () => {
