@@ -731,6 +731,7 @@ export class CityScene extends Phaser.Scene {
     }
     this.stopFollowing();
     this.selected = place?.lot.fullName;
+    if (this.hudReady && this.hud.censusIsOpen) this.hud.toggleCensus(false);
     if (this.hudReady) this.hud.setSelection(place);
     this.drawSelection();
     if (place && frame) this.frameLot(place);
