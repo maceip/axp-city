@@ -64,7 +64,8 @@ describe("bitmap HUD redo", () => {
     expect(yml).toContain("PLAYWRIGHT_SERVICE_URL is set without PLAYWRIGHT_SERVICE_ACCESS_TOKEN");
     expect(yml).toContain("browser-local:");
     expect(yml).toContain("python -m playwright install --with-deps");
-    expect(yml).toContain("pip install pillow");
+    expect(yml).toContain("pip install -r test/requirements.txt");
+    expect(readFileSync("test/requirements.txt", "utf8")).toMatch(/^pillow>=/m);
     expect(yml).toContain("CITY_LOCAL_BROWSER");
     expect(yml).not.toMatch(/echo "hosted=0"/);
     expect(yml).not.toMatch(/DEVICEFARM|EMU_TOKEN/);
