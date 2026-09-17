@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { CityLot, RepoMetrics } from "../types.js";
+import type { TrendingCadence } from "../types.js";
 import {
   LAYOUT_VERSION,
   nextFreeSlot,
@@ -9,13 +10,16 @@ import {
   type CityPlan,
   type SlotAssignment,
 } from "../world/layout.js";
+import { nextCadenceSlot } from "../world/trending.js";
 import { lotSlot, slotKey } from "../world/slots.js";
 import type { CityEvent } from "../webhooks/types.js";
 import type {
   CityFreshness,
+  CityIdentity,
   CityMode,
   CityMutation,
   CitySnapshot,
+  TrendingFreshness,
 } from "./protocol.js";
 import { SNAPSHOT_SCHEMA } from "./protocol.js";
 import { repoName } from "../rules/load.js";
@@ -118,6 +122,10 @@ export interface CityStore {
   snapshot(mode?: CityMode): CitySnapshot;
   plan(): CityPlan;
   freshness(): CityFreshness;
+  identity(): CityIdentity;
+  setIdentity(identity: CityIdentity): void;
+  trending(): TrendingFreshness | undefined;
+  setTrending(status: TrendingFreshness | undefined): void;
   /**
    * Add, refresh, rename, or restore a lot. Returns null when nothing visible
    * changed (freshness is still recorded). Rejects private repositories.
@@ -414,17 +422,43 @@ export function createCityStore(
     return new Set(allRows().map((r) => slotKey(r.slot.col, r.slot.row)));
   }
 
+  function identity(): CityIdentity {
+    const raw = meta("city_identity");
+    if (!raw) return { name: "AXP City", kind: "standard" };
+    try {
+      const parsed = JSON.parse(raw) as CityIdentity;
+      if (parsed?.name && (parsed.kind === "trending" || parsed.kind === "standard"))
+        return parsed;
+    } catch {
+      /* keep default */
+    }
+    return { name: "AXP City", kind: "standard" };
+  }
+
+  function trending(): TrendingFreshness | undefined {
+    const raw = meta("trending");
+    if (!raw) return undefined;
+    try {
+      return JSON.parse(raw) as TrendingFreshness;
+    } catch {
+      return undefined;
+    }
+  }
+
+  function pickSlot(lot: CityLot, occupied: Set<string>): SlotAssignment {
+    return lot.cadence ? nextCadenceSlot(lot.cadence, occupied) : nextFreeSlot(occupied);
+  }
+
   function buildPlan(now = nowIso()): CityPlan {
     const rows = published();
-    return planCity(
-      rows.map((r) => structuredClone(r.lot)),
-      {
-        addedAt: Object.fromEntries(rows.map((r) => [r.lot.fullName, r.addedAt])),
-        now,
-        assignments: assignments(),
-        reserved: reservedSlots(),
-      },
-    );
+    const lots = rows.map((r) => structuredClone(r.lot));
+    return planCity(lots, {
+      addedAt: Object.fromEntries(rows.map((r) => [r.lot.fullName, r.addedAt])),
+      now,
+      assignments: assignments(),
+      reserved: reservedSlots(),
+      trending: identity().kind === "trending" || lots.some((lot) => lot.cadence),
+    });
   }
 
   function freshness(): CityFreshness {
@@ -648,7 +682,7 @@ export function createCityStore(
             repoName(lot.fullName);
             const existing = rowByName(lot.fullName);
             if (existing) continue;
-            const slot = nextFreeSlot(occupied);
+            const slot = pickSlot(lot, occupied);
             occupied.add(slotKey(slot.col, slot.row));
             insertLot(
               lot,
@@ -677,8 +711,22 @@ export function createCityStore(
     },
     plan: () => buildPlan(),
     freshness,
+    identity,
+    setIdentity(next) {
+      setMeta("city_identity", JSON.stringify(next));
+    },
+    trending,
+    setTrending(status) {
+      if (!status) {
+        db.prepare("DELETE FROM meta WHERE key = 'trending'").run();
+        return;
+      }
+      setMeta("trending", JSON.stringify(status));
+    },
     snapshot(mode = "live") {
       const serverTime = nowIso();
+      const city = identity();
+      const trendingStatus = trending();
       return {
         version: 1,
         schema: { snapshot: SNAPSHOT_SCHEMA, layout: LAYOUT_VERSION },
@@ -687,6 +735,8 @@ export function createCityStore(
         mode,
         plan: buildPlan(serverTime),
         freshness: freshness(),
+        city,
+        ...(trendingStatus ? { trending: trendingStatus } : {}),
       };
     },
     ensure(fullName, lot, at = nowIso(), metrics) {
@@ -716,7 +766,7 @@ export function createCityStore(
           throw new Error("Repository identity mismatch");
         return transaction(() => {
           if (!row) {
-            const slot = nextFreeSlot(occupiedSlots());
+            const slot = pickSlot(lot, occupiedSlots());
             insertLot(lot, slot, at, metrics ?? null);
             invalidate();
             const rev = bumpRevision();

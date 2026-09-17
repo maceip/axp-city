@@ -37,7 +37,16 @@ export {
   type PlanOptions,
   type SlotAssignment,
   type VacantPlot,
+  type MapLabel,
 } from "./layout.js";
+export {
+  cadenceSlots,
+  nextCadenceSlot,
+  isDailyDistrict,
+  isWeeklyDistrict,
+  isMonthlyDistrict,
+  TRENDING_DISTRICT,
+} from "./trending.js";
 export {
   isCorridorShoulderSlot,
   isFreewaySlot,

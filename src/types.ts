@@ -67,6 +67,9 @@ export interface RepoMetrics {
 
 export type BuildingBand = "S" | "M" | "L";
 
+/** Which GitHub trending window placed this lot. Address stays if the window changes. */
+export type TrendingCadence = "daily" | "weekly" | "monthly";
+
 /** Stable per-repo yard dressing that is not a loading-zone prop. */
 export type DressingProp = "tree" | "bush" | "planter" | "lamp" | "none";
 
@@ -145,6 +148,12 @@ export interface CityLot {
   fetchedAt?: string;
   /** Present when some fields were carried from an earlier complete refresh. */
   partial?: LotFreshness;
+  /**
+   * Trending City window that assigned this lot. Parser never invents it;
+   * the trending sync stamps it. Refresh keeps the last value unless the
+   * sync supplies a new one. Does not move the address.
+   */
+  cadence?: TrendingCadence;
 }
 
 export interface ParseOptions {
@@ -154,6 +163,8 @@ export interface ParseOptions {
   rules?: import("./rules/cityFiles.js").CityRules;
   /** Fields carried from the last complete refresh (see `mergeMetrics`). */
   carried?: { fields: MetricField[]; from?: string };
+  /** Set by Trending City enrollment, never derived from metrics. */
+  cadence?: TrendingCadence;
 }
 
 export interface IngestSnapshot {

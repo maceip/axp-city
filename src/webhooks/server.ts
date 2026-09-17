@@ -20,7 +20,7 @@ import {
 } from "../live/repository.js";
 import { renderCitySvg } from "../export/svg.js";
 import { repoName } from "../rules/load.js";
-import type { RepoMetrics } from "../types.js";
+import type { RepoMetrics, TrendingCadence } from "../types.js";
 import { authorizeAdmin, authorizeWebhook } from "./auth.js";
 import { normalizeDelivery } from "./normalize.js";
 import {
@@ -106,7 +106,10 @@ export interface WebhookServer {
   city: CityStore;
   port: number;
   /** Refresh one repository through the canonical resolver; throws on failure. */
-  refreshRepository(fullName: string): Promise<RefreshResult>;
+  refreshRepository(
+    fullName: string,
+    options?: { cadence?: TrendingCadence },
+  ): Promise<RefreshResult>;
   /** Withdraw a lot's public data (admin removal, privatization, deletion). */
   withdrawRepository(fullName: string, reason: string): Promise<CityMutation | null>;
   /** Process queued deliveries until none are due. Resolves with the count processed. */
@@ -249,18 +252,21 @@ function statusPage(city: CityStore, mode: string): string {
     .join("");
   const counts = city.deliveryCounts();
   const fresh = city.freshness();
+  const identity = city.identity();
+  const trending = city.trending();
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="10">
-<title>AXP City status</title>
+<title>${esc(identity.name)} status</title>
 <style>body{font-family:system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:.25rem .5rem;text-align:left}code{background:#f4f4f4;padding:.1rem .3rem}</style>
 </head>
 <body>
-<h1>AXP City status</h1>
-<p>Mode: <strong>${esc(mode)}</strong>. Lots: <strong>${city.lots().length}</strong>. Last successful GitHub refresh: <strong>${esc(fresh.lastSuccessfulRefreshAt ?? "never")}</strong>. Failing repositories: <strong>${fresh.failingRepositories}</strong>.</p>
+<h1>${esc(identity.name)} status</h1>
+<p>Mode: <strong>${esc(mode)}</strong>. Kind: <strong>${esc(identity.kind)}</strong>. Lots: <strong>${city.lots().length}</strong>. Last successful GitHub refresh: <strong>${esc(fresh.lastSuccessfulRefreshAt ?? "never")}</strong>. Failing repositories: <strong>${fresh.failingRepositories}</strong>.</p>
+${trending ? `<p>Trending list: <strong>${esc(trending.source ?? "none")}</strong>${trending.usingCache ? " (last-good cache)" : ""}${trending.lastError ? ` · ${esc(trending.lastError)}` : ""} · daily ${trending.counts.daily} · weekly ${trending.counts.weekly} · monthly ${trending.counts.monthly}.</p>` : ""}
 <p>Deliveries — pending ${counts.pending}, processing ${counts.processing}, done ${counts.done}, failed ${counts.failed}, ignored ${counts.ignored}. Public events kept: ${city.eventCount()}.</p>
 <table><thead><tr><th>Received</th><th>Repo</th><th>Signal</th><th>Actor</th><th>Detail</th></tr></thead>
 <tbody>${rows || '<tr><td colspan="5">No events yet — configure a webhook.</td></tr>'}</tbody></table>
@@ -416,7 +422,10 @@ export function createWebhookServer(
     statusTimer.unref?.();
   }
 
-  async function performRefresh(fullName: string): Promise<RefreshResult> {
+  async function performRefresh(
+    fullName: string,
+    extra?: { cadence?: TrendingCadence },
+  ): Promise<RefreshResult> {
     const row = city.row(fullName);
     const at = new Date().toISOString();
     try {
@@ -425,6 +434,7 @@ export function createWebhookServer(
         refreshTimeoutMs,
         `refresh ${fullName}`,
       );
+      resolved.lot.cadence = extra?.cadence ?? resolved.lot.cadence ?? row?.lot.cadence;
       const mutation = await city.ensure(
         fullName,
         resolved.lot,
@@ -451,11 +461,14 @@ export function createWebhookServer(
     }
   }
 
-  const refreshRepository = (fullName: string): Promise<RefreshResult> => {
+  const refreshRepository = (
+    fullName: string,
+    extra?: { cadence?: TrendingCadence },
+  ): Promise<RefreshResult> => {
     repoName(fullName);
     const key = fullName.toLowerCase();
     const previous = refreshes.get(key) ?? Promise.resolve();
-    const next = previous.catch(() => {}).then(() => performRefresh(fullName));
+    const next = previous.catch(() => {}).then(() => performRefresh(fullName, extra));
     refreshes.set(key, next);
     void next
       .finally(() => {
@@ -743,6 +756,8 @@ export function createWebhookServer(
           : NaN;
         json(res, 200, {
           mode,
+          city: city.identity(),
+          trending: city.trending() ?? null,
           buildRevision: options.buildRevision ?? "development",
           serverTime: new Date(now).toISOString(),
           freshness,

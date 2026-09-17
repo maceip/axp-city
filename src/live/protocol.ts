@@ -9,6 +9,24 @@ export const SNAPSHOT_SCHEMA = 2;
 
 export type CityMode = "live" | "offline";
 
+export type CityKind = "trending" | "standard";
+
+export interface CityIdentity {
+  name: string;
+  kind: CityKind;
+}
+
+export interface TrendingFreshness {
+  lastSuccessfulFetchAt: string | null;
+  lastFailureAt: string | null;
+  lastError: string | null;
+  source: "github-trending" | "last-good-cache" | "test-fixture" | null;
+  counts: { daily: number; weekly: number; monthly: number };
+  fetchedAt: string | null;
+  /** True when the published city is last-good cache, not a live fetch. */
+  usingCache: boolean;
+}
+
 /** Freshness is separate from connection state: connected ≠ fresh. */
 export interface CityFreshness {
   /** Last time any repository refresh completed with measured data. */
@@ -32,6 +50,8 @@ export interface CitySnapshot {
   mode: CityMode;
   plan: CityPlan;
   freshness: CityFreshness;
+  city: CityIdentity;
+  trending?: TrendingFreshness;
 }
 
 interface MutationBase {

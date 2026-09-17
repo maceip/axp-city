@@ -247,8 +247,20 @@ export function renderCitySvg(
   }
   world.sort((a, b) => a.depth - b.depth);
   parts.push(`<g id="lots">${world.map((w) => w.svg).join("")}</g>`);
+  if (plan.labels?.length) {
+    parts.push(
+      `<g id="labels">${plan.labels
+        .map((label) => {
+          const a = project(label.x, label.y);
+          return `<text x="${num(a.sx)}" y="${num(a.sy)}" text-anchor="middle" font-family="monospace" font-size="12" fill="#3f5a44">${esc(label.text)}</text>`;
+        })
+        .join("")}</g>`,
+    );
+  }
 
-  const title = options.title ?? `AXP City — revision ${snapshot.revision}`;
+  const title =
+    options.title ??
+    `${snapshot.city?.name ?? "AXP City"} — revision ${snapshot.revision}`;
   return (
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${num(view.x)} ${num(view.y)} ${num(view.width)} ${num(view.height)}" width="${num(view.width)}" height="${num(view.height)}" data-revision="${snapshot.revision}" data-server-time="${esc(snapshot.serverTime)}" data-lots="${plan.placements.length}" data-tile="${TILE_W}x${TILE_H}">` +

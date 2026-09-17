@@ -46,7 +46,7 @@ node scripts/verify-city.mjs https://demo.glint.sh <commit>
 curl --fail https://demo.glint.sh/readyz
 ```
 
-`renderer` must be `phaser-4`, `buildRevision` must equal the deployed commit, and `/readyz` must show `clientBundle`, `storageWritable`, and `githubFresh` true with no backlog. Then open `/city` in desktop and mobile browsers: inspect a building, pan/zoom, open the census, and exercise a signed webhook through the public URL. The browser must report Phaser 4.2.1 and receive a current snapshot after reconnect. Staleness alerts (`CITY_ALERT_URL`) are exercised by the reconciler when the last successful refresh exceeds `CITY_STALE_AFTER_MS`.
+`renderer` must be `phaser-4`, `buildRevision` must equal the deployed commit, and `/readyz` must show `clientBundle`, `storageWritable`, and `githubFresh` true with no backlog. Then open `/city` in desktop and mobile browsers: the default city is **Trending City** (no query parameter). Inspect a building, pan across Daily / Weekly / Monthly streets, zoom, open the census, and exercise a signed webhook through the public URL. The browser must report Phaser 4.2.1 and receive a current snapshot after reconnect. Staleness alerts (`CITY_ALERT_URL`) are exercised by the reconciler when the last successful refresh exceeds `CITY_STALE_AFTER_MS`. A failed trending fetch keeps the last-good list and is visible on `/api/city/status`; it does not load fixture repositories.
 
 ## Cloud Agent / in-env browser proof
 

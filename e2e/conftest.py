@@ -34,11 +34,11 @@ def fixture_metrics():
 
 
 class CityServer:
-    def __init__(self, root, metrics, live=False, env=None):
+    def __init__(self, root, metrics, live=False, env=None, extra_env=None):
         self.root = root
         self.metrics = metrics
         self.live = live
-        self.extra_env = env or {}
+        self.extra_env = extra_env or env or {}
         self.file = root / "metrics.json"
         self.rules = root / "rules"
         self.rules.mkdir()

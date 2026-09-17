@@ -1,4 +1,9 @@
-import type { CityLot } from "../types.js";
+import type { CityLot, TrendingCadence } from "../types.js";
+import {
+  cadenceOfSlot,
+  nextCadenceSlot,
+  TRENDING_DISTRICT,
+} from "./trending.js";
 import {
   BIKE_BAND,
   CONSTRUCTION_MS,
@@ -70,6 +75,14 @@ export interface VacantPlot {
   variant: "grass" | "dirt" | "trees" | "plaza";
 }
 
+/** District street label stamped by Phaser and the SVG export. */
+export interface MapLabel {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+}
+
 /** Non-repo objects the Phaser scene stamps from the shared plan. */
 export type CivicKind = "office" | "odd" | "plant" | "parking" | "gate" | "road" | "bike";
 
@@ -94,6 +107,8 @@ export interface CityPlan {
   /** Local street rows that actually have lots beside them. */
   streetRows: number[];
   radius: number;
+  /** Daily / weekly / monthly street names when this is Trending City. */
+  labels: MapLabel[];
 }
 
 export interface PlanOptions {
@@ -109,6 +124,8 @@ export interface PlanOptions {
    */
   assignments?: Record<string, SlotAssignment>;
   reserved?: Iterable<SlotAssignment>;
+  /** When true, geographic districts use Daily / Weekly / Monthly names. */
+  trending?: boolean;
 }
 
 /**
@@ -133,6 +150,7 @@ export function assignSlots(
   names: string[],
   assignments: Record<string, SlotAssignment> = {},
   reserved: Iterable<SlotAssignment> = [],
+  options: { cadence?: Record<string, TrendingCadence> } = {},
 ): Record<string, SlotAssignment> {
   const out: Record<string, SlotAssignment> = {};
   const occupied = new Set<string>();
@@ -146,7 +164,8 @@ export function assignSlots(
   }
   for (const name of names) {
     if (out[name]) continue;
-    const slot = nextFreeSlot(occupied);
+    const cadence = options.cadence?.[name];
+    const slot = cadence ? nextCadenceSlot(cadence, occupied) : nextFreeSlot(occupied);
     out[name] = slot;
     occupied.add(slotKey(slot.col, slot.row));
   }
@@ -157,7 +176,24 @@ export function slotOrigin(sx: number, sy: number): { x: number; y: number } {
   return { x: sx * STRIDE_X, y: sy * STRIDE_Y };
 }
 
-export function districtName(sx: number, sy: number): string {
+export function districtName(
+  sx: number,
+  sy: number,
+  options: { trending?: boolean } = {},
+): string {
+  if (
+    sx >= PARK_SX0 &&
+    sx <= PARK_SX1 &&
+    sy >= PARK_SY0 &&
+    sy <= PARK_SY1
+  ) {
+    return "Central Park";
+  }
+  if (sy === FREEWAY_SY) return "Freeway";
+  if (options.trending) {
+    const cadence = cadenceOfSlot(sx, sy);
+    if (cadence) return TRENDING_DISTRICT[cadence];
+  }
   if (
     sx >= PARK_SX0 - 1 &&
     sx <= PARK_SX1 + 1 &&
@@ -215,10 +251,14 @@ function isConstructing(
 export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
   const forced = new Set(options.constructing ?? []);
   const reserved = [...(options.reserved ?? [])];
+  const cadence: Record<string, TrendingCadence> = {};
+  for (const lot of lots) if (lot.cadence) cadence[lot.fullName] = lot.cadence;
+  const trending = options.trending === true || Object.keys(cadence).length > 0;
   const slots = assignSlots(
     lots.map((lot) => lot.fullName),
     options.assignments,
     reserved,
+    { cadence },
   );
   const placements: LotPlacement[] = lots.map((lot) => {
     const slot = slots[lot.fullName];
@@ -230,7 +270,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
       x: origin.x,
       y: origin.y,
       constructing: isConstructing(lot.fullName, options, forced),
-      district: districtName(slot.col, slot.row),
+      district: districtName(slot.col, slot.row, { trending }),
       addedAt: options.addedAt?.[lot.fullName],
     };
   });
@@ -530,6 +570,28 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     if (c.kind !== "odd" && c.kind !== "parking") return true;
     return !stampOverlapsTravel(c.x, c.y, features);
   });
+  const labels: MapLabel[] = trending
+    ? [
+        {
+          id: "daily-projects",
+          text: "DAILY PROJECTS",
+          x: slotOrigin(0, -1).x + 2,
+          y: slotOrigin(0, -1).y + 1.1,
+        },
+        {
+          id: "weekly-projects",
+          text: "WEEKLY PROJECTS",
+          x: slotOrigin(4, 0).x + 2,
+          y: slotOrigin(4, 0).y + 1.1,
+        },
+        {
+          id: "monthly-projects",
+          text: "MONTHLY PROJECTS",
+          x: slotOrigin(0, 3).x + 2,
+          y: slotOrigin(0, 3).y + 1.1,
+        },
+      ]
+    : [];
 
   return {
     placements,
@@ -545,6 +607,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     },
     streetRows,
     radius,
+    labels,
   };
 }
 

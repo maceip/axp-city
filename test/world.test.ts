@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCity } from "../src/parser/index.js";
+import { parseLot } from "../src/parser/parseLot.js";
 import {
   CONSTRUCTION_MS,
   FREEWAY_SY,
@@ -7,9 +8,11 @@ import {
   isCorridorShoulderSlot,
   isReservedSlot,
   lotSlot,
+  nextCadenceSlot,
   planCity,
   tileKind,
 } from "../src/world/index.js";
+import { isDailyDistrict, isMonthlyDistrict, isWeeklyDistrict } from "../src/world/trending.js";
 import { FIXED_NOW, metrics } from "./helpers.js";
 
 function lots(n: number) {
@@ -184,5 +187,51 @@ describe("tileKind", () => {
   it("is stable for the same coordinates", () => {
     const plan = planCity(lots(8));
     expect(tileKind(80, 80, plan)).toBe(tileKind(80, 80, plan));
+  });
+});
+
+describe("Trending City districts", () => {
+  it("assigns daily, weekly, and monthly lots to separate streets and keeps addresses", () => {
+    const city = [
+      parseLot(metrics({ fullName: "trend/daily-a", owner: "trend", name: "daily-a" }), {
+        now: FIXED_NOW,
+        cadence: "daily",
+      }),
+      parseLot(metrics({ fullName: "trend/weekly-a", owner: "trend", name: "weekly-a" }), {
+        now: FIXED_NOW,
+        cadence: "weekly",
+      }),
+      parseLot(metrics({ fullName: "trend/monthly-a", owner: "trend", name: "monthly-a" }), {
+        now: FIXED_NOW,
+        cadence: "monthly",
+      }),
+    ];
+    const first = planCity(city);
+    expect(first.placements.map((p) => p.district)).toEqual([
+      "Daily Projects",
+      "Weekly Projects",
+      "Monthly Projects",
+    ]);
+    expect(isDailyDistrict(first.placements[0].col, first.placements[0].row)).toBe(true);
+    expect(isWeeklyDistrict(first.placements[1].col, first.placements[1].row)).toBe(true);
+    expect(isMonthlyDistrict(first.placements[2].col, first.placements[2].row)).toBe(true);
+    expect(first.labels.map((l) => l.text)).toEqual([
+      "DAILY PROJECTS",
+      "WEEKLY PROJECTS",
+      "MONTHLY PROJECTS",
+    ]);
+    const grown = planCity([
+      ...city,
+      parseLot(metrics({ fullName: "trend/daily-b", owner: "trend", name: "daily-b" }), {
+        now: FIXED_NOW,
+        cadence: "daily",
+      }),
+    ]);
+    expect(grown.placements[0].col).toBe(first.placements[0].col);
+    expect(grown.placements[0].row).toBe(first.placements[0].row);
+    expect(grown.placements[3].district).toBe("Daily Projects");
+    const occupied = new Set(first.placements.map((p) => `${p.col},${p.row}`));
+    const next = nextCadenceSlot("daily", occupied);
+    expect(isDailyDistrict(next.col, next.row)).toBe(true);
   });
 });

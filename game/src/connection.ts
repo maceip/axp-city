@@ -46,6 +46,8 @@ export function validateSnapshot(value: unknown): CitySnapshot {
       throw new Error("City data contains an invalid lot");
   if (!v.plan!.features || !v.plan!.bounds || !v.plan!.slotBounds)
     throw new Error("City data is missing its plan geometry");
+  if (!v.city) v.city = { name: "AXP City", kind: "standard" };
+  if (!v.plan!.labels) v.plan!.labels = [];
   return v as CitySnapshot;
 }
 

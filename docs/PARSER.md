@@ -40,6 +40,8 @@ Evaluate in this order. **Open PRs beat open issues** for the kind. When both ex
 | 5   | no issues/PRs, recent           | `idle_active`   | live           | empty yard                                   |
 | 6   | else                            | `fully_dormant` | quiet          | empty dirt                                   |
 
+Lot plates and loading zones use the v5 Kenney-style **single** isometric diamonds (`grassA`/`dirtA`/`paveA`/`asphaltSlab`) at native 2:1 aspect. The dual-plot hex pads are not stamped under buildings. Construction props sit on the concrete apron, not on a competing 3-D dirt island.
+
 Combined extras (applied after the kind is chosen):
 
 - If `openPrs > 0` **and** `openIssues > 0` → also `showBlueprint` (small sheet next to the stacks).
