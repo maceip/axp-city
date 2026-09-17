@@ -428,20 +428,25 @@ def extract_axp_family_odds() -> dict[str, Image.Image]:
 # White-solar villa clones among lots 11–16 / 28–34 / 45–50 → unused family-sheet
 # industrial silhouettes (not more villas, not sheet-2 catalog lots 1–10 / 18–27 / 35–44).
 VILLA_SWAP: dict[int, tuple[str, int]] = {
+    11: ("M", 7),  # analytics tower
     12: ("L", 6),  # crane-port
     13: ("L", 3),  # foundry
     14: ("M", 1),  # research lab
     15: ("L", 0),  # core factory
+    16: ("M", 2),  # data-center slab
+    28: ("M", 4),  # security hub
     29: ("L", 1),  # research lab tower
     30: ("L", 2),  # data-center slab
     31: ("L", 8),  # creative studio
     32: ("L", 5),  # community center
+    33: ("M", 8),  # creative studio
     34: ("M", 0),  # factory warehouse
     45: ("L", 7),  # analytics tower
     46: ("L", 9),  # utility plant
     47: ("L", 4),  # security hub
     48: ("M", 6),  # crane-port (medium)
     49: ("M", 9),  # utility plant (medium)
+    50: ("M", 5),  # community center
 }
 
 
@@ -592,22 +597,22 @@ def compose_civic_kiosk(gates: list[Image.Image], w: int, h: int) -> Image.Image
     d = ImageDraw.Draw(cell)
     cx = w / 2
     d.polygon(
-        [(cx, h * 0.48), (w - 6, h * 0.74), (cx, h - 4), (6, h * 0.74)],
+        [(cx, h * 0.44), (w - 4, h * 0.72), (cx, h - 2), (4, h * 0.72)],
         fill=CREAM_YARD,
     )
-    left, right = int(w * 0.30), int(w * 0.64)
-    d.rectangle([left, 10, left + 9, int(h * 0.62)], fill=TIMBER)
-    d.rectangle([right, 10, right + 9, int(h * 0.62)], fill=TIMBER)
-    d.rectangle([left + 2, 12, left + 7, int(h * 0.58)], fill=SLATE_POST)
-    d.rectangle([right + 2, 12, right + 7, int(h * 0.58)], fill=SLATE_POST)
-    d.rectangle([int(w * 0.22), 12, int(w * 0.78), int(h * 0.44)], fill=(72, 78, 70, 255))
-    d.rectangle([int(w * 0.24), 16, int(w * 0.76), int(h * 0.40)], fill=(88, 96, 86, 255))
-    d.rectangle([int(w * 0.24), 16, int(w * 0.76), 20], fill=(246, 221, 145, 255))
+    left, right = int(w * 0.28), int(w * 0.62)
+    d.rectangle([left, 8, left + 11, int(h * 0.64)], fill=TIMBER)
+    d.rectangle([right, 8, right + 11, int(h * 0.64)], fill=TIMBER)
+    d.rectangle([left + 2, 10, left + 9, int(h * 0.60)], fill=SLATE_POST)
+    d.rectangle([right + 2, 10, right + 9, int(h * 0.60)], fill=SLATE_POST)
+    d.rectangle([int(w * 0.20), 10, int(w * 0.80), int(h * 0.46)], fill=(72, 78, 70, 255))
+    d.rectangle([int(w * 0.22), 14, int(w * 0.78), int(h * 0.42)], fill=(88, 96, 86, 255))
+    d.rectangle([int(w * 0.22), 14, int(w * 0.78), 19], fill=(246, 221, 145, 255))
     for y in (int(h * 0.24), int(h * 0.29), int(h * 0.34)):
-        d.line([(int(w * 0.30), y), (int(w * 0.70), y)], fill=(232, 224, 198, 210), width=2)
+        d.line([(int(w * 0.28), y), (int(w * 0.72), y)], fill=(232, 224, 198, 210), width=3)
     if gates:
-        face = thicken_outline(scale_to(gates[0], int(w * 0.62), int(h * 0.18)), 1)
-        cell.alpha_composite(face, ((w - face.width) // 2, 22))
+        face = thicken_outline(scale_to(gates[0], int(w * 0.66), int(h * 0.20)), 1)
+        cell.alpha_composite(face, ((w - face.width) // 2, 20))
     return cell
 
 
@@ -632,18 +637,18 @@ def compose_civic_depot(gates: list[Image.Image], w: int, h: int) -> Image.Image
     )
     d.line([roof[0], roof[1], roof[2], roof[3], roof[0]], fill=SLATE_POST, width=3)
     d.polygon(
-        [(w * 0.20, h * 0.24), (w * 0.80, h * 0.24), (w * 0.74, h * 0.58), (w * 0.26, h * 0.58)],
+        [(w * 0.18, h * 0.22), (w * 0.82, h * 0.22), (w * 0.76, h * 0.60), (w * 0.24, h * 0.60)],
         fill=TIMBER,
     )
     d.polygon(
-        [(w * 0.32, h * 0.28), (w * 0.68, h * 0.28), (w * 0.64, h * 0.54), (w * 0.36, h * 0.54)],
+        [(w * 0.30, h * 0.26), (w * 0.70, h * 0.26), (w * 0.66, h * 0.56), (w * 0.34, h * 0.56)],
         fill=(56, 50, 40, 255),
     )
-    d.rectangle([int(w * 0.18), int(h * 0.22), int(w * 0.18) + 10, int(h * 0.64)], fill=SLATE_POST)
-    d.rectangle([int(w * 0.74), int(h * 0.22), int(w * 0.74) + 10, int(h * 0.64)], fill=SLATE_POST)
+    d.rectangle([int(w * 0.16), int(h * 0.20), int(w * 0.16) + 12, int(h * 0.66)], fill=SLATE_POST)
+    d.rectangle([int(w * 0.74), int(h * 0.20), int(w * 0.74) + 12, int(h * 0.66)], fill=SLATE_POST)
     if gates:
-        g = thicken_outline(scale_to(gates[2], int(w * 0.82), int(h * 0.22)), 2)
-        cell.alpha_composite(g, ((w - g.width) // 2, int(h * 0.60)))
+        g = thicken_outline(scale_to(gates[2], int(w * 0.88), int(h * 0.24)), 2)
+        cell.alpha_composite(g, ((w - g.width) // 2, int(h * 0.58)))
     return cell
 
 
@@ -871,6 +876,261 @@ def crush_catalog_orange(im: Image.Image, building_id: int) -> Image.Image:
     return out
 
 
+def _ink_blobs(indices: list[int], w: int, h: int) -> list[list[int]]:
+    pending = set(indices)
+    blobs: list[list[int]] = []
+    while pending:
+        start = pending.pop()
+        q = deque([start])
+        pix = [start]
+        while q:
+            j = q.popleft()
+            x, y = j % w, j // w
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                xx, yy = x + dx, y + dy
+                k = yy * w + xx
+                if 0 <= xx < w and 0 <= yy < h and k in pending:
+                    pending.remove(k)
+                    q.append(k)
+                    pix.append(k)
+        blobs.append(pix)
+    return blobs
+
+
+def crush_poster_type(im: Image.Image) -> Image.Image:
+    """Flatten lettered poster faces (AIE / OPEN SOURCE / CLEAN COMPUTE), not containers."""
+    out = im.copy()
+    px = out.load()
+    w, h = out.size
+
+    def classify(r: int, g: int, b: int, a: int) -> str | None:
+        if a < 16:
+            return None
+        sat = max(r, g, b) - min(r, g, b)
+        luma = (r + g + b) / 3.0
+        if g > r + 18 and g > b + 14 and sat > 50 and luma > 70:
+            return "foliage"
+        if b > r + 16 and b >= g - 2 and sat > 20:
+            return "glass"
+        if luma >= 168 and sat < 65:
+            return "light"
+        if 80 <= luma <= 200 and sat < 90 and r >= b - 4:
+            return "khaki"
+        return "other"
+
+    assigned = [-1] * (w * h)
+    comps: list[tuple[str, list[int]]] = []
+    cid = 0
+    for i in range(w * h):
+        if assigned[i] != -1:
+            continue
+        kind = classify(*px[i % w, i // w])
+        if kind not in ("light", "khaki"):
+            assigned[i] = -2
+            continue
+        q = deque([i])
+        assigned[i] = cid
+        pix = [i]
+        while q:
+            j = q.popleft()
+            x, y = j % w, j // w
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                xx, yy = x + dx, y + dy
+                if not (0 <= xx < w and 0 <= yy < h):
+                    continue
+                k = yy * w + xx
+                if assigned[k] != -1:
+                    continue
+                if classify(*px[xx, yy]) == kind:
+                    assigned[k] = cid
+                    q.append(k)
+                    pix.append(k)
+        comps.append((kind, pix))
+        cid += 1
+
+    for kind, wall in comps:
+        if len(wall) < 200:
+            continue
+        wallset = set(wall)
+        ink: list[int] = []
+        for j in wall:
+            x, y = j % w, j // w
+            for dx in range(-4, 5):
+                for dy in range(-4, 5):
+                    xx, yy = x + dx, y + dy
+                    if not (0 <= xx < w and 0 <= yy < h):
+                        continue
+                    k = yy * w + xx
+                    if k in wallset:
+                        continue
+                    r, g, b, a = px[xx, yy]
+                    if a < 16:
+                        continue
+                    ck = classify(r, g, b, a)
+                    if ck in ("foliage", "glass"):
+                        continue
+                    wr, wg, wb, _wa = px[x, y]
+                    if abs((r + g + b) / 3 - (wr + wg + wb) / 3) > 30:
+                        sat = max(r, g, b) - min(r, g, b)
+                        if sat > 70:
+                            continue
+                        ink.append(k)
+                        wallset.add(k)
+        if len(ink) < 20:
+            continue
+        letterish = [blob for blob in _ink_blobs(ink, w, h) if 6 <= len(blob) <= 350]
+        xs = [j % w for j in wall]
+        ys = [j // w for j in wall]
+        bw, bh = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+        contrast = [
+            k
+            for k in ink
+            if abs(sum(px[k % w, k // w][:3]) / 3 - sum(px[wall[0] % w, wall[0] // w][:3]) / 3) > 30
+        ]
+        poster = kind == "light" and len(letterish) >= 8
+        small_sign = kind == "khaki" and bw <= 52 and bh >= 28 and len(contrast) >= 12
+        if not (poster or small_sign):
+            continue
+        cols = [px[j % w, j // w] for j in wall]
+        cols.sort(key=lambda c: c[0] + c[1] + c[2])
+        fill = cols[len(cols) // 2]
+        targets = list(wall) + ink if (poster and sum(len(b) for b in letterish) >= 200) or small_sign else ink
+        for j in targets:
+            r, g, b, a = px[j % w, j // w]
+            if classify(r, g, b, a) in ("foliage", "glass"):
+                continue
+            if (r, g, b) == fill[:3]:
+                continue
+            px[j % w, j // w] = fill
+    return _crush_stacked_sign_letters(out)
+
+
+def _crush_stacked_sign_letters(im: Image.Image) -> Image.Image:
+    """Fill AIE-style stacked reverse letters on a khaki sign, not container stacks."""
+    out = im.copy()
+    px = out.load()
+    w, h = out.size
+
+    def luma(p: tuple[int, ...]) -> float:
+        return (p[0] + p[1] + p[2]) / 3.0
+
+    def sat(p: tuple[int, ...]) -> int:
+        return max(p[0], p[1], p[2]) - min(p[0], p[1], p[2])
+
+    light: list[tuple[int, int]] = []
+    for y in range(h):
+        for x in range(int(w * 0.52), w):
+            p = px[x, y]
+            if p[3] < 16:
+                continue
+            if luma(p) >= 140 and sat(p) < 75:
+                light.append((x, y))
+    if len(light) < 20:
+        return out
+    pending = set(light)
+    blobs: list[list[tuple[int, int]]] = []
+    while pending:
+        start = pending.pop()
+        q = deque([start])
+        pix = [start]
+        while q:
+            x, y = q.popleft()
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                t = (x + dx, y + dy)
+                if t in pending:
+                    pending.remove(t)
+                    q.append(t)
+                    pix.append(t)
+        if 8 <= len(pix) <= 220:
+            blobs.append(pix)
+    if len(blobs) < 2:
+        return out
+    centers = [(sum(x for x, _y in b) / len(b), sum(y for _x, y in b) / len(b), b) for b in blobs]
+    for i, (cx, _cy, blob) in enumerate(centers):
+        stack = [j for j, (cx2, _cy2, _b2) in enumerate(centers) if i != j and abs(cx - cx2) < 16]
+        if not stack:
+            continue
+        khaki: list[tuple[int, ...]] = []
+        for x, y in blob:
+            for dx in range(-6, 7):
+                for dy in range(-6, 7):
+                    xx, yy = x + dx, y + dy
+                    if not (0 <= xx < w and 0 <= yy < h):
+                        continue
+                    p = px[xx, yy]
+                    if p[3] < 16:
+                        continue
+                    if 70 <= luma(p) <= 155 and sat(p) < 80:
+                        khaki.append(p)
+        if len(khaki) < 6:
+            continue
+        khaki.sort(key=lambda c: c[0] + c[1] + c[2])
+        fill = khaki[len(khaki) // 2]
+        grown = set(blob)
+        q = deque(blob)
+        while q:
+            x, y = q.popleft()
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                xx, yy = x + dx, y + dy
+                if not (0 <= xx < w and 0 <= yy < h) or (xx, yy) in grown:
+                    continue
+                p = px[xx, yy]
+                if p[3] < 16:
+                    continue
+                if abs(luma(p) - luma(px[x, y])) < 28 and sat(p) < 80:
+                    grown.add((xx, yy))
+                    q.append((xx, yy))
+        if len(grown) > 400:
+            continue
+        xs = [x for x, _y in grown]
+        ys = [y for _x, y in grown]
+        x0, x1 = max(0, min(xs) - 3), min(w - 1, max(xs) + 3)
+        y0, y1 = max(0, min(ys) - 3), min(h - 1, max(ys) + 3)
+        if x1 - x0 > 56 or y1 - y0 > 90:
+            continue
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                p = px[x, y]
+                if p[3] < 16:
+                    continue
+                if luma(p) >= 130 and sat(p) < 80:
+                    px[x, y] = fill
+                elif (x, y) in grown:
+                    px[x, y] = fill
+    # Right-edge khaki sign board: paint the whole plaque, letters included.
+    opaque = [(x, y) for y in range(h) for x in range(w) if px[x, y][3] >= 16]
+    if opaque:
+        xs = [x for x, _y in opaque]
+        ys = [y for _x, y in opaque]
+        x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+        bw, bh = x1 - x0 + 1, y1 - y0 + 1
+        sx0 = x0 + int(bw * 0.72)
+        sy0, sy1 = y0 + int(bh * 0.16), y0 + int(bh * 0.78)
+        if sx0 < x1 and sy1 - sy0 > 20:
+            khaki_cols: list[tuple[int, ...]] = []
+            n = 0
+            for y in range(sy0, sy1 + 1):
+                for x in range(sx0, x1 + 1):
+                    p = px[x, y]
+                    if p[3] < 16:
+                        continue
+                    n += 1
+                    if 65 <= luma(p) <= 165 and sat(p) < 85:
+                        khaki_cols.append(p)
+            if n >= 40 and len(khaki_cols) >= n * 0.30:
+                khaki_cols.sort(key=lambda c: c[0] + c[1] + c[2])
+                fill = khaki_cols[len(khaki_cols) // 2]
+                for y in range(sy0, sy1 + 1):
+                    for x in range(sx0, x1 + 1):
+                        p = px[x, y]
+                        if p[3] < 16:
+                            continue
+                        if p[2] > p[0] + 16 and p[2] >= p[1] - 2:
+                            continue
+                        px[x, y] = fill
+    return out
+
+
 def stamp_catalog_roofs() -> None:
     """Remap terracotta roofs in place. Sprite boxes and silhouettes stay put."""
     for name, (path, ids) in CATALOG_SHEETS.items():
@@ -897,12 +1157,14 @@ def stamp_diversify_villas() -> None:
         if sheet_band not in sheets:
             sheets[sheet_band] = open_rgba(path)
         x, y, w, h = CATALOG_BUILDING_BOXES[bid]
-        spr = crush_catalog_orange(
-            restyle_catalog_roof(
-                restyle(scale_to(trim(family[fam_band][idx]), w, h), sat=0.62, contrast=1.02),
+        spr = crush_poster_type(
+            crush_catalog_orange(
+                restyle_catalog_roof(
+                    restyle(scale_to(trim(family[fam_band][idx]), w, h), sat=0.62, contrast=1.02),
+                    bid,
+                ),
                 bid,
-            ),
-            bid,
+            )
         )
         cell = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         cell.alpha_composite(spr, ((w - spr.width) // 2, h - spr.height))
@@ -1636,6 +1898,7 @@ def main() -> None:
                 "Inland odds are civic-distinct attached footprints (fence, parking, stacked gates, timber loading shed, civic kiosk) — not ChatGPT lot houses and not a second parking pad",
                 "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",
                 "White-solar villa clones among lots 11–50 swapped for unused AXP family-sheet industrial silhouettes (crane/foundry/lab/factory) — stamps, not tints",
+                "Lettered family-sheet poster faces (AIE / OPEN SOURCE / CLEAN COMPUTE) flattened onto cream/khaki walls",
                 "styleui + fruit-tree plants, restyled",
                 "bike/road diamonds from SimCity tiles, restyled",
             ],

@@ -444,12 +444,12 @@ from PIL import Image
 boxes = {
     11: ("S", 22, 364, 211, 172),
     12: ("S", 283, 364, 202, 172),
-    13: ("S", 546, 364, 187, 172),
+    16: ("S", 20, 544, 215, 172),
     28: ("M", 35, 364, 186, 172),
     29: ("M", 297, 364, 174, 172),
-    31: ("M", 815, 364, 162, 172),
+    33: ("M", 41, 544, 173, 172),
     45: ("L", 718, 364, 163, 172),
-    47: ("L", 82, 544, 156, 172),
+    50: ("L", 1045, 544, 149, 172),
 }
 sheets = {
     "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
@@ -460,26 +460,78 @@ sheets = {
 def mask(bid):
     band, x, y, w, h = boxes[bid]
     im = sheets[band].crop((x, y, x + w, y + h)).resize((48, 48), Image.Resampling.BILINEAR)
-    return [p[3] >= 16 for p in im.getdata()]
+    return [p[3] >= 16 for p in list(im.getdata())]
 
 def xor_frac(a, b):
     ma, mb = mask(a), mask(b)
     n = sum(x or y for x, y in zip(ma, mb))
     return sum(x != y for x, y in zip(ma, mb)) / max(n, 1)
 
-print(f"{xor_frac(11,12):.3f} {xor_frac(11,13):.3f} {xor_frac(28,29):.3f} {xor_frac(28,31):.3f} {xor_frac(45,47):.3f}")
+print(f"{xor_frac(11,12):.3f} {xor_frac(11,16):.3f} {xor_frac(28,29):.3f} {xor_frac(28,33):.3f} {xor_frac(45,50):.3f} {xor_frac(16,50):.3f}")
 `;
-    const [s12, s13, m29, m31, l47] = execFileSync("python3", ["-c", script], {
+    const [s12, s16, m29, m33, l50, mill] = execFileSync("python3", ["-c", script], {
       encoding: "utf8",
     })
       .trim()
       .split(/\s+/)
       .map(Number);
     expect(s12, "lots 11 and 12 still share one villa silhouette").toBeGreaterThan(0.18);
-    expect(s13, "lots 11 and 13 still share one villa silhouette").toBeGreaterThan(0.18);
+    expect(s16, "lots 11 and 16 still share one villa/mill silhouette").toBeGreaterThan(0.18);
     expect(m29, "lots 28 and 29 still share one villa silhouette").toBeGreaterThan(0.18);
-    expect(m31, "lots 28 and 31 still share one villa silhouette").toBeGreaterThan(0.18);
-    expect(l47, "lots 45 and 47 still share one villa silhouette").toBeGreaterThan(0.18);
+    expect(m33, "lots 28 and 33 still share one villa/mill silhouette").toBeGreaterThan(0.18);
+    expect(l50, "lots 45 and 50 still share one villa/mill silhouette").toBeGreaterThan(0.18);
+    expect(mill, "lots 16 and 50 still share one mill family").toBeGreaterThan(0.18);
+  });
+
+  it("crushes leftover family-sheet poster type onto the wall", () => {
+    const script = `
+from PIL import Image
+boxes = {
+    13: ("S", 546, 364, 187, 172),
+    32: ("M", 1062, 364, 180, 172),
+    46: ("L", 1042, 364, 155, 172),
+}
+sheets = {
+    "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
+    "M": Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA"),
+    "L": Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA"),
+}
+
+def ink(bid):
+    band, x, y, w, h = boxes[bid]
+    im = sheets[band].crop((x, y, x + w, y + h))
+    px = im.load()
+    n = dark = 0
+    for yy in range(h):
+        for xx in range(w):
+            r, g, b, a = px[xx, yy]
+            if a < 16:
+                continue
+            n += 1
+            luma = (r + g + b) / 3
+            sat = max(r, g, b) - min(r, g, b)
+            if luma < 90 and sat < 45:
+                # dark ink on a light neighbor?
+                for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+                    x2, y2 = xx + dx, yy + dy
+                    if 0 <= x2 < w and 0 <= y2 < h:
+                        rr, gg, bb, aa = px[x2, y2]
+                        if aa >= 16 and (rr + gg + bb) / 3 > 180 and max(rr, gg, bb) - min(rr, gg, bb) < 50:
+                            dark += 1
+                            break
+    return dark / max(n, 1)
+
+print(f"{ink(13):.4f} {ink(32):.4f} {ink(46):.4f}")
+`;
+    const [aie, opensource, clean] = execFileSync("python3", ["-c", script], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    expect(aie, "lot 13 still has AIE poster ink").toBeLessThan(0.04);
+    expect(opensource, "lot 32 still has OPEN SOURCE poster ink").toBeLessThan(0.04);
+    expect(clean, "lot 46 still has CLEAN COMPUTE poster ink").toBeLessThan(0.04);
   });
 
   it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {

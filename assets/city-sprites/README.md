@@ -119,9 +119,11 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   1–50 as before; high-chroma terracotta roofs remap to umber / slate /
   olive / clay families so lots share one vibe without becoming one house.
   The white-solar villa row (ids 11–16 / 28–34 / 45–50) is diversified with
-  unused AXP family-sheet industrial stamps (crane, foundry, lab, factory) —
-  silhouette changes, not tints. `facadeTint` + `dressingProp` are a second
-  hash so two lots that share a silhouette still read as different houses.
+  unused AXP family-sheet industrial stamps (crane, foundry, lab, factory,
+  security, analytics) — silhouette changes, not tints. Lettered poster faces
+  (AIE / OPEN SOURCE / CLEAN COMPUTE) flatten onto the wall color. `facadeTint`
+  + `dressingProp` are a second hash so two lots that share a silhouette still
+  read as different houses.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
   stamped larger than any repo lot),   inland unused civics from the attached
   construction sheet (cream-infilled timber fence, parking pad, stacked timber
