@@ -52,6 +52,30 @@ describe("bitmap HUD redo", () => {
     expect(scale9).toContain("Octagon compass/dpad");
     expect(scale9).not.toMatch(/new NinePanel|from ["'].*ninepanel/);
     expect(scale9).toContain("Phaser 4's NineSlice object is WebGL-only");
+    expect(hud).toContain('this.hudPanel("mast"');
+    expect(scale9).toContain("scale9TileCount");
+    expect(scale9).toContain('"mast"');
+  });
+
+  it("fail-closes hosted Playwright instead of skipping green as hosted proof", () => {
+    const yml = readFileSync(".github/workflows/verify.yml", "utf8");
+    expect(yml).toContain("hosted-playwright:");
+    expect(yml).toContain("hosted Playwright proof blocked");
+    expect(yml).toContain("browser-local:");
+    expect(yml).toContain("pip install pillow");
+    expect(yml).toContain("CITY_LOCAL_BROWSER");
+    expect(yml).not.toMatch(/echo "hosted=0"/);
+    expect(yml).not.toMatch(/DEVICEFARM|EMU_TOKEN/);
+  });
+
+  it("isolates the unused stretch panel so it cannot become the HUD", () => {
+    const panel = readFileSync("game/src/ninepanel.ts", "utf8");
+    expect(panel).toContain("UNUSED — isolated leftover");
+    expect(panel).toContain("Do not import this file");
+    const hud = readFileSync("game/src/HudScene.ts", "utf8");
+    const city = readFileSync("game/src/CityScene.ts", "utf8");
+    expect(hud).not.toMatch(/from ["'].*ninepanel/);
+    expect(city).not.toMatch(/from ["'].*ninepanel/);
   });
 
   it("keeps sticky lot addresses on layout version 1", () => {

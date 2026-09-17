@@ -2166,14 +2166,22 @@ def keep_hud_swatches() -> dict[str, Image.Image]:
     return swatches
 
 
-def _tile_swatch(swatch: Image.Image | None, w: int, h: int, fallback: tuple[int, int, int]) -> Image.Image:
+def _tile_swatch(swatch: Image.Image | None, w: int, h: int, fallback: tuple[int, int, int], mirror: bool = True) -> Image.Image:
+    """Tile KEEP grain. Mirror odd cells so a wide mast is not a barcode."""
     out = Image.new("RGBA", (w, h), fallback + (242,))
     if swatch is None or swatch.width < 6 or swatch.height < 6:
         return out
     src = swatch.convert("RGBA")
     for y in range(0, h, src.height):
+        row = y // src.height
         for x in range(0, w, src.width):
-            out.paste(src, (x, y), src)
+            col = x // src.width
+            cell = src
+            if mirror and col % 2:
+                cell = cell.transpose(Image.FLIP_LEFT_RIGHT)
+            if mirror and row % 2:
+                cell = cell.transpose(Image.FLIP_TOP_BOTTOM)
+            out.paste(cell, (x, y), cell)
     return out
 
 
@@ -2278,6 +2286,9 @@ def hud_kit(_hud: Image.Image | None = None) -> tuple[Image.Image, dict]:
     draw.polygon([(960, 22), (966, 48), (960, 44), (954, 48)], fill=BRASS)
     boxes["compass"] = {"x": 910, "y": 8, "w": 100, "h": 100}
     plaque("rail", 740, 260, 130, 220, "wood")
+    # Wide KEEP mast — 9-slice this, not the tall 130px rail, so desktop
+    # stretch is ~1.6× instead of a 16-wide barcode of house-shaped tiles.
+    plaque("mast", 8, 580, 1000, 86, "wood")
     return kit, boxes
 
 

@@ -15,12 +15,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      # sprites.test.ts shells out to Pillow; a missing PIL is a failed unit
+      # gate, not a skipped tileset proof.
+      - run: pip install pillow
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
 
-  browser:
+  # Software-rendered correctness only. Never hosted Playwright proof.
+  browser-local:
     needs: unit
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -43,40 +50,16 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: pip install -r e2e/requirements.txt
-      # Browser tests run in the hosted Azure Playwright workspace when its
-      # credentials are configured (Chromium leg); otherwise local Playwright
-      # builds run the same suite as a software-rendered correctness pass.
-      # Either way every report records the actual backend, driver and profile.
-      - name: Choose browser backend
-        id: backend
-        env:
-          PLAYWRIGHT_SERVICE_URL: ${{ secrets.PLAYWRIGHT_SERVICE_URL }}
-          PLAYWRIGHT_SERVICE_ACCESS_TOKEN: ${{ secrets.PLAYWRIGHT_SERVICE_ACCESS_TOKEN }}
-        run: |
-          if [ "${{ matrix.engine }}" = "chromium" ] && [ -n "$PLAYWRIGHT_SERVICE_URL" ] && [ -n "$PLAYWRIGHT_SERVICE_ACCESS_TOKEN" ]; then
-            echo "hosted=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "hosted=0" >> "$GITHUB_OUTPUT"
-            python -m playwright install --with-deps ${{ matrix.engine }}
-          fi
-      - name: Browser suite (hosted Azure Playwright workspace)
-        if: steps.backend.outputs.hosted == '1'
-        run: python -m pytest e2e -v
-        env:
-          PLAYWRIGHT_SERVICE_URL: ${{ secrets.PLAYWRIGHT_SERVICE_URL }}
-          PLAYWRIGHT_SERVICE_ACCESS_TOKEN: ${{ secrets.PLAYWRIGHT_SERVICE_ACCESS_TOKEN }}
-          PLAYWRIGHT_SERVICE_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-          # Read-only Actions token: test_live_github.py fetches this repository from api.github.com.
-          GITHUB_TOKEN: ${{ github.token }}
-      - name: Browser suite (local SwiftShader Chromium, software-rendered correctness)
-        if: steps.backend.outputs.hosted != '1' && matrix.engine == 'chromium'
+      - run: python -m playwright install --with-deps ${{ matrix.engine }}
+      - name: Browser suite (local SwiftShader Chromium — not hosted proof)
+        if: matrix.engine == 'chromium'
         run: python -m pytest e2e -v
         env:
           CITY_LOCAL_BROWSER: "1"
           CITY_SOFTWARE_GL: "1"
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Browser suite (local ${{ matrix.engine }})
-        if: steps.backend.outputs.hosted != '1' && matrix.engine != 'chromium'
+      - name: Browser suite (local ${{ matrix.engine }} — not hosted proof)
+        if: matrix.engine != 'chromium'
         run: python -m pytest e2e/test_city_visual.py e2e/test_support.py e2e/test_exports.py e2e/test_live_local.py -v
         env:
           CITY_LOCAL_BROWSER: "1"
@@ -84,5 +67,46 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: phaser-browser-evidence-${{ matrix.engine }}
+          name: phaser-browser-local-${{ matrix.engine }}
+          path: e2e/screenshots/
+
+  # Fail closed: missing PLAYWRIGHT_SERVICE_* secrets is a failed hosted
+  # proof, not a green skip that looks like the workspace ran.
+  hosted-playwright:
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - name: Require hosted Playwright credentials
+        env:
+          PLAYWRIGHT_SERVICE_URL: ${{ secrets.PLAYWRIGHT_SERVICE_URL }}
+          PLAYWRIGHT_SERVICE_ACCESS_TOKEN: ${{ secrets.PLAYWRIGHT_SERVICE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$PLAYWRIGHT_SERVICE_URL" ] || [ -z "$PLAYWRIGHT_SERVICE_ACCESS_TOKEN" ]; then
+            echo "::error::hosted Playwright proof blocked: repo secrets PLAYWRIGHT_SERVICE_URL and PLAYWRIGHT_SERVICE_ACCESS_TOKEN must both be set. Local SwiftShader / browser-local is not hosted proof."
+            exit 1
+          fi
+          echo "Hosted Playwright credentials present; connecting to Azure Playwright Chromium."
+      - run: npm ci
+      - run: npm run build
+      - run: pip install -r e2e/requirements.txt
+      - name: Browser suite (hosted Azure Playwright Chromium)
+        run: python -m pytest e2e -v
+        env:
+          PLAYWRIGHT_SERVICE_URL: ${{ secrets.PLAYWRIGHT_SERVICE_URL }}
+          PLAYWRIGHT_SERVICE_ACCESS_TOKEN: ${{ secrets.PLAYWRIGHT_SERVICE_ACCESS_TOKEN }}
+          PLAYWRIGHT_SERVICE_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: phaser-hosted-playwright
           path: e2e/screenshots/

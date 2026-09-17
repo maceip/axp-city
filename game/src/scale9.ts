@@ -108,8 +108,8 @@ export class Scale9Plaque extends Phaser.GameObjects.Container {
 
   private cover(src: SpriteBox, x: number, y: number, w: number, h: number, tileX: boolean, tileY: boolean): void {
     if (w < 0.5 || h < 0.5 || src.w < 1 || src.h < 1) return;
-    const cols = tileX ? Math.max(1, Math.min(32, Math.round(w / Math.max(1, src.w)))) : 1;
-    const rows = tileY ? Math.max(1, Math.min(32, Math.round(h / Math.max(1, src.h)))) : 1;
+    const cols = tileX ? scale9TileCount(w, src.w) : 1;
+    const rows = tileY ? scale9TileCount(h, src.h) : 1;
     const tw = w / cols;
     const th = h / rows;
     const frame = ensureFrame(this.scene, this.sheet, src);
@@ -117,6 +117,8 @@ export class Scale9Plaque extends Phaser.GameObjects.Container {
       for (let c = 0; c < cols; c++) {
         const img = this.scene.add.image(x + c * tw, y + r * th, this.sheet, frame).setOrigin(0, 0);
         img.setDisplaySize(Math.max(0.01, tw), Math.max(0.01, th));
+        if (cols > 1 && c % 2) img.setFlipX(true);
+        if (rows > 1 && r % 2) img.setFlipY(true);
         img.disableInteractive();
         (img as Phaser.GameObjects.Image & { destX: number; destY: number }).destX = x + c * tw;
         (img as Phaser.GameObjects.Image & { destY: number }).destY = y + r * th;
@@ -133,6 +135,14 @@ export function scale9Inset(box: SpriteBox, width: number, height: number): numb
   return Math.max(4, Math.min(prefer, cap));
 }
 
+/** Prefer one slightly larger tile over a barcode of repeats. */
+export function scale9TileCount(dest: number, src: number): number {
+  if (src < 1) return 1;
+  const span = dest / src;
+  if (span <= 1.9) return 1;
+  return Math.max(1, Math.min(32, Math.round(span)));
+}
+
 /** Rectangular KEEP plaques. Octagon compass/dpad stay whole images. */
 export const SCALE9_FRAMES = new Set([
   "plate",
@@ -146,4 +156,5 @@ export const SCALE9_FRAMES = new Set([
   "btn-wide",
   "btn-sq",
   "rail",
+  "mast",
 ]);

@@ -179,7 +179,7 @@ export class HudScene extends Phaser.Scene {
     for (const listener of this.listeners) listener(event, detail);
   }
 
-  /** KEEP-grain plaques. Rectangular frames tile via Scale9; octagon compass/dpad stay whole images. */
+  /** KEEP-grain plaques. Mast uses the dedicated wide face; octagon compass/dpad stay whole images. */
   private hudPanel(frame: "compass" | "dpad", width: number, height: number): Phaser.GameObjects.Image;
   private hudPanel(frame: Scale9Frame, width: number, height: number): Scale9Plaque;
   private hudPanel(frame: HudFrame, width: number, height: number): HudChrome {
@@ -243,7 +243,7 @@ export class HudScene extends Phaser.Scene {
     this.constructionStamp = undefined;
     this.cameras.main.setRoundPixels(true);
     if (this.input.keyboard) this.input.keyboard.enabled = false;
-    this.mast = this.hudPanel("rail", 900, 86);
+    this.mast = this.hudPanel("mast", 900, 86);
     this.mast.setName("mast");
     this.plate = this.add.container(16, 16);
     const plateBg = this.hudPanel("plate", 250, 78);

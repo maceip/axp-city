@@ -293,7 +293,8 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
             assert point["width"] > 8 and point["height"] > 8
         chrome = page.evaluate("window.__AXP.hudChrome()")
         assert chrome["mast"]["kind"] == "scale9", chrome
-        assert chrome["mast"]["parts"] > 9, f"mast still one smeared KEEP tile: {chrome['mast']}"
+        assert chrome["mast"]["parts"] >= 9, f"mast is not 9-sliced: {chrome['mast']}"
+        assert chrome["mast"]["parts"] <= 15, f"mast still barcodes a narrow rail: {chrome['mast']}"
         assert chrome["card"]["kind"] == "scale9", chrome
         assert chrome["census"]["kind"] == "scale9", chrome
         assert chrome["censusBtn"]["kind"] == "scale9", chrome

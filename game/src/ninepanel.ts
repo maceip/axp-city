@@ -1,13 +1,15 @@
+/**
+ * UNUSED — isolated leftover. HudScene draws plaques with Scale9Plaque.
+ * Do not import this file from CityScene, HudScene, or any live renderer.
+ * Stretching the nine faces smears KEEP grain; Scale9 tiles instead.
+ */
 import Phaser from "phaser";
 import type { SpriteBox } from "../../src/render/sprites.js";
 import { ensureFrame } from "./stamps.js";
 
 /**
- * A kit plaque stretched to any size without distorting its border: the four
- * corners keep their pixel size, the edges stretch along one axis and the
- * centre along both. Built from nine plain images because Phaser 4's NineSlice
- * game object has only a WebGL renderer and the HUD must draw identically on
- * the Canvas fallback.
+ * Legacy 9-image stretch panel. Not the HUD. Corners keep pixel size; edges
+ * and centre smear via setDisplaySize. Phaser 4 NineSlice is WebGL-only.
  */
 export class NinePanel extends Phaser.GameObjects.Container {
   private readonly parts: Phaser.GameObjects.Image[] = [];

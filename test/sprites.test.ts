@@ -267,6 +267,8 @@ describe("civic and HUD kits", () => {
     expect(oddDisplayWidth("odd-2", 0.69)).toBe(ODD_STAMP_WIDTH["odd-2"]);
     expect(HUD_FRAMES.plate.w).toBe(250);
     expect(HUD_FRAMES.compass.w).toBe(100);
+    expect(HUD_FRAMES.mast.w, "mast face is still the tall 130px rail").toBeGreaterThanOrEqual(900);
+    expect(HUD_FRAMES.mast.h).toBe(86);
     expect(Object.keys(CONSTRUCTION_STAGES)).toEqual(["grading", "framing", "cladding", "finishing"]);
     expect(CONSTRUCTION_STAGES.grading).toEqual(CIVIC_SPRITES["scaffold-0"]);
     expect(CONSTRUCTION_STAGES.framing).toEqual(CIVIC_SPRITES["scaffold-1"]);
