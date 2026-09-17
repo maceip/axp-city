@@ -66,7 +66,7 @@ export class AccessibilityMirror {
     const caption = document.createElement("caption");
     caption.textContent = `Lot census, ${rows.length} rows`;
     const head = document.createElement("tr");
-    for (const label of ["Repository", "District", "Stars", "Issues", "PRs", "Building", "Crew", "Yard", "Loading zone"]) {
+    for (const label of ["Repository", "District", "Stars", "Issues", "PRs", "Building", "Crew", "Yard", "Loading zone", "Data"]) {
       const th = document.createElement("th");
       th.scope = "col";
       th.textContent = label;
@@ -75,7 +75,9 @@ export class AccessibilityMirror {
     table.append(caption, head);
     for (const row of rows.slice(0, 400)) {
       const tr = document.createElement("tr");
-      for (const value of [row.repo, row.district, row.stars, row.issues, row.prs, row.band, `${row.crew} (${row.crewBasis})`, row.yard, row.props]) {
+      // Carried values are named, so a reader never takes a last-good number for a fresh one.
+      const data = row.carried.length ? `partial: ${row.carried.join(", ")} carried from an earlier refresh` : "complete";
+      for (const value of [row.repo, row.district, row.stars, row.issues, row.prs, row.band, `${row.crew} (${row.crewBasis})`, row.yard, row.props, data]) {
         const td = document.createElement("td");
         td.textContent = String(value);
         tr.append(td);

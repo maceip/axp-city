@@ -255,6 +255,8 @@ describe("createCityStore (SQLite)", () => {
       failingRepositories: 0,
       staleAfterMs: 1000,
     });
+    await store.ensure("acme/a", parseLot(metrics({ fullName: "acme/a" })), FIXED_NOW);
+    await store.ensure("acme/b", parseLot(metrics({ fullName: "acme/b" })), FIXED_NOW);
     store.recordRefresh({ fullName: "acme/a", at: FIXED_NOW, ok: true });
     store.recordRefresh({ fullName: "acme/b", at: FIXED_NOW, ok: false, error: "503" });
     expect(store.freshness()).toMatchObject({
@@ -264,6 +266,10 @@ describe("createCityStore (SQLite)", () => {
     });
     store.recordRefresh({ fullName: "acme/b", at: FIXED_NOW, ok: true });
     expect(store.freshness().failingRepositories).toBe(0);
+    // A refused enrollment is answered to the caller; it is not a degraded city.
+    store.recordRefresh({ fullName: "acme/private", at: FIXED_NOW, ok: false, error: "private repository" });
+    expect(store.freshness().failingRepositories).toBe(0);
+    expect(store.freshness().lastError).toBeNull();
     store.close();
   });
 

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { ambientActors } from "../../src/game/ambient.js";
-import { findPlacement } from "../../src/game/census.js";
+import { censusRows, findPlacement } from "../../src/game/census.js";
 import { buildingBounds, buildingSize, lotSampleBounds } from "../../src/game/geometry.js";
 import { planLot, type LotRenderPlan } from "../../src/game/plan.js";
 import { overlaps, unproject, visibleChunks, type Rect } from "../../src/game/visibility.js";
@@ -29,6 +29,8 @@ interface LotView {
   place: LotPlacement;
   /** Some sheet was still loading; rebuild when it arrives. */
   incomplete: boolean;
+  /** Construction stage the current objects were built for. */
+  stage: string;
 }
 
 const boundsCache = new WeakMap<LotPlacement, Rect>();
@@ -66,6 +68,8 @@ export class CityScene extends Phaser.Scene {
   private lastInputTime = performance.now();
   private drag?: { id: number; x: number; y: number; startX: number; startY: number; moved: boolean };
   private pinch?: { distance: number; x: number; y: number };
+  private generation = 0;
+  private extents = new WeakMap<LotPlacement, Rect>();
   private clockOffset = 0;
   private connectionState: ConnectionState = "connecting";
   private frameTimes: number[] = [];
@@ -99,6 +103,9 @@ export class CityScene extends Phaser.Scene {
     this.restoreCamera = undefined;
     this.restoreKeysIdle = false;
     this.connectionState = "connecting";
+    // Counts scene runs so observers can tell a restarted scene from the one they were watching.
+    this.generation = (this.registry.get("generation") ?? 0) + 1;
+    this.registry.set("generation", this.generation);
     this.city = this.registry.get("snapshot");
     this.reducedMotion = this.registry.get("reducedMotion") ?? matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.assets = new AssetLoader(this);
@@ -109,9 +116,10 @@ export class CityScene extends Phaser.Scene {
     this.shapes = graphicsPool(this, 400);
     this.highlight = this.add.graphics().setDepth(100_000);
     this.atmosphere = this.add.graphics().setDepth(1_000_000).setScrollFactor(0);
-    this.assets.onReady(() => {
+    this.assets.onReady((key) => {
       for (const view of this.lots.values()) if (view.incomplete) view.signature = "";
       this.lastRefresh = -Infinity;
+      if (this.assets.isFailed(key) && this.hudReady) this.hud.toast(`Sprite sheet ${key} could not be loaded; affected lots are drawn without it.`);
     });
 
     const actions = {
@@ -178,9 +186,14 @@ export class CityScene extends Phaser.Scene {
     this.bindSearch();
     this.connection.connect();
     const onLost = () => {
-      const pan = this.cameras.main.panEffect;
-      if (pan.isRunning) pan.reset();
-      const payload = { scrollX: this.cameras.main.scrollX, scrollY: this.cameras.main.scrollY, zoom: this.cameras.main.zoom, selected: this.selected };
+      const c = this.cameras.main;
+      // A pan that was still gliding when the context went finishes now, so the
+      // restored scene lands where the visitor was heading, not on a random frame.
+      if (c.panEffect.isRunning) {
+        c.centerOn(c.panEffect.destination.x, c.panEffect.destination.y);
+        c.panEffect.reset();
+      }
+      const payload = { scrollX: c.scrollX, scrollY: c.scrollY, zoom: c.zoom, selected: this.selected };
       this.registry.set("restore", payload);
       (window as unknown as { __AXP_RESTORE?: typeof payload }).__AXP_RESTORE = payload;
     };
@@ -218,6 +231,7 @@ export class CityScene extends Phaser.Scene {
       scene: this,
       diagnostics: () => ({
         version: Phaser.VERSION,
+        generation: this.generation,
         renderer: this.game.renderer.type,
         rendererName: this.game.renderer.type === Phaser.WEBGL ? "webgl" : "canvas",
         revision: this.city.revision,
@@ -232,6 +246,11 @@ export class CityScene extends Phaser.Scene {
         actors: this.actors.count,
         drawnActors: this.actors.drawn,
         assetsInflight: this.assets.inflight,
+        assetsFailed: this.assets.failures,
+        assetBytesRequested: this.assets.bytesRequested,
+        sheetsRequested: this.assets.sheetsRequested,
+        textures: Object.keys(this.textures.list).length,
+        heapBytes: (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null,
         zoom: this.cameras.main.zoom,
         scrollX: this.cameras.main.scrollX,
         scrollY: this.cameras.main.scrollY,
@@ -244,6 +263,7 @@ export class CityScene extends Phaser.Scene {
         reducedMotion: this.reducedMotion,
         censusOpen: this.hudReady && this.hud.censusIsOpen,
         cardVisible: this.hudReady && this.hud.cardVisible,
+        toastVisible: this.hudReady && this.hud.toastVisible,
         office: this.city.plan.civics?.find((c) => c.kind === "office") ?? null,
         officeStampWidth: OFFICE_STAMP_WIDTH,
         roadStampWidth: ROAD_STAMP_WIDTH,
@@ -261,6 +281,7 @@ export class CityScene extends Phaser.Scene {
       }),
       snapshot: () => this.city,
       actorTimeline: (id: string) => this.actors.timeline(id),
+      actorClock: () => this.actors.now,
       actor: (id: string) => ({ ...this.actors.describe(id), ...this.actors.position(id) }),
       lotActors: (repo: string) => {
         const view = this.lots.get(repo);
@@ -272,7 +293,14 @@ export class CityScene extends Phaser.Scene {
         const view = this.lots.get(repo);
         return view ? planLot(view.place, true, this.now()).construction ?? null : null;
       },
+      // What is on screen for a lot, as opposed to what the plan says at this instant.
+      drawn: (repo: string) => {
+        const view = this.lots.get(repo);
+        return view ? { stage: view.stage, incomplete: view.incomplete, objects: view.images.length + view.shapes.length } : null;
+      },
       drawnRenderKey: (repo: string) => this.lots.get(repo)?.renderKey ?? null,
+      // The shared census model both the Phaser table and the accessible mirror read.
+      censusRows: () => censusRows(this.city.plan, this.now()),
       lotTags: (repo: string) => {
         const place = this.city.plan.placements.find((p) => p.lot.fullName === repo);
         return place ? planLot(place, true, this.now()).images.map((i) => i.tag ?? i.sheet) : [];
@@ -297,6 +325,27 @@ export class CityScene extends Phaser.Scene {
         const rect = this.screenRect(repo);
         if (!rect) return Promise.reject(new Error(`${repo} is not in the city`));
         return samplePixels(this.game, rect.x, rect.y, rect.width, rect.height, grid);
+      },
+      // Any screen rectangle (CSS px), for probes that span several lots.
+      pixelsAt: (x: number, y: number, width: number, height: number, grid?: number) =>
+        samplePixels(this.game, x, y, width, height, grid),
+      // Screen rectangle and depth of the building stamp as the plan lays it out right now.
+      buildingScreenRect: (repo: string) => {
+        const place = this.city.plan.placements.find((p) => p.lot.fullName === repo);
+        if (!place) return null;
+        const stamp = planLot(place, true, this.now()).images.find((i) => i.tag === "building");
+        if (!stamp) return null;
+        const w = stamp.box.w * stamp.scaleX;
+        const h = stamp.box.h * stamp.scaleY;
+        const view = this.view();
+        const zoom = this.cameras.main.zoom;
+        return {
+          x: (stamp.sx - w / 2 - view.x) * zoom,
+          y: (stamp.sy - h - view.y) * zoom,
+          width: w * zoom,
+          height: h * zoom,
+          depth: stamp.depth,
+        };
       },
       hudPoint: (name: string) => {
         if (!this.hudReady) return null;
@@ -517,9 +566,11 @@ export class CityScene extends Phaser.Scene {
       shapes.push(scaffold);
     }
     this.actors.setLotActors(place.lot.fullName, ops.anims);
-    for (const anim of ops.anims) if (!this.assets.ready(anim.anim)) incomplete = true;
-    this.lots.set(place.lot.fullName, { images, shapes, signature, renderKey: this.renderKey(place), bounds, place, incomplete });
-    if (this.selected === place.lot.fullName && this.hudReady) this.hud.setSelection(place);
+    for (const anim of ops.anims) if (!this.assets.ready(anim.anim) && !this.assets.isFailed(anim.anim)) incomplete = true;
+    this.lots.set(place.lot.fullName, { images, shapes, signature, renderKey: this.renderKey(place), bounds, place, incomplete, stage: ops.construction?.stage ?? "complete" });
+    // A rebuild (construction tick, sheet arrival) refreshes the card quietly; data
+    // changes and stage changes are announced by the HUD itself.
+    if (this.selected === place.lot.fullName && this.hudReady) this.hud.setSelection(place, false);
   }
 
   private view(): Rect {
@@ -533,9 +584,7 @@ export class CityScene extends Phaser.Scene {
     const padded = { x: view.x - 220, y: view.y - 260, width: view.width + 440, height: view.height + 480 };
     const wanted = new Set<string>();
     for (const place of this.city.plan.placements) {
-      const bounds = lotBounds(place);
-      const anchor = project(place.x + 2, place.y + 1);
-      if (!overlaps(padded, { x: Math.min(bounds.x, anchor.sx - 150), y: bounds.y - 60, width: Math.max(bounds.width, 300), height: bounds.height + 170 })) continue;
+      if (!overlaps(padded, this.extentOf(place))) continue;
       const name = place.lot.fullName;
       wanted.add(name);
       const previous = this.lots.get(name);
@@ -552,6 +601,19 @@ export class CityScene extends Phaser.Scene {
     const developed = center.x >= b.minX && center.x <= b.maxX && center.y >= b.minY && center.y <= b.maxY;
     if (this.hudReady)
       this.hud.setCamera(view, this.cameras.main.zoom, developed ? districtName(Math.floor(center.x / STRIDE_X), Math.floor(center.y / STRIDE_Y)) : "The Wilds", center.x, center.y);
+  }
+
+  /** Screen-space extent a lot can draw into (yard, building, label). Placements are
+   *  immutable objects replaced on each snapshot, so the cache keys itself by identity. */
+  private extentOf(place: LotPlacement): Rect {
+    let rect = this.extents.get(place);
+    if (!rect) {
+      const bounds = lotBounds(place);
+      const anchor = project(place.x + 2, place.y + 1);
+      rect = { x: Math.min(bounds.x, anchor.sx - 150), y: bounds.y - 60, width: Math.max(bounds.width, 300), height: bounds.height + 170 };
+      this.extents.set(place, rect);
+    }
+    return rect;
   }
 
   private drawSelection(): void {
@@ -641,7 +703,10 @@ export class CityScene extends Phaser.Scene {
     const small = camera.width < 700;
     const targetX = small ? camera.width / 2 : (camera.width - 340) / 2;
     const cardTop = this.hudReady ? this.hud.cardBottom : camera.height;
-    const targetY = small ? Math.max(170, (140 + cardTop) / 2) : camera.height / 2;
+    // On a phone the lot is framed between the HUD stack (plate, search, status,
+    // MASS) and the card sheet, so its tap target is not under a plaque.
+    const top = this.hudReady ? this.hud.topInset : 140;
+    const targetY = small ? Math.max(top + 60, (top + cardTop) / 2) : camera.height / 2;
     const x = bounds.x + bounds.width / 2 + (camera.width / 2 - targetX) / camera.zoom;
     const y = bounds.y + bounds.height * 0.55 + (camera.height / 2 - targetY) / camera.zoom;
     if (this.reducedMotion) camera.centerOn(x, y);
@@ -701,7 +766,11 @@ export class CityScene extends Phaser.Scene {
         input.value = "";
         if (this.hudReady) this.hud.setCensusFilter("");
         input.blur();
-      }
+      } else return;
+      // The field has acted on the key. Once it is blurred the same keydown would
+      // reach the window shortcuts with no control focused, and Escape would also
+      // close the census (or clear the selection) the visitor was filtering.
+      event.stopPropagation();
     };
   }
 

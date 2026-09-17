@@ -3,6 +3,8 @@ import hashlib
 import hmac
 import json
 import os
+import re
+import shutil
 import socket
 import subprocess
 import time
@@ -32,9 +34,11 @@ def fixture_metrics():
 
 
 class CityServer:
-    def __init__(self, root, metrics):
+    def __init__(self, root, metrics, live=False, env=None):
         self.root = root
         self.metrics = metrics
+        self.live = live
+        self.extra_env = env or {}
         self.file = root / "metrics.json"
         self.rules = root / "rules"
         self.rules.mkdir()
@@ -47,19 +51,34 @@ class CityServer:
         self.start()
 
     def save(self):
-        self.file.write_text(json.dumps(self.metrics))
+        # Atomic replace: the server re-reads this file on every refresh, and a
+        # truncate-then-write could be observed half-written as a parse failure.
+        tmp = self.file.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(self.metrics))
+        os.replace(tmp, self.file)
 
     def start(self):
-        env = dict(os.environ, CITY_OFFLINE="1", CITY_DATA_DIR=str(self.root / "data"), CITY_FIXTURE_PATH=str(self.file), CITY_RULES_DIR=str(self.rules), GITHUB_WEBHOOK_SECRET=SECRET, CITY_ADMIN_TOKEN=ADMIN, HOST="127.0.0.1")
+        env = dict(os.environ, CITY_DATA_DIR=str(self.root / "data"), CITY_RULES_DIR=str(self.rules), GITHUB_WEBHOOK_SECRET=SECRET, CITY_ADMIN_TOKEN=ADMIN, HOST="127.0.0.1")
+        if self.live:
+            # Real GitHub through GITHUB_TOKEN from the environment; nothing is enrolled
+            # until a test does so, and no fixture file is in reach of the resolver.
+            env.pop("CITY_OFFLINE", None)
+            env["CITY_ENROLL_FILE"] = os.devnull
+        else:
+            env.update(CITY_OFFLINE="1", CITY_FIXTURE_PATH=str(self.file))
+        env.update(self.extra_env)
         self.log = (self.root / "server.log").open("a")
         self.proc = subprocess.Popen(["node", "dist/server/cli/server.js", "--port", str(self.port)], cwd=REPO, env=env, stdout=self.log, stderr=subprocess.STDOUT)
-        for _ in range(100):
+        # A loaded CI runner (browser + server on two cores) can take well over five
+        # seconds to open SQLite and start listening; a crash is still reported at once.
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
             try:
                 if self.get("/healthz")["renderer"] == "phaser-4": return
             except (OSError, urllib.error.URLError): pass
             if self.proc.poll() is not None: raise RuntimeError((self.root / "server.log").read_text())
             time.sleep(.05)
-        raise RuntimeError("City server did not start")
+        raise RuntimeError("City server did not start within 60 s:\n" + (self.root / "server.log").read_text()[-4000:])
 
     def stop(self):
         if self.proc and self.proc.poll() is None:
@@ -97,19 +116,44 @@ class CityServer:
         with urllib.request.urlopen(request, timeout=10) as response: return response.status
 
 
+SERVER_LOGS = Path(__file__).parent / "screenshots" / "server-logs"
+
+
+def keep_server_log(runtime, request):
+    """Copy the server's log next to the screenshots so CI evidence includes what the
+    server did (delivery failures, retries) and not only what the browser saw."""
+    runtime.stop()
+    source = runtime.root / "server.log"
+    if source.exists():
+        SERVER_LOGS.mkdir(parents=True, exist_ok=True)
+        name = re.sub(r"[^A-Za-z0-9_.-]+", "_", request.node.name)
+        shutil.copyfile(source, SERVER_LOGS / f"{name}.log")
+
+
 @pytest.fixture
-def server(tmp_path):
+def server(tmp_path, request):
     runtime = CityServer(tmp_path, fixture_metrics())
     yield runtime
-    runtime.stop()
+    keep_server_log(runtime, request)
 
 
 @pytest.fixture
-def large_server(tmp_path):
+def live_server(tmp_path, request):
+    """The real resolver against GitHub. Skipped without a token so the suite never
+    pretends live coverage it did not get."""
+    if not os.environ.get("GITHUB_TOKEN"):
+        pytest.skip("GITHUB_TOKEN is not set; live GitHub coverage was not run")
+    runtime = CityServer(tmp_path, [], live=True, env={"CITY_REFRESH_INTERVAL_MS": "15000", "CITY_STALE_AFTER_MS": "600000"})
+    yield runtime
+    keep_server_log(runtime, request)
+
+
+@pytest.fixture
+def large_server(tmp_path, request):
     rows = [repo_metrics(f"bench/repo{i}", stars=i*83, openPrs=i%20, recentDefaultCommits=1) for i in range(1000)]
     runtime = CityServer(tmp_path, rows)
     yield runtime
-    runtime.stop()
+    keep_server_log(runtime, request)
 
 
 class BrowserBackend:
@@ -190,6 +234,49 @@ def ready(page, url):
     page.goto(url + "/city", wait_until="domcontentloaded")
     page.wait_for_function("Boolean(window.__AXP) && window.__AXP.diagnostics().chunks > 0", timeout=30000)
     page.locator("#boot-card").wait_for(state="hidden")
+
+
+class HeapMeter:
+    """Retained JS heap of a page, measured rather than read from `performance.memory`.
+
+    Chromium quantises `performance.memory.usedJSHeapSize` and refreshes it only every
+    ~20 minutes, so a soak that grows the city sees one step and no trend. Through CDP
+    the page's garbage is collected first and the live heap read exactly
+    (`Runtime.getHeapUsage`), which is what a leak check needs. Other engines expose no
+    equivalent; `read()` returns None there and the callers say so."""
+
+    def __init__(self, page):
+        self.session = None
+        if page.context.browser and page.context.browser.browser_type.name == "chromium":
+            self.session = page.context.new_cdp_session(page)
+            self.session.send("HeapProfiler.enable")
+
+    def read(self):
+        if self.session is None:
+            return None
+        self.session.send("HeapProfiler.collectGarbage")
+        return int(self.session.send("Runtime.getHeapUsage")["usedSize"])
+
+
+def settled(page, timeout=10000):
+    """Wait until the camera has stopped moving (a key press still pans the frame after
+    it resolves on a slow renderer), then return the diagnostics of that resting state."""
+    read = "() => { const c = window.__AXP.scene.cameras.main; return [c.scrollX, c.scrollY, c.zoom, c.panEffect.isRunning || c.zoomEffect.isRunning]; }"
+    deadline = time.monotonic() + timeout / 1000
+    previous = None
+    while time.monotonic() < deadline:
+        current = page.evaluate(read)
+        if current == previous and not current[3]:
+            return page.evaluate("window.__AXP.diagnostics()")
+        previous = current
+        page.wait_for_timeout(250)
+    raise TimeoutError(f"camera still moving after {timeout} ms: {previous}")
+
+
+def webgl_available(page):
+    """Whether this browser gave the client a WebGL context (headless Firefox on a CI
+    runner without a GPU does not; the client then uses the documented Canvas fallback)."""
+    return page.evaluate("window.__AXP_SUPPORT.renderer") == "webgl"
 
 
 @pytest.fixture

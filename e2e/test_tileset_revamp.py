@@ -105,6 +105,10 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert hud(page, "card")
         assert hud(page, "close-card")
 
+        # Determinism across page loads: the facade assignment is the plan's, not this
+        # page's. Close the first page first so a software renderer boots the second
+        # one alone instead of sharing the CPU with a live 1600×1000 city.
+        page.close()
         second = browser.new_page(viewport=dict(width=1600, height=1000))
         ready(second, server.url)
         other = second.evaluate("window.__AXP.diagnostics()")

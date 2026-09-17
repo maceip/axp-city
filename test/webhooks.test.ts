@@ -62,7 +62,7 @@ async function listen(runtime: WebhookServer): Promise<string> {
 }
 
 async function shutdown(runtime: WebhookServer): Promise<void> {
-  runtime.stopWorker();
+  await runtime.stopWorker();
   runtime.server.closeAllConnections();
   await new Promise<void>((resolve, reject) =>
     runtime.server.close((error) => (error ? reject(error) : resolve())),

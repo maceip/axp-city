@@ -41,6 +41,18 @@ Environment=CITY_DATA_DIR=%h/axp-city/data
 Environment=CITY_BACKUP_DIR=%h/axp-city/backups
 Environment=HOST=127.0.0.1
 Environment=PORT=43174
+# Resource limits: one Node process and a SQLite file. The load case grows the heap by
+# under 64 MB, so 1 GiB is a ceiling that turns a leak into a restart, not a target.
+MemoryHigh=512M
+MemoryMax=1G
+TasksMax=128
+LimitNOFILE=8192
+Restart=on-failure
+RestartSec=2
+# The process log goes to journald; a burst (a reconcile pass logging every failure)
+# is capped rather than allowed to flood the journal.
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=2000
 EOF
 ln -sfn "$city_wanted" "$city_active.next"
 mv -Tf "$city_active.next" "$city_active"

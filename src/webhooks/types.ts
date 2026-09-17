@@ -53,4 +53,6 @@ export interface DeliveryResult {
   body: string;
   /** Present when the delivery produced a city signal that was queued. */
   event?: CityEvent;
+  /** Present on a 500: the storage error that kept the delivery from being recorded. */
+  storageError?: string;
 }

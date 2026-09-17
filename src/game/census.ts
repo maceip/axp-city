@@ -42,7 +42,10 @@ export interface CensusRow {
   yard: string;
   props: string;
   constructing: boolean;
+  /** True when any field is a carried last-good value rather than a fresh measurement. */
   partial: boolean;
+  /** The fields carried from an earlier refresh, empty when every value is fresh. */
+  carried: string[];
   source: string;
   x: number;
   y: number;
@@ -71,6 +74,7 @@ export function censusRow(place: LotPlacement, now = Date.now()): CensusRow {
     props: yardPropList(lot).concat(lot.extraProps ?? []).join(", ") || "—",
     constructing: constructionState(place, now).stage !== "complete",
     partial: Boolean(lot.partial?.carriedFields.length),
+    carried: [...(lot.partial?.carriedFields ?? [])],
     source: lot.dataSource === "fixture" ? "fixture" : "github",
     x: place.x,
     y: place.y,

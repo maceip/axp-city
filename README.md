@@ -26,7 +26,7 @@ npm run build
 npm start
 ```
 
-The production server listens on **http://127.0.0.1:43174/city**. `/`, `/city`, and `/city.html` serve the same Phaser app. `/healthz` is liveness; `/readyz` is readiness (client bundle present, storage writable, GitHub freshness, delivery backlog). `/api/city/status` reports freshness, the delivery queue, and the **effective** configuration actually in force.
+The production server listens on **http://127.0.0.1:43174/city**. `/`, `/city`, and `/city.html` serve the same Phaser app. `/healthz` is liveness; `/readyz` is readiness (client bundle present, storage writable and no refused write outstanding, GitHub freshness, delivery backlog). `/api/city/status` reports freshness, the delivery queue, and the **effective** configuration actually in force.
 
 ### Configuration
 
@@ -40,6 +40,7 @@ The production server listens on **http://127.0.0.1:43174/city**. `/`, `/city`, 
 | `CITY_BACKUP_DIR` | When set, a verified `VACUUM INTO` copy of the store is written every 6 hours; the newest 14 are kept. |
 | `CITY_RULES_DIR` | City default rules and `approved-artwork.json`, default `.city`. |
 | `CITY_ENROLL_FILE` / `--enroll <file>` | Repositories to enroll on start (`owner/name` per line). An empty live city reads `repos.txt`. |
+| `GITHUB_API_URL` | GitHub API base (default `https://api.github.com`; GitHub's own variable name). Points the resolver (including custom-artwork fetches) at GitHub Enterprise, or at an unreachable address to rehearse an outage. Echoed in the startup log. |
 | `CITY_REFRESH_INTERVAL_MS`, `CITY_STALE_AFTER_MS` | Reconciliation cadence (default 15 min) and the age after which data is reported stale (default 45 min). |
 | `CITY_RATE_LIMIT_MAX`, `CITY_RATE_LIMIT_WINDOW_MS`, `CITY_TRUSTED_PROXIES` | Webhook flood limits (default 120 / 60 s per client) and the proxy addresses whose `X-Forwarded-For` is trusted (default loopback for Caddy). |
 | `CITY_ALERT_URL` | Optional webhook that receives stale-data and recovery alerts from the reconciler. |

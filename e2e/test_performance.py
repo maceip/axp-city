@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import ready
+from conftest import HeapMeter, ready, repo_metrics
 
 SHOTS = Path(__file__).parent / "screenshots"
 SHOTS.mkdir(exist_ok=True)
@@ -71,6 +71,23 @@ def measure(page, name, action, settle_ms=1600):
     )
 
 
+def boot_payload_report(boot_sheets):
+    """Handoff item 3: what the browser had to download before the first frame, against the
+    whole sprite kit the client can ever ask for (every sheet named in the client or the
+    shared plan). The kit total is taken from the checked-in files."""
+    import re
+    sprites = Path(__file__).parent.parent / "assets" / "city-sprites"
+    referenced = set()
+    root = Path(__file__).parent.parent
+    for source in [*(root / "game" / "src").glob("*.ts"), *(root / "src" / "game").glob("*.ts"), *(root / "src" / "render").glob("*.ts")]:
+        referenced.update(re.findall(r'"([\w.-]+\.png)"', source.read_text()))
+    kit = {name: (sprites / name).stat().st_size for name in sorted(referenced) if (sprites / name).exists()}
+    boot_bytes = sum(boot_sheets.values())
+    kit_bytes = sum(kit.values())
+    return dict(bootSheets=boot_sheets, bootBytes=boot_bytes, kitSheets=len(kit), kitBytes=kit_bytes,
+                bootShareOfKit=round(boot_bytes / kit_bytes, 3) if kit_bytes else None)
+
+
 def choose_profile(driver):
     forced = os.environ.get("CITY_PERF_PROFILE")
     if forced in BUDGETS:
@@ -80,11 +97,24 @@ def choose_profile(driver):
 
 def test_thousand_lots_fully_featured_meets_its_profile_budget(browser, large_server, backend):
     page = browser.new_page(viewport=dict(width=1600, height=1000))
+    boot_sheets = {}
+    booting = [True]
+
+    def on_response(response):
+        if booting[0] and "/assets/sprites/" in response.url and response.ok:
+            try:
+                boot_sheets[response.url.rsplit("/", 1)[-1]] = len(response.body())
+            except Exception:  # noqa: BLE001 - a body that is gone by now is not a measurement failure
+                pass
+
+    page.on("response", on_response)
     started = time.perf_counter()
     page.goto(large_server.url + "/city", wait_until="domcontentloaded")
     page.wait_for_function("Boolean(window.__AXP) && window.__AXP.diagnostics().chunks > 0", timeout=60000)
     first_frame_ms = round((time.perf_counter() - started) * 1000)
     page.locator("#boot-card").wait_for(state="hidden")
+    booting[0] = False
+    boot_payload = boot_payload_report(boot_sheets)
     page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=60000)
     page.wait_for_timeout(1000)
 
@@ -165,11 +195,15 @@ def test_thousand_lots_fully_featured_meets_its_profile_budget(browser, large_se
         scene=dict(totalLots=initial["totalLots"], initialVisibleLots=initial["visibleLots"], renderer=initial["rendererName"], phaser=initial["version"]),
         features=dict(persistentActors=True, ambientTraffic=True, stagedConstruction=True, fullDetailAllZooms=True, reducedMotion=initial["reducedMotion"], followed=following),
         first_frame_ms=first_frame_ms,
+        bootPayload=boot_payload,
         scenarios=scenarios,
         measuredAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         note="A software profile pass demonstrates correctness only; hardware numbers on named devices are recorded in docs/PERFORMANCE.md.",
     )
     (SHOTS / "performance.json").write_text(json.dumps(report, indent=2))
+    # The first frame must not wait for the whole kit: core sheets only (well under half of it).
+    assert boot_payload["bootBytes"] > 0 and boot_payload["kitSheets"] >= 10, boot_payload
+    assert boot_payload["bootBytes"] < 6_000_000 and boot_payload["bootShareOfKit"] < 0.5, boot_payload
     print(json.dumps(report, indent=2))
     page.close()
 
@@ -186,6 +220,187 @@ def test_thousand_lots_fully_featured_meets_its_profile_budget(browser, large_se
         if s["objects"] > budget["max_visible_objects"]:
             failures.append(f"{s['scenario']}: {s['objects']} active scene objects > {budget['max_visible_objects']} (viewport culling/pooling regressed)")
     assert not failures, f"{budget['label']} ({driver['renderer']}): " + "; ".join(failures)
+
+
+TRAVEL_LEGS = [("d", 2500), ("s", 2500), ("a", 2500), ("w", 2500)] * 2  # a lap around the 1,000-lot city, twice
+POOL_CAPACITY = 1500 + 400 + 800  # images + graphics + actor sprites (game/src/CityScene.ts, actors.ts)
+TERRAIN_CACHE = 96  # game/src/terrain.ts
+HEAP_PER_LOT = int(0.5 * 2**20)  # retained JS heap a new lot may add (measured ≈0.17 MB)
+
+
+def test_sustained_travel_bounds_memory_textures_and_loading(browser, large_server, backend):
+    """Handoff item 3: memory and loading behaviour during sustained travel.
+
+    Two laps around the 1,000-lot city with every feature on. Allocated scene objects
+    must stay inside the pools, terrain textures inside the LRU cache, every sprite sheet
+    is fetched at most once, and (where the browser exposes it) the JS heap after the
+    second lap must not keep climbing relative to the first."""
+    page = browser.new_page(viewport=dict(width=1600, height=1000))
+    ready(page, large_server.url)
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=60000)
+    page.evaluate("window.__AXP.select('bench/repo500')")
+    page.wait_for_function("window.__AXP.diagnostics().selected === 'bench/repo500'")
+    page.keyboard.press("Escape")
+    heap = HeapMeter(page)
+
+    def sample(leg):
+        d = diag(page)
+        d["heapQuantised"] = d.pop("heapBytes")
+        d["heapBytes"] = heap.read()  # retained heap after a collection (Chromium), else None
+        return dict(leg=leg, **d)
+
+    samples = [sample("start")]
+    for index, (key, hold_ms) in enumerate(TRAVEL_LEGS):
+        page.keyboard.down(key)
+        page.wait_for_timeout(hold_ms)
+        page.keyboard.up(key)
+        page.wait_for_timeout(250)
+        samples.append(sample(f"{index + 1}:{key}"))
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=30000)
+    page.wait_for_timeout(500)
+    samples.append(sample("end"))
+    page.screenshot(path=str(SHOTS / "sustained-travel-end.png"))
+
+    keep = ["leg", "objects", "activeObjects", "pooledImages", "actors", "drawnActors", "visibleLots", "chunks", "cachedChunks", "generatedChunks", "textures", "sheetsRequested", "assetBytesRequested", "assetsInflight", "assetsFailed", "heapBytes", "heapQuantised", "scrollX", "scrollY"]
+    rows = [{k: s.get(k) for k in keep} for s in samples]
+    report = dict(backend=backend.describe(), driver=page.evaluate("window.__AXP.driver()"), legs=TRAVEL_LEGS, samples=rows,
+                  bounds=dict(poolCapacity=POOL_CAPACITY, terrainCache=TERRAIN_CACHE), measuredAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    (SHOTS / "sustained-travel.json").write_text(json.dumps(report, indent=2))
+    print(json.dumps(report, indent=2))
+    page.close()
+
+    moved = max(abs(r["scrollX"] - rows[0]["scrollX"]) for r in rows)
+    assert moved > 300, "travel did not move the camera"  # key travel is dt-scaled; SwiftShader covers less ground per leg
+    assert any(r["visibleLots"] == 0 for r in rows) or any(r["visibleLots"] != rows[0]["visibleLots"] for r in rows), "the view never changed"
+    for r in rows:
+        assert r["objects"] <= POOL_CAPACITY + 64, (r["leg"], r["objects"])  # + civics/highlight/atmosphere
+        assert r["cachedChunks"] <= TERRAIN_CACHE + 8, (r["leg"], r["cachedChunks"])  # + chunks still on screen
+        assert r["assetsFailed"] == [], r["assetsFailed"]
+    # Loading: a finite kit, each sheet at most once, and it stops growing once seen.
+    sheets = [r["sheetsRequested"] for r in rows]
+    assert sheets == sorted(sheets) and sheets[-1] <= 40, sheets
+    assert sheets[-1] == sheets[len(sheets) // 2] or sheets[-1] - sheets[len(sheets) // 2] <= 2, sheets
+    # Textures: terrain cache + sheets + generated atlases; must not scale with distance travelled.
+    assert rows[-1]["textures"] <= rows[0]["textures"] + TERRAIN_CACHE + 40, (rows[0]["textures"], rows[-1]["textures"])
+    # Memory (retained heap after a collection, Chromium via CDP): the second lap must
+    # not keep climbing — the city is the same size throughout, so any growth is a leak.
+    heaps = [r["heapBytes"] for r in rows if r["heapBytes"] is not None]
+    if heaps:
+        half = len(heaps) // 2
+        assert heaps[-1] <= 1.35 * max(heaps[1:half + 1]) + 16 * 2**20, [round(h / 2**20, 1) for h in heaps]
+
+
+SOAK_SECONDS = int(os.environ.get("CITY_SOAK_SECONDS", "60"))
+SOAK_CYCLE_S = 5.0
+SOAK_TRAVEL = ["d", "s", "a", "w"]
+# Enroll a repository every N cycles; 0 keeps the city at its 8 lots so a run shows
+# what updates, travel and HUD use alone do to the heap (growth with lots and growth
+# with time are otherwise locked together, one enrollment per four updates).
+SOAK_ENROLL_EVERY = int(os.environ.get("CITY_SOAK_ENROLL_EVERY", "4"))
+
+
+def test_soak_session_with_live_updates_keeps_scene_state_bounded(browser, server, backend):
+    """Handoff items 3/5/6 and audit finding E: sustained use of one scene.
+
+    One page lives through ``CITY_SOAK_SECONDS`` (60 s in CI; run locally with
+    300+ for the figures in docs/PERFORMANCE.md) of the whole product at once:
+    a metrics update arrives through a webhook every cycle, a new repository is
+    enrolled every fourth cycle (``CITY_SOAK_ENROLL_EVERY``; 0 for none, which
+    isolates growth with time from growth with the city), and the
+    camera travels, zooms, selects lots and opens the census the entire time.
+    The stream must stay connected, every update must land in the client,
+    nothing may throw, and objects, actors, terrain textures, sheets and (in
+    Chromium) the heap must plateau instead of tracking elapsed time."""
+    page = browser.new_page(viewport=dict(width=1400, height=900))
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    ready(page, server.url)
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=60000)
+    page.wait_for_timeout(1500)
+    heap = HeapMeter(page)
+
+    def sample(**extra):
+        d = diag(page)
+        # heapBytes: retained heap after a collection (Chromium via CDP), else None;
+        # heapQuantised: what performance.memory says, kept for comparison.
+        d["heapQuantised"] = d.pop("heapBytes")
+        d["heapBytes"] = heap.read()
+        return dict(**extra, **d)
+
+    samples = [sample(t=0.0, cycle=0)]
+    updates = enrolled = 0
+    began = time.time()
+    cycle = 0
+    while time.time() - began < SOAK_SECONDS:
+        cycle += 1
+        repo = server.metrics[cycle % 8]
+        repo["stars"] = repo.get("stars", 0) + 137
+        repo["openPrs"] = (repo.get("openPrs", 0) + 1) % 30
+        newcomer = f"soak/lot{enrolled}" if SOAK_ENROLL_EVERY and cycle % SOAK_ENROLL_EVERY == 1 % SOAK_ENROLL_EVERY else None
+        if newcomer:
+            server.metrics.append(repo_metrics(newcomer, stars=3000 + enrolled * 900, openPrs=2, recentDefaultCommits=1, recentAuthors=["ada"]))
+        server.save()  # one write per cycle, before anything asks the server to read it
+        assert server.webhook(repo["fullName"], f"soak-{cycle}") == 202
+        updates += 1
+        if newcomer:
+            assert server.enroll(newcomer) in (200, 201)
+            enrolled += 1
+        key = SOAK_TRAVEL[cycle % 4]
+        page.keyboard.down(key)
+        page.wait_for_timeout(1200)
+        page.keyboard.up(key)
+        page.keyboard.press("+" if cycle % 2 else "-")
+        page.evaluate("i => { const p = window.__AXP.snapshot().plan.placements; window.__AXP.select(p[i % p.length].lot.fullName) }", cycle)
+        if cycle % 3 == 0:
+            page.keyboard.press("c")
+            page.wait_for_timeout(400)
+            page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        page.wait_for_function("n => window.__AXP.diagnostics().totalLots === n", arg=8 + enrolled, timeout=20000)
+        page.wait_for_function("s => window.__AXP.snapshot().plan.placements.some(p => p.lot.stars === s)", arg=repo["stars"], timeout=20000)
+        remaining = SOAK_CYCLE_S - ((time.time() - began) % SOAK_CYCLE_S)
+        page.wait_for_timeout(int(max(0.2, remaining) * 1000))
+        samples.append(sample(t=round(time.time() - began, 1), cycle=cycle))
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0", timeout=30000)
+    page.screenshot(path=str(SHOTS / "soak-end.png"))
+    sites = []
+    for i in range(enrolled):  # frame each enrolled lot and read what is actually drawn for it
+        page.evaluate("r => window.__AXP.select(r)", f"soak/lot{i}")
+        page.wait_for_function("r => window.__AXP.drawn(r) !== null", arg=f"soak/lot{i}", timeout=20000)
+        sites.append(dict(repo=f"soak/lot{i}", **page.evaluate("r => window.__AXP.drawn(r)", f"soak/lot{i}")))
+
+    keep = ["t", "cycle", "revision", "totalLots", "objects", "activeObjects", "actors", "drawnActors", "cachedChunks", "textures", "sheetsRequested", "assetsInflight", "assetsFailed", "heapBytes", "heapQuantised", "connection", "zoom"]
+    rows = [{k: s.get(k) for k in keep} for s in samples]
+    report = dict(backend=backend.describe(), driver=page.evaluate("window.__AXP.driver()"), seconds=SOAK_SECONDS, cycles=cycle, updates=updates, enrolled=enrolled, enrollEvery=SOAK_ENROLL_EVERY,
+                  pageErrors=errors, sites=sites, samples=rows, measuredAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    (SHOTS / "soak.json").write_text(json.dumps(report, indent=2))
+    print(json.dumps(report, indent=2))
+    page.close()
+
+    assert cycle >= 4, "soak too short to observe anything"
+    assert errors == [], errors
+    assert all(r["connection"] == "connected" for r in rows), [r["connection"] for r in rows]
+    assert rows[-1]["revision"] >= rows[0]["revision"] + updates + enrolled, (rows[0]["revision"], rows[-1]["revision"], updates, enrolled)
+    assert rows[-1]["totalLots"] == 8 + enrolled
+    assert len(sites) == enrolled and all(site["stage"] and site["objects"] > 0 for site in sites), sites
+    for r in rows:
+        assert r["objects"] <= POOL_CAPACITY + 64, (r["cycle"], r["objects"])
+        assert r["cachedChunks"] <= TERRAIN_CACHE + 8, (r["cycle"], r["cachedChunks"])
+        assert r["assetsFailed"] == [], r["assetsFailed"]
+    half = len(rows) // 2
+    warm = rows[1:half + 1]
+    # Plateaus: the second half may not out-grow the first beyond what the new lots explain.
+    assert rows[-1]["actors"] <= 1.5 * max(r["actors"] for r in warm) + 12 * enrolled, ([r["actors"] for r in rows], enrolled)
+    assert rows[-1]["textures"] <= max(r["textures"] for r in warm) + TERRAIN_CACHE + 20, [r["textures"] for r in rows]
+    sheets = [r["sheetsRequested"] for r in rows]
+    assert sheets == sorted(sheets) and sheets[-1] <= 40, sheets
+    # Retained heap (after a collection) may grow with the city — each lot carries plan
+    # data, actors and history — but not with time: measured ≈0.17 MB per enrolled lot
+    # (long local runs, docs/PERFORMANCE.md); budget three times that plus 8 MB.
+    heaps = [(r["heapBytes"], r["totalLots"]) for r in rows if r["heapBytes"] is not None]
+    if heaps:
+        (first, lots0), (last, lots1) = heaps[1], heaps[-1]
+        assert last <= first + HEAP_PER_LOT * (lots1 - lots0) + 8 * 2**20, (round(first / 2**20, 1), round(last / 2**20, 1), lots0, lots1)
 
 
 def test_hardware_profile_is_not_claimed_on_software_drivers(page):

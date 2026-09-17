@@ -4,16 +4,19 @@ import { pathToFileURL } from "node:url";
 import { parseArgs, parseRepoLine } from "./args.js";
 import { parseLot } from "../parser/parseLot.js";
 import { loadFixtureRepositoryRules, loadLocalRules, repoName } from "../rules/load.js";
-import { loadArtworkApprovals } from "../rules/artwork.js";
+import { loadArtworkApprovals, resolveArtwork } from "../rules/artwork.js";
+import { mergeMetrics } from "../ingest/merge.js";
 import {
+  PrivateRepositoryError,
   resolveRepository,
   type ResolvedRepository,
 } from "../live/repository.js";
 import { createReconciler, httpAlerter } from "../live/reconcile.js";
 import { tokenProviderFromEnv } from "../ingest/githubApp.js";
+import { GITHUB_API_URL } from "../ingest/github.js";
 import { consoleLogger, createWebhookServer } from "../webhooks/server.js";
 import { LOOPBACK_PROXIES } from "../webhooks/rateLimit.js";
-import type { RepoMetrics } from "../types.js";
+import type { CityLot, RepoMetrics } from "../types.js";
 
 export interface ServerConfig {
   dev: boolean;
@@ -111,7 +114,6 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
 
   const fixturePath = process.env.CITY_FIXTURE_PATH ?? args.snapshotPath;
   const defaults = await loadLocalRules(config.rulesDir);
-  const approvals = await loadArtworkApprovals(config.rulesDir);
   const provider = tokenProviderFromEnv();
   const artworkDir = join(config.dataDir, "artwork");
 
@@ -120,12 +122,14 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     previous?: RepoMetrics,
   ): Promise<ResolvedRepository> => {
     repoName(name);
+    // Operator approvals (`approved-artwork.json`) are re-read on every refresh in both
+    // modes, so approving artwork takes effect on the next delivery without a restart.
     if (!config.offline)
       return resolveRepository(name, {
         rulesDir: config.rulesDir,
         token: await provider.token(),
         previous,
-        approvals,
+        approvals: await loadArtworkApprovals(config.rulesDir),
         artworkCacheDir: artworkDir,
         defaults,
       });
@@ -135,17 +139,45 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     const rows = await readFixture(fixturePath);
     const row = rows.find((item) => item.fullName.toLowerCase() === name.toLowerCase());
     if (!row) throw new Error(`Offline fixture has no repository ${name}`);
-    const metrics: RepoMetrics = { ...row, source: "fixture", isPrivate: row.isPrivate ?? false };
+    // Same visibility rule as the live resolver: a row that turned private is withdrawn, not retried.
+    if (row.isPrivate === true) throw new PrivateRepositoryError(name);
+    const fresh: RepoMetrics = { ...row, source: "fixture", isPrivate: row.isPrivate ?? false };
+    // Same rule as live mode for fields the source could not measure (`unknownFields`):
+    // carry the last good value and mark the lot partial, or refuse the refresh when
+    // there is no last good value — never publish a placeholder zero as fresh data.
+    const merged = mergeMetrics(previous, fresh);
+    const metrics = merged.metrics;
     const local = await loadLocalRules(config.rulesDir);
     const rules = await loadFixtureRepositoryRules(name, config.rulesDir, local);
-    return {
-      lot: {
-        ...parseLot(metrics, { rules: rules.rules }),
-        rulesSource: rules.source,
-        ...(rules.warning ? { rulesWarning: rules.warning } : {}),
-      },
-      metrics,
+    const lot: CityLot = {
+      ...parseLot(metrics, {
+        rules: rules.rules,
+        carried: merged.carried.length ? { fields: merged.carried, from: previous?.fetchedAt } : undefined,
+      }),
+      rulesSource: rules.source,
     };
+    const warnings = rules.warning ? [rules.warning] : [];
+    // Custom artwork follows the same approval, hash and dimension checks as live mode;
+    // the bytes come from the fixture's rule folder instead of the Contents API.
+    const artworkRule = rules.rules.building.artwork;
+    if (artworkRule) {
+      // The fixture folder stands for the repository's `.city/` directory, so a
+      // repository-relative path such as `.city/building.png` maps onto it.
+      const folder = join(config.rulesDir, "repos", name);
+      const fromFolder: typeof fetch = async () => {
+        try {
+          const bytes = await readFile(join(folder, artworkRule.path.replace(/^\.city\//, "")));
+          return new Response(new Uint8Array(bytes), { status: 200, headers: { "content-length": String(bytes.byteLength) } });
+        } catch {
+          return new Response(null, { status: 404 });
+        }
+      };
+      const resolved = await resolveArtwork(name, artworkRule, await loadArtworkApprovals(config.rulesDir), artworkDir, undefined, fromFolder);
+      if (resolved.artwork) lot.artwork = resolved.artwork;
+      if (resolved.warning) warnings.push(resolved.warning);
+    }
+    if (warnings.length) lot.rulesWarning = warnings.join("; ");
+    return { lot, metrics };
   };
 
   const vite = config.dev
@@ -217,6 +249,7 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     ...config,
     ...runtime.effectiveConfig,
     databasePath: runtime.city.path,
+    githubApiUrl: config.offline ? null : GITHUB_API_URL,
     buildRevision,
   };
   log("info", `AXP City · Phaser 4 · ${config.offline ? "OFFLINE FIXTURES" : "LIVE"} · http://${config.host}:${config.port}/city`);
@@ -294,7 +327,7 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
     if (stopping) return;
     stopping = true;
     reconciler.stop();
-    runtime.stopWorker();
+    const drained = runtime.stopWorker();
     clearInterval(housekeeping);
     runtime.server.closeAllConnections();
     runtime.server.close(() => {
@@ -302,8 +335,9 @@ export async function runServer(argv = process.argv.slice(2)): Promise<void> {
         runtime.city.close();
         process.exit(0);
       };
-      if (vite) void vite.close().finally(finish);
-      else finish();
+      // Let the delivery in hand finish before the store closes; anything still queued
+      // is re-queued on the next start.
+      void drained.then(() => (vite ? vite.close().finally(finish) : finish()));
     });
   };
   process.on("SIGTERM", stop);

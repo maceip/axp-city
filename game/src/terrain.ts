@@ -146,16 +146,19 @@ export class TerrainCache {
     this.generated++;
     this.textures.set(id, key);
     this.order.push(id);
+    // Evict least-recently-used textures until back within capacity, skipping any
+    // still on screen (and the one just made). Stopping at the first on-screen
+    // entry used to let the cache creep past its capacity after a lap returned
+    // to old ground.
+    const onScreen = new Set<string>();
+    for (const view of this.views.values()) onScreen.add(view.ground.texture.key);
+    onScreen.add(key);
     while (this.order.length > this.capacity) {
-      const evict = this.order.shift()!;
+      const victim = this.order.findIndex((entry) => !onScreen.has(this.textures.get(entry)!));
+      if (victim === -1) break;
+      const [evict] = this.order.splice(victim, 1);
       const evictKey = this.textures.get(evict)!;
       this.textures.delete(evict);
-      // Never evict a texture that is still on screen.
-      if ([...this.views.values()].some((v) => v.ground.texture.key === evictKey)) {
-        this.textures.set(evict, evictKey);
-        this.order.push(evict);
-        break;
-      }
       this.scene.textures.remove(evictKey);
     }
     return key;

@@ -143,6 +143,8 @@ export interface CityStore {
   /** Hold a delivery until `until` without counting an attempt (event coalescing). */
   deferDelivery(id: string, until: string): void;
   deliveryCounts(): Record<DeliveryStatus, number>;
+  /** Returns interrupted `processing` deliveries to `pending`; number re-queued. */
+  requeueInterrupted(): number;
   /** Public diagnostic events (visibility already enforced at write time). */
   appendEvent(event: CityEvent): boolean;
   recentEvents(limit: number): CityEvent[];
@@ -300,10 +302,19 @@ export function createCityStore(
       }
     }
     // Deliveries interrupted mid-processing are retried, not lost.
-    db.prepare(
-      "UPDATE deliveries SET status = 'pending' WHERE status = 'processing'",
-    ).run();
+    requeueInterrupted();
     opened = true;
+  }
+
+  /** Returns every `processing` delivery to `pending`. Safe whenever no worker holds a
+   *  delivery: at open, and at the start of each serial drain (a delivery is only ever
+   *  left in `processing` when the previous drain died, e.g. on a storage failure). */
+  function requeueInterrupted(): number {
+    return Number(
+      db
+        .prepare("UPDATE deliveries SET status = 'pending' WHERE status = 'processing'")
+        .run().changes,
+    );
   }
 
   function meta(key: string): string | undefined {
@@ -418,14 +429,23 @@ export function createCityStore(
 
   function freshness(): CityFreshness {
     if (refreshCache) return refreshCache;
+    // Only published lots count towards "failing": a refused enrollment or a
+    // withdrawn repository is answered/recorded elsewhere and must not leave the
+    // city looking degraded.
     const agg = db
       .prepare(
-        "SELECT MAX(last_success_at) AS ok, SUM(CASE WHEN last_error IS NOT NULL THEN 1 ELSE 0 END) AS failing FROM refresh_status",
+        `SELECT MAX(r.last_success_at) AS ok,
+                SUM(CASE WHEN r.last_error IS NOT NULL THEN 1 ELSE 0 END) AS failing
+         FROM refresh_status r
+         JOIN lots l ON l.full_name = r.full_name COLLATE NOCASE AND l.status = 'published'`,
       )
       .get() as { ok: string | null; failing: number | null };
     const failure = db
       .prepare(
-        "SELECT last_attempt_at AS at, last_error AS error FROM refresh_status WHERE last_error IS NOT NULL ORDER BY last_attempt_at DESC LIMIT 1",
+        `SELECT r.last_attempt_at AS at, r.last_error AS error
+         FROM refresh_status r
+         JOIN lots l ON l.full_name = r.full_name COLLATE NOCASE AND l.status = 'published'
+         WHERE r.last_error IS NOT NULL ORDER BY r.last_attempt_at DESC LIMIT 1`,
       )
       .get() as { at: string; error: string } | undefined;
     refreshCache = {
@@ -931,6 +951,7 @@ export function createCityStore(
         id,
       );
     },
+    requeueInterrupted,
     deliveryCounts() {
       const counts: Record<DeliveryStatus, number> = {
         pending: 0,
