@@ -124,7 +124,7 @@ export class TerrainCache {
         const a = project(wx + 0.5, wy + 0.8);
         const tree = this.images.acquire();
         const parkTree = kind === "park";
-        const treeH = parkTree ? 72 : 55;
+        const treeH = parkTree ? 96 : 55;
         tree
           .setTexture(WILD_SHEETS.trees.file, ensureFrame(this.scene, WILD_SHEETS.trees.file, box))
           .setOrigin(0.5, 1)
@@ -311,7 +311,8 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   const cx = park.x + park.w / 2,
     cy = park.y + park.h / 2;
   const hasOffice = plan.civics?.some((c) => c.kind === "office");
-  diamond(park.x + 0.2, park.y + 0.2, park.w - 0.4, park.h - 0.4, 0x627a4e, 0.88);
+  diamond(park.x - 0.5, park.y - 0.5, park.w + 1.0, park.h + 1.0, 0x627a4e, 0.92);
+  diamond(park.x + 0.15, park.y + 0.15, park.w - 0.3, park.h - 0.3, 0x627a4e, 0.88);
   const lawnTint = 0x6e8458;
   for (const [lx, ly] of [
     [park.x + 1.5, park.y + 1.35],
@@ -378,7 +379,18 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     [-4.0, 1.4, GROUND_TILES.bushA],
     [3.8, 1.4, GROUND_TILES.bushA],
   ] as const)
-    stamp(box, cx + dx, cy + dy, box === GROUND_TILES.bushA ? 52 : 86).setTint(0x5f7548);
+    stamp(box, cx + dx, cy + dy, box === GROUND_TILES.bushA ? 58 : 102).setTint(0x5f7548);
+  for (const v of plan.vacancies ?? []) {
+    const near =
+      v.x + 2 > park.x - 1.1 &&
+      v.x < park.x + park.w + 1.1 &&
+      v.y + 1.6 > park.y - 1.1 &&
+      v.y < park.y + park.h + 1.1;
+    if (!near) continue;
+    const tree = hash01(v.sx, v.sy, 19) < 0.5 ? GROUND_TILES.pineA : GROUND_TILES.treeRoundB;
+    stamp(tree, v.x + 1.15, v.y + 1.35, 94).setTint(0x5f7548);
+    stamp(GROUND_TILES.bushA, v.x + 2.2, v.y + 0.85, 54).setTint(0x5f7548);
+  }
 
   for (const f of plan.features)
     if (f.kind !== "plaza" && f.kind !== "river" && f.kind !== "bike" && f.kind !== "office") {
@@ -432,22 +444,9 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
     const labelStep = glance ? 3 : Math.max(3, Math.ceil(span / 4));
     for (let sx = plan.slotBounds.minSx; sx <= plan.slotBounds.maxSx; sx += chevronStep) {
       const laneX = x + (sx - plan.slotBounds.minSx) * STRIDE_X;
-      if (glance) {
-        const at = project(laneX + 2.4, streetY + band * 0.55);
-        const chevron = scene.add
-          .image(at.sx, at.sy, "bike-chevron-k1")
-          .setOrigin(0.5)
-          .setDisplaySize(208, 72)
-          .setDepth(at.sy + 28);
-        chevron.setData("bikeLaneMark", true);
-        chevron.setData("bikeLaneGlance", true);
-        chevron.setData("bikeLaneChevron", true);
-        chevron.setData("markScreenW", 208);
-        chevron.setData("markScreenH", 72);
-        objects.push(chevron);
-      } else {
-        objects.push(paintIsoChevron(scene, laneX + 2.0, streetY + band * 0.5, false));
-      }
+      const ch = paintIsoChevron(scene, laneX + 2.0, streetY + band * 0.5, glance);
+      if (glance) ch.setData("bikeLaneFreeway", true);
+      objects.push(ch);
     }
     for (let sx = plan.slotBounds.minSx + 2; sx <= plan.slotBounds.maxSx; sx += labelStep) {
       const at = project(

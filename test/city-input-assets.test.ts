@@ -106,6 +106,18 @@ describe("bitmap HUD redo", () => {
     expect(hud).not.toMatch(/new NinePanel|from ["'].*ninepanel/);
   });
 
+  it("tags freeway bike chevrons and crops them from the corridor, not the office pad", () => {
+    const terrain = readFileSync("game/src/terrain.ts", "utf8");
+    const city = readFileSync("game/src/CityScene.ts", "utf8");
+    const e2e = readFileSync("e2e/test_tileset_revamp.py", "utf8");
+    expect(terrain).toContain('ch.setData("bikeLaneFreeway", true)');
+    expect(city).toContain("freeway: Boolean(object.getData(\"bikeLaneFreeway\"))");
+    expect(e2e).toContain("featureScreenBox('freeway-bike-lane')");
+    expect(e2e).toContain("inside_corridor");
+    expect(e2e).toContain("mark_clip[\"height\"] <= 160");
+    expect(e2e).not.toMatch(/1040.*230/);
+  });
+
   it("keeps sticky lot addresses on layout version 1", () => {
     expect(LAYOUT_VERSION).toBe(1);
   });

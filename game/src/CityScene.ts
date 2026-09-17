@@ -401,6 +401,7 @@ export class CityScene extends Phaser.Scene {
               type: mark.type,
               kind,
               glance: Boolean(object.getData("bikeLaneGlance")),
+              freeway: Boolean(object.getData("bikeLaneFreeway")),
               visible: (object as Phaser.GameObjects.Container).visible,
             };
           });

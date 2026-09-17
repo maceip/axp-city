@@ -280,28 +280,65 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         assert len(chevrons) >= 2, f"overview painted chevrons missing: {len(chevrons)} of {len(on_screen)}"
         flyover_plaques = [m for m in on_screen if m.get("kind") == "plaque"]
         assert flyover_plaques == [], f"flyover still plaque-first: {len(flyover_plaques)} visible plaques"
-        freeway_chevrons = [m for m in chevrons if 90 < m["y"] + m["height"] / 2 < 380]
-        mark = min(
-            freeway_chevrons or chevrons,
-            key=lambda m: abs(m["x"] + m["width"] / 2 - 1040) + abs(m["y"] + m["height"] / 2 - 230),
+        corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
+        assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
+
+        def mark_center(m):
+            return m["x"] + m["width"] / 2, m["y"] + m["height"] / 2
+
+        def inside_corridor(m, box, pad=24):
+            cx, cy = mark_center(m)
+            return (
+                box["x"] - pad <= cx <= box["x"] + box["width"] + pad
+                and box["y"] - pad <= cy <= box["y"] + box["height"] + pad
+            )
+
+        freeway_chevrons = [m for m in chevrons if m.get("freeway") or inside_corridor(m, corridor)]
+        assert freeway_chevrons, (
+            f"no glance chevron on freeway-bike-lane {corridor}; glance={chevrons}"
         )
-        pad = 52
-        mark_clip = {
-            "x": max(0, mark["x"] - pad),
-            "y": max(0, mark["y"] - pad),
-            "width": min(1600, mark["x"] + mark["width"] + pad) - max(0, mark["x"] - pad),
-            "height": min(1000, mark["y"] + mark["height"] + pad) - max(0, mark["y"] - pad),
+        ccx = corridor["x"] + corridor["width"] / 2
+        ccy = corridor["y"] + corridor["height"] / 2
+        mark = min(
+            freeway_chevrons,
+            key=lambda m: abs(mark_center(m)[0] - ccx) + abs(mark_center(m)[1] - ccy),
+        )
+        pad = 16
+        raw = {
+            "x": mark["x"] - pad,
+            "y": mark["y"] - pad,
+            "width": mark["width"] + 2 * pad,
+            "height": mark["height"] + 2 * pad,
         }
+        exp = {
+            "x": corridor["x"] - 12,
+            "y": corridor["y"] - 12,
+            "width": corridor["width"] + 24,
+            "height": corridor["height"] + 24,
+        }
+        x0 = max(0, max(raw["x"], exp["x"]))
+        y0 = max(0, max(raw["y"], exp["y"]))
+        x1 = min(1600, min(raw["x"] + raw["width"], exp["x"] + exp["width"]))
+        y1 = min(1000, min(raw["y"] + raw["height"], exp["y"] + exp["height"]))
+        mark_clip = {"x": x0, "y": y0, "width": max(48, x1 - x0), "height": max(28, y1 - y0)}
         page.screenshot(path=str(SHOTS / "tileset-freeway-bike.png"), clip=mark_clip)
+        page.screenshot(
+            path=str(SHOTS / "tileset-freeway-bike-corridor.png"),
+            clip={
+                "x": max(0, corridor["x"] - 8),
+                "y": max(0, corridor["y"] - 8),
+                "width": min(1600, corridor["width"] + 16),
+                "height": min(220, corridor["height"] + 16),
+            },
+        )
         fw_k, fw_c, fw_lime = street_lane_share(
             SHOTS / "tileset-freeway-bike.png", (0, 0, int(mark_clip["width"]), int(mark_clip["height"]))
         )
         assert mark.get("kind") == "chevron", f"freeway clip still targeted a plaque: {mark}"
+        assert mark_clip["height"] <= 160, f"freeway clip still tall enough to include HQ: {mark_clip}"
         assert fw_c >= 0.04, f"freeway clip has no cream arrow body ({fw_c:.3f})"
         assert cream_ink_width(SHOTS / "tileset-freeway-bike.png") >= 48, "freeway chevron clip missing cream arrow ink"
         assert fw_lime < 0.12, f"freeway mark clip drifted to neon lime ({fw_k:.3f}/{fw_c:.3f}/{fw_lime:.3f})"
-        corridor = page.evaluate("window.__AXP.featureScreenBox('freeway-bike-lane')")
-        assert corridor and corridor["width"] > 80 and corridor["height"] > 20, f"freeway bike screen box missing: {corridor}"
 
         click_hud(page, "home")
         page.wait_for_timeout(500)
