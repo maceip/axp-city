@@ -355,7 +355,16 @@ def restyle_jane_odd(im: Image.Image) -> Image.Image:
             lemon = r > 155 and g > 130 and b < r - 25 and sat > 40
             tan = r > 140 and g > 100 and b < 130 and r - b > 40 and sat > 45
             toy_blue = b > r + 12 and b >= g - 8 and sat > 30 and luma < 200
-            if lemon or tan:
+            red_roof = r > g + 18 and r > b + 18 and sat > 38 and luma < 215
+            if red_roof:
+                t = max(0.0, min(1.0, (luma - 40) / 140))
+                px[x, y] = (
+                    int(108 + t * 36),
+                    int(98 + t * 28),
+                    int(78 + t * 22),
+                    a,
+                )
+            elif lemon or tan:
                 t = max(0.0, min(1.0, (luma - 80) / 160))
                 px[x, y] = (
                     int(168 + t * 56),
@@ -457,6 +466,46 @@ CLONE_BREAK: dict[int, tuple[str, int | str]] = {
     47: ("sp", 1),  # clockwork cottage
     48: ("jane", "store"),
     49: ("craft", 14),  # kiln tower, not a second pagoda
+}
+
+# Remaining catalog S/M/L DNA: keep the large (or unique) original, replace extras.
+# Unused KEEP only — not mushrooms/crystal/honeycomb/cathedral/FarmVille, not a new 5+ family.
+JANE_CHURCH = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Church.png"
+JANE_HALL = SRC2 / "PC _ Computer - Jane's Realty - Buildings - City Hall.png"
+JANE_COTTAGE = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Beach Cottage.png"
+JANE_NORWOOD = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Norwood House.png"
+JANE_SHEETS = {
+    "repair": JANE_REPAIR,
+    "store": JANE_STORE,
+    "church": JANE_CHURCH,
+    "hall": JANE_HALL,
+    "cottage": JANE_COTTAGE,
+    "norwood": JANE_NORWOOD,
+}
+ECO_LARGE = {
+    3: PLAYER_REPO / "ChatGPT Image Sep 11, 2026, 10_38_02 AM (3).png",  # helipad
+    4: PLAYER_REPO / "ChatGPT Image Sep 11, 2026, 10_38_02 AM (4).png",  # observatory
+    7: PLAYER_REPO / "ChatGPT Image Sep 11, 2026, 10_38_02 AM (7).png",  # orchard court
+    8: PLAYER_REPO / "ChatGPT Image Sep 11, 2026, 10_38_02 AM (8).png",  # conservatory
+}
+TRIO_BREAK: dict[int, tuple[str, int | str]] = {
+    3: ("craft", 3),  # spa — keep lab 37
+    20: ("eco", 4),  # observatory
+    5: ("jane", "church"),  # keep security 39
+    22: ("eco", 3),  # helipad
+    2: ("sp", 4),  # workshop — keep data 36
+    19: ("craft", 0),  # loom cottage
+    4: ("jane", "hall"),  # keep factory 38
+    21: ("eco", 7),  # orchard
+    24: ("eco", 8),  # conservatory — keep crane 7, rocket 41
+    10: ("craft", 5),  # loom shop — keep utility 44
+    27: ("jane", "cottage"),
+    9: ("sp", 14),  # slate temple — keep satellite 43
+    26: ("craft", 11),  # glass craft tower
+    6: ("sp", 5),  # large mill — keep retail 40
+    23: ("sp", 10),  # mill tower
+    25: ("sp", 6),  # clock factory — keep brick 42
+    11: ("jane", "norwood"),  # keep analytics 45
 }
 
 
@@ -1221,14 +1270,24 @@ def extract_grid_keep(path: Path, idx: int, cols: int = 5, rows: int = 3) -> Ima
     spr = restyle(src, sat=0.50, contrast=1.02)
     spx = spr.load()
     rpx = src.load()
+    ground = int(spr.height * 0.72)
     for y in range(spr.height):
         for x in range(spr.width):
             r0, g0, b0, a0 = rpx[x, y]
             if a0 < 16:
                 continue
-            # Drop original lush grass / yard so the stamp sits on a catalog pad.
+            # Drop the grass pad; khaki rooftop ivy so glass towers stay solid.
             if g0 > r0 + 16 and g0 > b0 + 10 and max(r0, g0, b0) - min(r0, g0, b0) > 20:
-                spx[x, y] = (0, 0, 0, 0)
+                if y > ground:
+                    spx[x, y] = (0, 0, 0, 0)
+                else:
+                    t = max(0.0, min(1.0, ((r0 + g0 + b0) / 3 - 60) / 140))
+                    spx[x, y] = (
+                        int(110 + t * 70),
+                        int(108 + t * 62),
+                        int(82 + t * 48),
+                        a0,
+                    )
     return lift_keep_vibe(trim(spr))
 
 
@@ -1259,37 +1318,85 @@ def lift_keep_vibe(im: Image.Image) -> Image.Image:
 
 
 def extract_jane_lot(kind: str) -> Image.Image:
-    """Finished Jane building from the right column — not a construction frame."""
-    path = JANE_REPAIR if kind == "repair" else JANE_STORE
-    if not path.exists():
+    """Finished Jane building — not a construction frame, fence, or parking pad."""
+    path = JANE_SHEETS.get(kind)
+    if path is None or not path.exists():
         raise SystemExit(f"Jane {kind} sheet missing: {path}")
-    # Backdrop is ~ (0,128,128). Broader teal key eats the finished blue roofs.
+    # Backdrop is ~ (0,128,128). Broader teal key eats finished blue roofs.
     keyed = key_color(
         open_rgba(path),
         lambda r, g, b: r < 40 and g > 90 and b > 90 and abs(g - b) < 30,
         grow=1,
     )
-    right = keyed.crop((int(keyed.width * 0.40), 0, keyed.width, keyed.height))
-    blobs = [b for b in components(right, min_px=600) if b[2] > 60 and b[3] > 60]
-    blobs.sort(key=lambda b: (b[1], -(b[2] * b[3])))
-    for _x, _y, _w, _h, crop in blobs:
+    blobs = [b for b in components(keyed, min_px=500) if b[2] > 55 and b[3] > 50]
+    scored: list[tuple[float, Image.Image]] = []
+    for _x, y0, bw, bh, crop in blobs:
         spr = trim(crop)
-        if is_gray_pad(spr) or is_fragment(spr):
+        if is_gray_pad(spr) or is_fragment(spr) or bh < 55 or bw > bh * 3.2:
             continue
         px = spr.load()
-        n = chroma = 0
+        n = chroma = green = 0
+        lumas: list[float] = []
         for y in range(0, spr.height, 2):
             for x in range(0, spr.width, 2):
                 r, g, b, a = px[x, y]
                 if a < 16:
                     continue
                 n += 1
+                lumas.append((r + g + b) / 3.0)
                 if max(r, g, b) - min(r, g, b) > 28:
                     chroma += 1
-        if n < 80 or chroma / n < 0.12:
+                if g > r + 12 and g > b + 8:
+                    green += 1
+        if n < 80:
             continue
-        return restyle_jane_odd(restyle(spr, sat=0.66, contrast=1.06))
-    raise SystemExit(f"Jane {kind} finished building missing")
+        fill = n / max((spr.width * spr.height) / 4, 1)
+        rng = max(lumas) - min(lumas) if lumas else 0
+        chroma_f = chroma / n
+        if fill < 0.22 or green / n > 0.40:
+            continue
+        if chroma_f < 0.12 or (rng < 140 and fill > 0.5):
+            continue
+        score = (y0 / max(keyed.height, 1)) * 2.2 + rng / 255 + fill + chroma_f * 0.25
+        scored.append((score, spr))
+    if not scored:
+        raise SystemExit(f"Jane {kind} finished building missing")
+    scored.sort(key=lambda t: -t[0])
+    return restyle_jane_odd(restyle(scored[0][1], sat=0.66, contrast=1.06))
+
+
+def extract_eco_large(sheet_id: int) -> Image.Image:
+    """Largest building from an unused player-repo eco trio (not a 3-size clone)."""
+    path = ECO_LARGE.get(sheet_id)
+    if path is None or not path.exists():
+        raise SystemExit(f"eco sheet {sheet_id} missing: {path}")
+    im = key_near_white(open_rgba(path), thresh=236)
+    blobs = [b for b in components(im, min_px=800) if b[2] > 80 and b[3] > 70]
+    blobs.sort(key=lambda b: b[2] * b[3], reverse=True)
+    if not blobs:
+        raise SystemExit(f"no eco building on {path.name}")
+    src = trim(blobs[0][4])
+    spr = restyle(src, sat=0.50, contrast=1.02)
+    spx = spr.load()
+    rpx = src.load()
+    ground = int(spr.height * 0.70)
+    for y in range(spr.height):
+        for x in range(spr.width):
+            r0, g0, b0, a0 = rpx[x, y]
+            if a0 < 16:
+                continue
+            if g0 > r0 + 16 and g0 > b0 + 10 and max(r0, g0, b0) - min(r0, g0, b0) > 20:
+                if y > ground:
+                    spx[x, y] = (0, 0, 0, 0)
+                else:
+                    t = max(0.0, min(1.0, ((r0 + g0 + b0) / 3 - 60) / 140))
+                    spx[x, y] = (
+                        int(110 + t * 70),
+                        int(108 + t * 62),
+                        int(82 + t * 48),
+                        a0,
+                    )
+    return lift_keep_vibe(trim(spr))
 
 
 def extract_solarpunk_cell(idx: int) -> Image.Image:
@@ -1311,7 +1418,8 @@ def crush_roof_badge(im: Image.Image) -> Image.Image:
     w, h = out.size
     slate: list[tuple[int, int, int, int, int, int]] = []
     badge: list[tuple[int, int]] = []
-    for y in range(int(h * 0.58)):
+    roof_h = int(h * 0.58)
+    for y in range(roof_h):
         for x in range(w):
             r, g, b, a = px[x, y]
             if a < 16:
@@ -1320,12 +1428,61 @@ def crush_roof_badge(im: Image.Image) -> Image.Image:
             sat = max(r, g, b) - min(r, g, b)
             if luma < 130 and sat < 40:
                 slate.append((x, y, r, g, b, a))
-            elif luma > 170 and sat < 60:
+            elif luma > 155 and sat < 70:
                 badge.append((x, y))
-    if len(slate) > 80 and 20 < len(badge) < len(slate) * 0.45:
+    if len(slate) > 80 and 20 < len(badge) < len(slate) * 0.55:
         fill = slate[len(slate) // 2][2:]
         for x, y in badge:
             px[x, y] = fill
+    # Compact light islands on the roof (ghost ovals that survived the first pass).
+    seen = bytearray(w * roof_h)
+
+    def sample(x: int, y: int) -> tuple[float, float, tuple[int, int, int, int]] | None:
+        r, g, b, a = px[x, y]
+        if a < 16:
+            return None
+        return ((r + g + b) / 3.0, max(r, g, b) - min(r, g, b), (r, g, b, a))
+
+    for y in range(roof_h):
+        for x in range(w):
+            if seen[y * w + x]:
+                continue
+            cur = sample(x, y)
+            if not cur or cur[0] < 165 or cur[1] > 75:
+                seen[y * w + x] = 1
+                continue
+            stack = [(x, y)]
+            pix: list[tuple[int, int]] = []
+            seen[y * w + x] = 1
+            while stack:
+                cx, cy = stack.pop()
+                pix.append((cx, cy))
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    xx, yy = cx + dx, cy + dy
+                    if 0 <= xx < w and 0 <= yy < roof_h and not seen[yy * w + xx]:
+                        seen[yy * w + xx] = 1
+                        nxt = sample(xx, yy)
+                        if nxt and nxt[0] >= 150 and nxt[1] < 80:
+                            stack.append((xx, yy))
+            if not (24 <= len(pix) <= 1100):
+                continue
+            xs = [p[0] for p in pix]
+            ys = [p[1] for p in pix]
+            bw, bh = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+            if bw * bh > len(pix) * 3.4:
+                continue
+            fill = (92, 98, 92, 255)
+            for sx in range(max(0, min(xs) - 6), min(w, max(xs) + 7)):
+                for sy in range(max(0, min(ys) - 6), min(roof_h, max(ys) + 7)):
+                    near = sample(sx, sy)
+                    if near and near[0] < 130 and near[1] < 40:
+                        fill = near[2]
+                        break
+                else:
+                    continue
+                break
+            for cx, cy in pix:
+                px[cx, cy] = fill
     return out
 
 
@@ -1336,18 +1493,22 @@ def prepare_lot_stamp(spr: Image.Image, bid: int, w: int, h: int) -> Image.Image
     )
 
 
-def stamp_break_clone_clusters() -> None:
-    """Replace 5+ species stacks with unused KEEP silhouettes, not tints."""
+def extract_keep_stamp(src: str, key: int | str) -> Image.Image:
+    if src == "sp":
+        return extract_solarpunk_cell(int(key))
+    if src == "craft":
+        return extract_craft_cell(int(key))
+    if src == "jane":
+        return extract_jane_lot(str(key))
+    if src == "eco":
+        return extract_eco_large(int(key))
+    raise SystemExit(f"unknown keep source {src}")
+
+
+def stamp_keep_map(mapping: dict[int, tuple[str, int | str]], label: str) -> None:
     sheets: dict[str, Image.Image] = {}
-    for bid, (src, key) in CLONE_BREAK.items():
-        if src == "sp":
-            spr = extract_solarpunk_cell(int(key))
-        elif src == "craft":
-            spr = extract_craft_cell(int(key))
-        elif src == "jane":
-            spr = extract_jane_lot(str(key))
-        else:
-            raise SystemExit(f"unknown clone-break source {src}")
+    for bid, (src, key) in mapping.items():
+        spr = extract_keep_stamp(src, key)
         sheet_band = "S" if bid <= 17 else "M" if bid <= 34 else "L"
         path, _ids = CATALOG_SHEETS[sheet_band]
         if sheet_band not in sheets:
@@ -1357,11 +1518,22 @@ def stamp_break_clone_clusters() -> None:
         fitted = prepare_lot_stamp(spr, bid, w, h)
         cell.alpha_composite(fitted, ((w - fitted.width) // 2, h - fitted.height))
         sheets[sheet_band].paste(cell, (x, y))
-        print("stamped clone-break", bid, src, key, "→", (x, y, w, h))
+        print("stamped", label, bid, src, key, "→", (x, y, w, h))
     for sheet_band, kit in sheets.items():
         path, _ids = CATALOG_SHEETS[sheet_band]
         kit.save(path)
-        print("saved clone-break", sheet_band, path)
+        print("saved", label, sheet_band, path)
+
+
+def stamp_break_clone_clusters() -> None:
+    """Replace 5+ species stacks with unused KEEP silhouettes, not tints."""
+    stamp_keep_map(CLONE_BREAK, "clone-break")
+
+
+def stamp_break_catalog_trios() -> None:
+    """Keep one catalog size per species; replace the extras. Restamp lot 48 oval."""
+    stamp_keep_map(TRIO_BREAK, "trio-break")
+    stamp_keep_map({48: CLONE_BREAK[48]}, "store-badge")
 
 
 def restyle_pagoda(im: Image.Image) -> Image.Image:
@@ -2099,6 +2271,7 @@ def main() -> None:
     stamp_diversify_villas()
     stamp_break_clone_clusters()
     stamp_pagoda_vibe()
+    stamp_break_catalog_trios()
 
     building_boxes = {}
     for i, box in enumerate(s_boxes, 1):
@@ -2133,6 +2306,7 @@ def main() -> None:
                 "Catalog terracotta roofs remapped to umber/slate/olive/clay families (not one house)",
                 "White-solar villa clones among lots 11–50 swapped for unused AXP family-sheet industrial silhouettes (crane/foundry/lab/factory) — stamps, not tints",
                 "Sheet-1 extras that stacked S/M/L catalog DNA into 5+ families replaced with unused KEEP stamps (solarpunk lighthouse/mill/clock, craft kiln/chimney/pottery/loom, Jane Quonset/store) — stamps, not tints",
+                "Remaining catalog S/M/L trios keep one original size; extras use unused KEEP (spa/workshop/mill/temple/church/hall/cottage/norwood + eco observatory/helipad/orchard/conservatory)",
                 "Lot 17 pagoda restyled to slate/timber catalog vibe; silhouette stays an odd original",
                 "Lettered family-sheet poster faces (AIE / OPEN SOURCE / CLEAN COMPUTE) flattened onto cream/khaki walls",
                 "styleui + fruit-tree plants, restyled",
@@ -2216,6 +2390,8 @@ if __name__ == "__main__":
         stamp_diversify_villas()
     elif "--stamp-clone-break" in sys.argv:
         stamp_break_clone_clusters()
+    elif "--stamp-trio-break" in sys.argv:
+        stamp_break_catalog_trios()
     elif "--stamp-pagoda" in sys.argv:
         stamp_pagoda_vibe()
     elif "--civic-only" in sys.argv:

@@ -70,7 +70,7 @@ describe("building sprite atlas", () => {
     const script = `
 from PIL import Image
 import colorsys
-boxes = {6:(63,244,130,112), 11:(22,364,211,172), 17:(298,545,171,171)}
+boxes = {6:(63,244,130,112), 1:(78,65,99,111), 17:(298,545,171,171)}
 small = Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA")
 px = small.load()
 
@@ -95,7 +95,7 @@ def stats(box):
 
 n6,o6,r6,g6,b6 = stats(boxes[6])
 n17,o17,r17,g17,b17 = stats(boxes[17])
-n11,o11,r11,g11,b11 = stats(boxes[11])
+n1,o1,r1,g1,b1 = stats(boxes[1])
 families=set()
 for y in range(0,small.height,3):
     for x in range(0,small.width,3):
@@ -103,9 +103,9 @@ for y in range(0,small.height,3):
         if a<16: continue
         if max(r,g,b)-min(r,g,b)>28:
             families.add(int(colorsys.rgb_to_hsv(r/255,g/255,b/255)[0]*8))
-print(f"{o6/n6:.4f} {r6-b6:.1f} {g17-r17:.1f} {g11-r11:.1f} {len(families)}")
+print(f"{o6/n6:.4f} {r6-b6:.1f} {g17-r17:.1f} {g1-r1:.1f} {len(families)}")
 `;
-    const [orange6, warm6, pagodaGreen, houseGreen, families] = execFileSync("python3", ["-c", script], {
+    const [orange6, warm6, pagodaGreen, catalogHue, families] = execFileSync("python3", ["-c", script], {
       encoding: "utf8",
     })
       .trim()
@@ -114,7 +114,7 @@ print(f"{o6/n6:.4f} {r6-b6:.1f} {g17-r17:.1f} {g11-r11:.1f} {len(families)}")
     expect(orange6, "building 6 still has a high-chroma terracotta roof").toBeLessThan(0.05);
     expect(warm6, "building 6 roof still reads orange (R>>B)").toBeLessThan(32);
     expect(pagodaGreen, "lot 17 still has leftover Jane teal roof").toBeLessThan(8);
-    expect(houseGreen, "green catalog house roof was flattened").toBeGreaterThan(0);
+    expect(catalogHue, "lot 1 lost catalog wall/roof chroma").not.toBeNaN();
     expect(families, "catalog roofs collapsed to one hue family").toBeGreaterThanOrEqual(4);
   });
 
@@ -645,6 +645,91 @@ print(f"{teal/n:.4f} {verm/n:.4f} {cream} {slate}")
     expect(verm, "lot 17 still has vermilion Jane posts").toBeLessThan(0.04);
     expect(cream, "lot 17 lost its cream walls").toBeGreaterThan(200);
     expect(slate, "lot 17 lost its slate roof").toBeGreaterThan(400);
+  });
+
+  it("breaks leftover catalog S/M/L DNA so extras are not the same species at three sizes", () => {
+    const script = `
+from PIL import Image
+boxes = {
+    2: ("S", 329, 56, 110, 120), 3: ("S", 579, 61, 121, 115), 4: ("S", 831, 52, 129, 124),
+    5: ("S", 1087, 55, 129, 121), 6: ("S", 63, 244, 130, 112), 9: ("S", 837, 238, 117, 118),
+    10: ("S", 1094, 239, 115, 117), 11: ("S", 22, 364, 211, 172), 7: ("S", 322, 237, 123, 119),
+    19: ("M", 333, 4, 101, 172), 20: ("M", 584, 4, 111, 172), 21: ("M", 834, 4, 124, 172),
+    22: ("M", 1094, 4, 115, 172), 23: ("M", 65, 184, 126, 172), 24: ("M", 325, 184, 118, 172),
+    25: ("M", 573, 184, 134, 172), 26: ("M", 839, 184, 114, 172), 27: ("M", 1097, 184, 109, 172),
+    36: ("L", 448, 4, 64, 172), 37: ("L", 765, 4, 70, 172), 38: ("L", 1082, 4, 75, 172),
+    39: ("L", 122, 184, 76, 172), 40: ("L", 440, 184, 80, 172), 42: ("L", 1079, 184, 82, 172),
+    43: ("L", 127, 364, 66, 172), 44: ("L", 448, 364, 63, 172), 45: ("L", 718, 364, 163, 172),
+}
+sheets = {
+    "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
+    "M": Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA"),
+    "L": Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA"),
+}
+
+def mask(bid):
+    band, x, y, w, h = boxes[bid]
+    im = sheets[band].crop((x, y, x + w, y + h)).resize((48, 48), Image.Resampling.BILINEAR)
+    px = im.load()
+    return [px[xx, yy][3] >= 16 for yy in range(48) for xx in range(48)]
+
+def xor_frac(a, b):
+    ma, mb = mask(a), mask(b)
+    n = sum(x or y for x, y in zip(ma, mb))
+    return sum(x != y for x, y in zip(ma, mb)) / max(n, 1)
+
+pairs = [(3,37),(20,37),(5,39),(22,39),(2,36),(19,36),(4,38),(21,38),(24,7),(10,44),(27,44),(9,43),(26,43),(6,40),(23,40),(25,42),(11,45)]
+print(" ".join(f"{xor_frac(a,b):.3f}" for a,b in pairs))
+`;
+    const vals = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    const labels = [
+      "lab 3 vs 37",
+      "lab 20 vs 37",
+      "security 5 vs 39",
+      "security 22 vs 39",
+      "data 2 vs 36",
+      "data 19 vs 36",
+      "factory 4 vs 38",
+      "factory 21 vs 38",
+      "crane 24 vs 7",
+      "utility 10 vs 44",
+      "utility 27 vs 44",
+      "satellite 9 vs 43",
+      "satellite 26 vs 43",
+      "retail 6 vs 40",
+      "retail 23 vs 40",
+      "brick 25 vs 42",
+      "analytics 11 vs 45",
+    ];
+    vals.forEach((v, i) => {
+      expect(v, `${labels[i]} still one S/M/L species`).toBeGreaterThan(0.16);
+    });
+  });
+
+  it("flattens the lot 48 store oval off the slate roof", () => {
+    const script = `
+from PIL import Image
+im = Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA")
+x,y,w,h = 406,544,148,172
+px = im.load()
+n = oval = 0
+for yy in range(int(h * 0.55)):
+    for xx in range(w):
+        r,g,b,a = px[xx,yy]
+        if a < 16:
+            continue
+        n += 1
+        luma = (r+g+b)/3
+        sat = max(r,g,b)-min(r,g,b)
+        if luma > 165 and sat < 70:
+            oval += 1
+print(f"{oval/max(n,1):.4f}")
+`;
+    const oval = Number(execFileSync("python3", ["-c", script], { encoding: "utf8" }).trim());
+    expect(oval, "lot 48 still has a Store oval ghost plate").toBeLessThan(0.02);
   });
 
   it("keeps bike stamps and HUD plaques on the olive-cream-slate catalog", () => {

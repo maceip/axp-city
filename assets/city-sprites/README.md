@@ -125,10 +125,14 @@ orthographic sheets, photoreal fruit icons, and Jane's raw orange HUD.
   are replaced with unused KEEP stamps: solarpunk lighthouse / waterwheel /
   clock tower / duplex / clockwork, craft kiln / chimney works / pottery /
   loom tower / kiln tower, and Jane Quonset / store after teal-key + poster
-  crush. Lot 17 pagoda keeps its odd silhouette; teal/vermilion Jane color
-  remaps to slate/timber. Lettered poster faces (AIE / OPEN SOURCE / CLEAN
-  COMPUTE) flatten onto the wall color. `facadeTint` + `dressingProp` are a
-  second hash so two lots that share a silhouette still read as different houses.
+  crush. Remaining catalog S/M/L trios keep one original size (usually L);
+  the extras (2/3/4/5/6/9/10/11/19/20/21/22/23/24/25/26/27) use unused KEEP
+  stamps so repo lots are not one species at three sizes. Lot 17 pagoda keeps
+  its odd silhouette; teal/vermilion Jane color remaps to slate/timber. Lot 48
+  store oval flattens onto the slate roof. Lettered poster faces (AIE / OPEN
+  SOURCE / CLEAN COMPUTE) flatten onto the wall color. `facadeTint` +
+  `dressingProp` are a second hash so two lots that share a silhouette still
+  read as different houses.
 - `civic-kit-k1.png` — restyled center office compound (`CENTER_OF_MAP_HQ`,
   stamped larger than any repo lot),   inland unused civics from the attached
   construction sheet (cream-infilled timber fence, parking pad, stacked timber
