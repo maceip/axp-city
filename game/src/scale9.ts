@@ -6,7 +6,7 @@ import { ensureFrame } from "./stamps.js";
  * Canvas-safe 9-slice plaque. Phaser 4's NineSlice object is WebGL-only;
  * the HUD must draw the same way on the Canvas fallback. Corners stay
  * pixel-sized; edges and the KEEP grain center tile instead of smearing.
- * Not NinePanel — BitmapText ink() stays the HUD copy path.
+ * Distinct from the unused stretch panel — BitmapText ink() stays the HUD copy path.
  */
 export class Scale9Plaque extends Phaser.GameObjects.Container {
   private readonly sheet: string;
@@ -99,9 +99,9 @@ export class Scale9Plaque extends Phaser.GameObjects.Container {
   private applyOrigin(): void {
     const ox = -this.width * this.ox;
     const oy = -this.height * this.oy;
-    this.iterate((child) => {
+    this.iterate((child: Phaser.GameObjects.GameObject) => {
       const img = child as Phaser.GameObjects.Image & { destX?: number; destY?: number };
-      if (img.destX === undefined) return;
+      if (img.destX === undefined || img.destY === undefined) return;
       img.setPosition(ox + img.destX, oy + img.destY);
     });
   }

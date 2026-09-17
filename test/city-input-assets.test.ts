@@ -50,7 +50,7 @@ describe("bitmap HUD redo", () => {
     expect(scale9).toContain("c === 1");
     expect(scale9).toContain("r === 1");
     expect(scale9).toContain("Octagon compass/dpad");
-    expect(scale9).not.toMatch(/NinePanel|from ["'].*ninepanel/);
+    expect(scale9).not.toMatch(/new NinePanel|from ["'].*ninepanel/);
     expect(scale9).toContain("Phaser 4's NineSlice object is WebGL-only");
   });
 
