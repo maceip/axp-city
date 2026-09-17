@@ -305,7 +305,7 @@ def test_diverse_repo_buildings_office_civics_and_hud(backend, tmp_path, browser
         page.screenshot(path=str(title), clip={"x": 32, "y": 110, "width": 180, "height": 24})
         title_ink = cream_ink_width(title)
         assert 75 <= title_ink <= 150, f"census title stamp still dense or doubled ({title_ink}px, expected ~90px for 15px LOT CENSUS)"
-        click_hud(page, "census")
+        click_hud(page, "close-census")
         page.wait_for_function("window.__AXP.diagnostics().censusOpen === false")
 
         page.locator("#repo-search").fill("studio/lot-00")
