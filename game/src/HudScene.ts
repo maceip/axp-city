@@ -411,9 +411,12 @@ export class HudScene extends Phaser.Scene {
     }
     this.minimap.setPosition(W - mapW - 22, H - mapH - 46);
     const zoomY = H - mapH - 100;
-    this.buttons.get("zoom-out")!.container.setPosition(W - mapW - 22, zoomY);
-    this.zoomText.setPosition(W - mapW - 22 + 40 + 34, zoomY + 20);
-    this.buttons.get("zoom-in")!.container.setPosition(W - mapW - 22 + 108, zoomY);
+    // The zoom row is 148 px wide; the phone minimap is narrower than that, so anchor
+    // the row to the right edge instead of the minimap's left edge.
+    const zoomX = small ? W - 22 - 148 : W - mapW - 22;
+    this.buttons.get("zoom-out")!.container.setPosition(zoomX, zoomY);
+    this.zoomText.setPosition(zoomX + 40 + 34, zoomY + 20);
+    this.buttons.get("zoom-in")!.container.setPosition(zoomX + 108, zoomY);
     this.dpad.setPosition(16, H - 166);
     this.dpad.setScale(small ? 0.85 : 1);
     const toolbar = ["census", "capture", "svg", "motion", "follow"];

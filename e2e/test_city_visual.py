@@ -428,6 +428,11 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
     )
     with_rules = rendered_change(page, "acme/forge", original, f"catalog building {chosen} (was {default_building}) + three bays + decor props")
     other.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
+    other.wait_for_function("window.__AXP.drawnRenderKey('acme/forge') && window.__AXP.drawnRenderKey('acme/forge').includes('lamp') && window.__AXP.drawnRenderKey('acme/forge').includes('\"bays\":3')", timeout=15000)
+    other.wait_for_function(
+        "() => { const tags = window.__AXP.drawnTags('acme/forge') || []; return tags.includes('roof-apron') && tags.includes('roof-lamp') && tags.some(t => String(t).startsWith('roof-bay:')) && window.__AXP.lotIncomplete('acme/forge') === false; }",
+        timeout=15000,
+    )
     assert pixel_distance(lot_pixels(other, "acme/forge"), with_rules) < pixel_distance(lot_pixels(other, "acme/forge"), original)
     select(page)
     assert "3 bays" in a11y(page, "#a11y-selection") and "lamp" in a11y(page, "#a11y-selection") and "Repository rules" in a11y(page, "#a11y-selection")
