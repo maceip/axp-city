@@ -1,7 +1,8 @@
 """Tileset diversity, civic objects, center office, and restyled HUD.
 
 Each check reads the production Phaser scene through `window.__AXP` and
-saves screenshots. The hosted Playwright service is preferred; see conftest.
+saves screenshots. In-env Playwright (`CITY_LOCAL_BROWSER=1`) is the proof
+path; Azure Workspaces is optional. See conftest.
 """
 import statistics
 from pathlib import Path
