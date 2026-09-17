@@ -214,8 +214,10 @@ def assert_kit_label(page, name: str, expected: str) -> None:
         f"{name} stamp still reads doubled: ink {ink}px expected ~{expected_w:.0f}px doubled ~{doubled_w:.0f}px"
     )
     blobs = letter_ink_blobs(glyph)
-    # U/I split into two stems; a real CENSUSUS/FOLLOWW stack adds whole extra glyphs.
-    assert len(expected) - 1 <= len(blobs) <= len(expected) + 2, (
+    # KEEP glyphs split (C/P/U/R stems, Firefox/WebKit 1–2 px gutters). A stacked
+    # CENSUSUS/CAPTURECAPTURE copy still adds about another word of blobs.
+    letters = len(expected.replace(" ", ""))
+    assert letters - 2 <= len(blobs) < letters * 2 - 1, (
         f"{name} glyph crop has {len(blobs)} blobs for {expected!r} (stacked copy would add letters)"
     )
 
