@@ -10,7 +10,7 @@ The city is a Phaser 4.2.1 application. Before Phaser is loaded, `game/src/suppo
 
 `window.__AXP_SUPPORT` records the decision and reasons; `window.__AXP.driver()` reports the actual GL renderer string once the scene runs. A sprite sheet that cannot be fetched *or decoded* is reported through `window.__AXP.diagnostics().assetsFailed` and a HUD toast; lots that need it are drawn without it instead of waiting forever.
 
-Running the suite in another engine locally: `CITY_LOCAL_BROWSER=1 CITY_BROWSER=firefox|webkit python3 -m pytest e2e/test_city_visual.py e2e/test_support.py e2e/test_exports.py` (after `python3 -m playwright install firefox webkit`). CI runs all three engines on every push.
+Running the suite in another engine locally: `CITY_LOCAL_BROWSER=1 CITY_BROWSER=firefox|webkit python3 -m pytest e2e/test_city_visual.py e2e/test_support.py e2e/test_exports.py` (after `python3 -m playwright install --with-deps chromium firefox webkit`). CI `browser-local` installs those browsers on the runner and runs all three engines on every push. Azure Playwright Workspaces is optional.
 
 ## Verified configurations
 
@@ -25,7 +25,7 @@ Results are from the automated suite (`e2e/test_support.py`, `e2e/test_city_visu
 | Emulated phone (390×844, DPR 2, touch): tap, d-pad, pinch, bottom-sheet card, native keyboard | Verified | `test_mobile_tap_dpad_pinch_and_layout`, `mobile.png`, `mobile-inspect.png` |
 | Resize and orientation change (900×1200, 1200×700, 600×900) | Verified | `test_resize_and_orientation_relayout_the_hud`, `resize-narrow.png` |
 | Chromium, hardware GPU | Verified only when the suite runs on a GPU machine; the report's `driver` field says which | `performance.json` |
-| Hosted Azure Playwright workspace browsers | Harness ready (`e2e/conftest.py` connects with `PLAYWRIGHT_SERVICE_URL` + `PLAYWRIGHT_SERVICE_ACCESS_TOKEN`) | Runs once the workspace access token is provided; the workspace rejects anonymous connections with 401 |
+| Hosted Azure Playwright workspace browsers | Optional; harness ready (`e2e/conftest.py` connects only with URL **and** `PLAYWRIGHT_SERVICE_ACCESS_TOKEN`) | Not required for in-env proof. URL without a token fails closed. `CITY_LOCAL_BROWSER=1` is the Cloud Agent / CI `browser-local` path |
 | Firefox (Playwright build), Linux, WebGL | Verified | `CITY_BROWSER=firefox`: `test_city_visual.py`, `test_support.py`, `test_exports.py` all pass, including phone emulation with a DOM `TouchEvent` pinch |
 | Firefox (Playwright build), Linux, no WebGL → Canvas fallback | Verified | Headless Firefox on a GitHub-hosted runner refuses a WebGL context; the CI `browser (firefox)` leg therefore runs the whole suite on the automatic Canvas fallback, with `__AXP_SUPPORT.reasons` naming the cause. The same path is checked in Chromium with `CITY_DISABLE_WEBGL=1` |
 | WebKit (Playwright build), Linux, WebGL | Verified | `CITY_BROWSER=webkit`: same three modules pass. This is WebKitGTK/WPE, **not** Safari on macOS or iOS; Safari's Metal-backed WebGL and iOS touch handling remain unproven |

@@ -61,11 +61,22 @@ describe("bitmap HUD redo", () => {
     const yml = readFileSync(".github/workflows/verify.yml", "utf8");
     expect(yml).toContain("hosted-playwright:");
     expect(yml).toContain("hosted Playwright proof blocked");
+    expect(yml).toContain("PLAYWRIGHT_SERVICE_URL is set without PLAYWRIGHT_SERVICE_ACCESS_TOKEN");
     expect(yml).toContain("browser-local:");
+    expect(yml).toContain("python -m playwright install --with-deps");
     expect(yml).toContain("pip install pillow");
     expect(yml).toContain("CITY_LOCAL_BROWSER");
     expect(yml).not.toMatch(/echo "hosted=0"/);
     expect(yml).not.toMatch(/DEVICEFARM|EMU_TOKEN/);
+  });
+
+  it("defaults the browser harness to local Playwright when Azure is not configured", () => {
+    const src = readFileSync("e2e/conftest.py", "utf8");
+    expect(src).toContain("def launch_local");
+    expect(src).toContain("CITY_LOCAL_BROWSER");
+    expect(src).toContain("refusing an anonymous hosted connection");
+    expect(src).toContain("Live GitHub failures never switch to fixtures");
+    expect(src).not.toMatch(/DEVICEFARM|EMU_TOKEN/);
   });
 
   it("isolates the unused stretch panel so it cannot become the HUD", () => {

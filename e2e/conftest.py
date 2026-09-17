@@ -176,27 +176,8 @@ def service_endpoint(url):
     return f"{url}{sep}os={target_os}&runId={run_id}&api-version=2025-09-01", run_id, target_os
 
 
-def connect_browser(p):
-    """Hosted Azure Playwright service first; a local Chromium only when explicitly requested.
-
-    The remote browser reaches the test server on this machine through Playwright's
-    client-side network exposure (`<loopback>`), so every test still starts the real
-    compiled Node server locally and the browser under test runs in the service.
-    """
-    url = os.environ.get("PLAYWRIGHT_SERVICE_URL")
-    local = os.environ.get("CITY_LOCAL_BROWSER") == "1"
-    if url and not local:
-        endpoint, run_id, target_os = service_endpoint(url)
-        token = os.environ.get("PLAYWRIGHT_SERVICE_ACCESS_TOKEN")
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
-        try:
-            browser = p.chromium.connect(endpoint, timeout=120_000, expose_network="<loopback>", headers=headers)
-        except Exception as error:  # noqa: BLE001 - surface the exact service failure
-            hint = "" if token else " No PLAYWRIGHT_SERVICE_ACCESS_TOKEN is set; the workspace rejected the anonymous connection."
-            raise RuntimeError(f"Could not connect to the hosted Playwright service at {url.split('?')[0]}: {error}.{hint} Set CITY_LOCAL_BROWSER=1 only to run against a local browser instead.") from error
-        return BrowserBackend("azure-playwright-workspaces", browser, dict(service=url.split("/playwrightworkspaces/")[0], runId=run_id, os=target_os, softwareGl=False))
-    if not local:
-        raise RuntimeError("Browser tests run through the hosted Playwright service. Set PLAYWRIGHT_SERVICE_URL (and PLAYWRIGHT_SERVICE_ACCESS_TOKEN), or set CITY_LOCAL_BROWSER=1 to deliberately use a local Chromium.")
+def launch_local(p):
+    """Launch a Playwright browser installed on this machine (Chromium/Firefox/WebKit)."""
     engine = os.environ.get("CITY_BROWSER", "chromium")
     headless = os.environ.get("HEADED") != "1"
     if engine == "firefox":
@@ -211,6 +192,41 @@ def connect_browser(p):
         args += ["--disable-webgl", "--disable-webgl2"]
     browser = p.chromium.launch(headless=headless, args=args)
     return BrowserBackend("local-chromium", browser, dict(engine="chromium", softwareGl=software, webglDisabled=os.environ.get("CITY_DISABLE_WEBGL") == "1"))
+
+
+def connect_browser(p):
+    """Local Playwright is the in-env proof path; Azure Workspaces is optional.
+
+    Preference:
+    1. CITY_LOCAL_BROWSER=1 always launches a local engine and ignores PLAYWRIGHT_SERVICE_*.
+    2. PLAYWRIGHT_SERVICE_URL set — hosted Azure Chromium. An access token is required;
+       a URL without a token fails closed instead of connecting anonymously or using fixtures.
+    3. Otherwise launch the Playwright browser installed on this machine.
+
+    Hosted browsers reach this machine's test server through Playwright's client-side
+    network exposure (`<loopback>`). Live GitHub failures never switch to fixtures.
+    """
+    url = os.environ.get("PLAYWRIGHT_SERVICE_URL") or ""
+    local = os.environ.get("CITY_LOCAL_BROWSER") == "1"
+    if local or not url:
+        return launch_local(p)
+    token = os.environ.get("PLAYWRIGHT_SERVICE_ACCESS_TOKEN")
+    if not token:
+        raise RuntimeError(
+            f"PLAYWRIGHT_SERVICE_URL is set without PLAYWRIGHT_SERVICE_ACCESS_TOKEN; "
+            f"refusing an anonymous hosted connection to {url.split('?')[0]}. "
+            "Unset PLAYWRIGHT_SERVICE_URL, or set CITY_LOCAL_BROWSER=1 to use a local Playwright browser."
+        )
+    endpoint, run_id, target_os = service_endpoint(url)
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        browser = p.chromium.connect(endpoint, timeout=120_000, expose_network="<loopback>", headers=headers)
+    except Exception as error:  # noqa: BLE001 - surface the exact service failure
+        raise RuntimeError(
+            f"Could not connect to the hosted Playwright service at {url.split('?')[0]}: {error}. "
+            "Set CITY_LOCAL_BROWSER=1 only to run against a local browser instead."
+        ) from error
+    return BrowserBackend("azure-playwright-workspaces", browser, dict(service=url.split("/playwrightworkspaces/")[0], runId=run_id, os=target_os, softwareGl=False))
 
 
 def engine_name(browser):
