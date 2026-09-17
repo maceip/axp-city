@@ -404,6 +404,7 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
         tab.wait_for_function("window.__AXP.diagnostics().reducedMotion && !window.__AXP.diagnostics().toastVisible", timeout=10000)
     page.wait_for_timeout(600)
     original = lot_pixels(page, "acme/forge")
+    original_other = lot_pixels(other, "acme/forge")
     default_building = page.evaluate("window.__AXP.snapshot().plan.placements[0].lot.buildingId")
     chosen = 7  # an S-band silhouette; the L-band hash for acme/forge picks from 35–50
     assert default_building != chosen
@@ -433,7 +434,9 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
         "() => { const tags = window.__AXP.drawnTags('acme/forge') || []; return tags.includes('roof-apron') && tags.includes('roof-lamp') && tags.some(t => String(t).startsWith('roof-bay:')) && window.__AXP.lotIncomplete('acme/forge') === false; }",
         timeout=15000,
     )
-    assert pixel_distance(lot_pixels(other, "acme/forge"), with_rules) < pixel_distance(lot_pixels(other, "acme/forge"), original)
+    # Compare the second browser to its own baseline. Page is 1600×1000 and other
+    # is 1280×800, so crown samples are not the same screen crop.
+    rendered_change(other, "acme/forge", original_other, "second browser catalog building + three bays + decor props")
     select(page)
     assert "3 bays" in a11y(page, "#a11y-selection") and "lamp" in a11y(page, "#a11y-selection") and "Repository rules" in a11y(page, "#a11y-selection")
     page.screenshot(path=str(SHOTS / "rules-v2.png"))
