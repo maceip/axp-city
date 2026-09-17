@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { LAYOUT_VERSION } from "../src/world/layout.js";
 
@@ -83,14 +83,26 @@ describe("bitmap HUD redo", () => {
     expect(pkg.scripts["test:e2e"]).toContain("CITY_SOFTWARE_GL=1");
   });
 
-  it("isolates the unused stretch panel so it cannot become the HUD", () => {
-    const panel = readFileSync("game/src/ninepanel.ts", "utf8");
-    expect(panel).toContain("UNUSED — isolated leftover");
-    expect(panel).toContain("Do not import this file");
+  it("deletes the unused NinePanel leftover so Scale9Plaque is the only HUD chrome", () => {
+    expect(existsSync("game/src/ninepanel.ts")).toBe(false);
     const hud = readFileSync("game/src/HudScene.ts", "utf8");
     const city = readFileSync("game/src/CityScene.ts", "utf8");
-    expect(hud).not.toMatch(/from ["'].*ninepanel/);
-    expect(city).not.toMatch(/from ["'].*ninepanel/);
+    const scale9 = readFileSync("game/src/scale9.ts", "utf8");
+    expect(hud).not.toMatch(/ninepanel|NinePanel/);
+    expect(city).not.toMatch(/ninepanel|NinePanel/);
+    expect(scale9).not.toMatch(/from ["'].*ninepanel|new NinePanel/);
+  });
+
+  it("does not advertise a pending reconstruction or a second city client", () => {
+    const handoff = readFileSync("docs/PHASER-RECONSTRUCTION-HANDOFF.md", "utf8");
+    const status = readFileSync("docs/RECONSTRUCTION-STATUS.md", "utf8");
+    const readme = readFileSync("README.md", "utf8");
+    expect(handoff).toMatch(/Implemented on the single Phaser 4/);
+    expect(handoff).not.toMatch(/The reconstruction below is pending/);
+    expect(status).toContain("Scale9Plaque");
+    expect(status).not.toMatch(/ninepanel\.ts/);
+    expect(readme).toContain("There is no SVG city client");
+    expect(readme).toContain("Phaser 4.2.1");
   });
 
   it("paints HUD copy once via BitmapText ink(), never Phaser.Text or fillText", () => {
