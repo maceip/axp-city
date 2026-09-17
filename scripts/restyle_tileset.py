@@ -494,6 +494,7 @@ FV_KEEP = {
     "civic": SRC1 / "communitybuildings-civiccenter.png",
     "toyfactory": SRC1 / "businesses-toyfactory.png",
     "apartment": SRC3 / "houses-apartment.png",
+    "tudor": SRC1 / "houses-tudorhouse.png",
 }
 ECO_LARGE = {
     3: PLAYER_REPO / "ChatGPT Image Sep 11, 2026, 10_38_02 AM (3).png",  # helipad
@@ -534,6 +535,7 @@ COUSIN_BREAK: dict[int, tuple[str, int | str]] = {
     22: ("fv", "apartment"),
     24: ("jane", "windmill"),  # Dutch mill, not a waterwheel
     27: ("jane", "villa"),  # keep ranch 11
+    9: ("fv", "tudor"),  # keep pagoda 17; not a second temple
 }
 
 
@@ -1564,7 +1566,19 @@ def extract_fv_keep(name: str) -> Image.Image:
         spr = trim(blob[4])
         if _is_lineart(spr) or is_gray_pad(spr):
             continue
-        return restyle_jane_odd(restyle(spr, sat=0.48, contrast=1.04))
+        spr = restyle_jane_odd(restyle(spr, sat=0.48, contrast=1.04))
+        if name == "tudor":
+            # Yard hedge is not the house; drop it so the gable reads on a small S cell.
+            px = spr.load()
+            for y in range(spr.height):
+                for x in range(spr.width):
+                    r, g, b, a = px[x, y]
+                    if a < 16:
+                        continue
+                    if g > r + 10 and g > b + 6 and max(r, g, b) - min(r, g, b) > 18:
+                        px[x, y] = (0, 0, 0, 0)
+            spr = trim(spr)
+        return spr
     raise SystemExit(f"no finished exterior in {path.name}")
 
 
@@ -2434,6 +2448,7 @@ def main() -> None:
                 "Sheet-1 extras that stacked S/M/L catalog DNA into 5+ families replaced with unused KEEP stamps (solarpunk lighthouse/mill/clock, craft kiln/chimney/pottery/loom, Jane Quonset/store) — stamps, not tints",
                 "Remaining catalog S/M/L trios keep one original size; extras use unused KEEP (spa/workshop/mill/temple/church/hall/cottage/norwood + eco observatory/helipad/orchard/conservatory)",
                 "Leftover mill/clock/eco-white/ranch cousins keep one of each family; extras use unused KEEP (greenhouse, Dutch mill, Spanish villa, restyled src1/src3 finished exteriors)",
+                "Temple cousins 9/17 keep one pagoda (lot 17); lot 9 is a restyled Tudor exterior, not a second eave stack",
                 "Lot 17 pagoda restyled to slate/timber catalog vibe; silhouette stays an odd original",
                 "Lettered family-sheet poster faces (AIE / OPEN SOURCE / CLEAN COMPUTE) flattened onto cream/khaki walls",
                 "styleui + fruit-tree plants, restyled",

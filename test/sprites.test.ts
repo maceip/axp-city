@@ -740,7 +740,7 @@ def xor_frac(a, b):
     n = sum(x or y for x, y in zip(ma, mb))
     return sum(x != y for x, y in zip(ma, mb)) / max(n, 1)
 
-pairs = [(6,10),(6,14),(6,23),(10,14),(15,25),(15,47),(25,47),(20,21),(20,22),(20,24),(11,27),(9,17),(7,41)]
+pairs = [(6,10),(6,14),(6,23),(10,14),(15,25),(15,47),(25,47),(20,21),(20,22),(20,24),(11,27),(9,17),(9,11),(9,27),(7,41)]
 print(" ".join(f"{xor_frac(a,b):.3f}" for a,b in pairs))
 `;
     const vals = execFileSync("python3", ["-c", script], { encoding: "utf8" })
@@ -759,7 +759,9 @@ print(" ".join(f"{xor_frac(a,b):.3f}" for a,b in pairs))
       "eco 20 vs 22",
       "eco 20 vs 24",
       "ranch 11 vs 27",
-      "temple 9 vs 17",
+      "temple 9 vs pagoda 17",
+      "tudor 9 vs ranch 11",
+      "tudor 9 vs villa 27",
       "crane 7 vs rocket 41",
     ];
     vals.forEach((v, i) => {
