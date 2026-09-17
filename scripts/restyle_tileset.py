@@ -474,6 +474,8 @@ JANE_CHURCH = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Church.png"
 JANE_HALL = SRC2 / "PC _ Computer - Jane's Realty - Buildings - City Hall.png"
 JANE_COTTAGE = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Beach Cottage.png"
 JANE_NORWOOD = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Norwood House.png"
+JANE_VILLA = SRC2 / "PC _ Computer - Jane's Realty - Buildings - Spanish Villa.png"
+JANE_MAP = SRC2 / "PC _ Computer - Jane's Realty - Map - Map Elements.png"
 JANE_SHEETS = {
     "repair": JANE_REPAIR,
     "store": JANE_STORE,
@@ -481,6 +483,17 @@ JANE_SHEETS = {
     "hall": JANE_HALL,
     "cottage": JANE_COTTAGE,
     "norwood": JANE_NORWOOD,
+    "villa": JANE_VILLA,
+}
+# Finished isometric exteriors only (top-left color building). Interiors, lineart,
+# joke props, SC2k tiles, and $ bank stay rejected.
+FV_KEEP = {
+    "library": SRC1 / "communitybuildings-library.png",
+    "school": SRC1 / "communitybuildings-school.png",
+    "postoffice": SRC1 / "communitybuildings-postoffice.png",
+    "civic": SRC1 / "communitybuildings-civiccenter.png",
+    "toyfactory": SRC1 / "businesses-toyfactory.png",
+    "apartment": SRC3 / "houses-apartment.png",
 }
 ECO_LARGE = {
     3: PLAYER_REPO / "ChatGPT Image Sep 11, 2026, 10_38_02 AM (3).png",  # helipad
@@ -506,6 +519,21 @@ TRIO_BREAK: dict[int, tuple[str, int | str]] = {
     23: ("sp", 10),  # mill tower
     25: ("sp", 6),  # clock factory — keep brick 42
     11: ("jane", "norwood"),  # keep analytics 45
+}
+
+# Leftover same-silhouette cousins after trio-break: keep one of each family.
+# Unused KEEP only — not mushrooms/crystal/honeycomb/cathedral, not more eco-white
+# offices, not AXP catalog DNA, not $ bank, not FarmVille interiors.
+COUSIN_BREAK: dict[int, tuple[str, int | str]] = {
+    10: ("craft", 1),  # greenhouse — keep mill 6
+    14: ("fv", "toyfactory"),  # brick works — keep mill 6
+    23: ("fv", "library"),  # civic library
+    25: ("fv", "school"),  # keep clock tower 15
+    47: ("fv", "postoffice"),
+    21: ("fv", "civic"),  # capitol — keep eco observatory 20
+    22: ("fv", "apartment"),
+    24: ("jane", "windmill"),  # Dutch mill, not a waterwheel
+    27: ("jane", "villa"),  # keep ranch 11
 }
 
 
@@ -1486,11 +1514,99 @@ def crush_roof_badge(im: Image.Image) -> Image.Image:
     return out
 
 
+# Dutch mill sails/walls are warm tan; catalog orange crush flattens them into one umber blob.
+COUSIN_SKIP_ROOF_CRUSH = {24}
+
+
 def prepare_lot_stamp(spr: Image.Image, bid: int, w: int, h: int) -> Image.Image:
     fitted = scale_to(trim(spr), w, h)
+    if bid in COUSIN_SKIP_ROOF_CRUSH:
+        return crush_roof_badge(crush_poster_type(fitted))
     return crush_roof_badge(
         crush_poster_type(crush_catalog_orange(restyle_catalog_roof(fitted, bid), bid))
     )
+
+
+def _is_lineart(spr: Image.Image) -> bool:
+    px = spr.load()
+    n = chroma = 0
+    for y in range(0, spr.height, 3):
+        for x in range(0, spr.width, 3):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            n += 1
+            if max(r, g, b) - min(r, g, b) > 22:
+                chroma += 1
+    return n > 40 and chroma / n < 0.08
+
+
+def extract_fv_keep(name: str) -> Image.Image:
+    """Finished isometric exterior from src1/src3 — never interiors or lineart."""
+    path = FV_KEEP.get(name)
+    if path is None or not path.exists():
+        raise SystemExit(f"fv keep {name} missing: {path}")
+    im = open_rgba(path)
+    w, h = im.size
+    cell = im.crop((0, 0, int(w * 0.42), int(h * 0.48)))
+    keyed = key_near_white(cell, thresh=232)
+    opaque = 0
+    kpx = keyed.load()
+    for y in range(0, keyed.height, 3):
+        for x in range(0, keyed.width, 3):
+            if kpx[x, y][3] >= 16:
+                opaque += 1
+    if opaque < 80:
+        keyed = key_black(cell, thresh=22)
+    blobs = [b for b in components(keyed, min_px=800) if b[2] > 70 and b[3] > 70]
+    blobs.sort(key=lambda b: b[2] * b[3], reverse=True)
+    for blob in blobs:
+        spr = trim(blob[4])
+        if _is_lineart(spr) or is_gray_pad(spr):
+            continue
+        return restyle_jane_odd(restyle(spr, sat=0.48, contrast=1.04))
+    raise SystemExit(f"no finished exterior in {path.name}")
+
+
+def extract_jane_windmill() -> Image.Image:
+    """One Dutch mill from the map sheet — not the stacked column, not a waterwheel."""
+    path = JANE_MAP
+    if not path.exists():
+        raise SystemExit(f"Jane windmill sheet missing: {path}")
+    # Blades of neighboring mills touch; crop one measured cell instead of the column.
+    keyed = key_teal(open_rgba(path).crop((0, 8, 128, 128)))
+    blobs = [b for b in components(keyed, min_px=280) if b[2] > 40 and b[3] > 48]
+    blobs.sort(key=lambda b: b[2] * b[3], reverse=True)
+    if not blobs:
+        raise SystemExit("Jane windmill missing")
+    spr = trim(blobs[0][4])
+    px = spr.load()
+    for y in range(spr.height):
+        for x in range(spr.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            # Yard grass + fence hedge — keep tan timber and cream sails.
+            if g > r + 8 and g > b + 4 and max(r, g, b) - min(r, g, b) > 16:
+                px[x, y] = (0, 0, 0, 0)
+    spr = restyle(trim(spr), sat=0.55, contrast=1.06)
+    # Terracotta roof only. restyle_jane_odd would also flatten tan walls into the sails.
+    px = spr.load()
+    for y in range(spr.height):
+        for x in range(spr.width):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            if 8 <= h * 360 <= 40 and s >= 0.28 and v >= 0.35 and r > b + 20 and r > g + 8:
+                t = max(0.0, min(1.0, ((r + g + b) / 3 - 40) / 140))
+                px[x, y] = (
+                    int(108 + t * 36),
+                    int(98 + t * 28),
+                    int(78 + t * 22),
+                    a,
+                )
+    return spr
 
 
 def extract_keep_stamp(src: str, key: int | str) -> Image.Image:
@@ -1499,9 +1615,13 @@ def extract_keep_stamp(src: str, key: int | str) -> Image.Image:
     if src == "craft":
         return extract_craft_cell(int(key))
     if src == "jane":
+        if key == "windmill":
+            return extract_jane_windmill()
         return extract_jane_lot(str(key))
     if src == "eco":
         return extract_eco_large(int(key))
+    if src == "fv":
+        return extract_fv_keep(str(key))
     raise SystemExit(f"unknown keep source {src}")
 
 
@@ -1534,6 +1654,11 @@ def stamp_break_catalog_trios() -> None:
     """Keep one catalog size per species; replace the extras. Restamp lot 48 oval."""
     stamp_keep_map(TRIO_BREAK, "trio-break")
     stamp_keep_map({48: CLONE_BREAK[48]}, "store-badge")
+
+
+def stamp_break_cousin_clusters() -> None:
+    """Replace leftover mill/clock/eco/ranch cousins with unused KEEP silhouettes."""
+    stamp_keep_map(COUSIN_BREAK, "cousin-break")
 
 
 def restyle_pagoda(im: Image.Image) -> Image.Image:
@@ -2272,6 +2397,7 @@ def main() -> None:
     stamp_break_clone_clusters()
     stamp_pagoda_vibe()
     stamp_break_catalog_trios()
+    stamp_break_cousin_clusters()
 
     building_boxes = {}
     for i, box in enumerate(s_boxes, 1):
@@ -2307,6 +2433,7 @@ def main() -> None:
                 "White-solar villa clones among lots 11–50 swapped for unused AXP family-sheet industrial silhouettes (crane/foundry/lab/factory) — stamps, not tints",
                 "Sheet-1 extras that stacked S/M/L catalog DNA into 5+ families replaced with unused KEEP stamps (solarpunk lighthouse/mill/clock, craft kiln/chimney/pottery/loom, Jane Quonset/store) — stamps, not tints",
                 "Remaining catalog S/M/L trios keep one original size; extras use unused KEEP (spa/workshop/mill/temple/church/hall/cottage/norwood + eco observatory/helipad/orchard/conservatory)",
+                "Leftover mill/clock/eco-white/ranch cousins keep one of each family; extras use unused KEEP (greenhouse, Dutch mill, Spanish villa, restyled src1/src3 finished exteriors)",
                 "Lot 17 pagoda restyled to slate/timber catalog vibe; silhouette stays an odd original",
                 "Lettered family-sheet poster faces (AIE / OPEN SOURCE / CLEAN COMPUTE) flattened onto cream/khaki walls",
                 "styleui + fruit-tree plants, restyled",
@@ -2392,6 +2519,8 @@ if __name__ == "__main__":
         stamp_break_clone_clusters()
     elif "--stamp-trio-break" in sys.argv:
         stamp_break_catalog_trios()
+    elif "--stamp-cousin-break" in sys.argv:
+        stamp_break_cousin_clusters()
     elif "--stamp-pagoda" in sys.argv:
         stamp_pagoda_vibe()
     elif "--civic-only" in sys.argv:

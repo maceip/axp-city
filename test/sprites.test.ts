@@ -709,6 +709,64 @@ print(" ".join(f"{xor_frac(a,b):.3f}" for a,b in pairs))
     });
   });
 
+  it("breaks leftover mill/clock/eco/ranch cousins with unused KEEP stamps, not tints", () => {
+    const script = `
+from PIL import Image
+boxes = {
+    6: ("S", 63, 244, 130, 112), 10: ("S", 1094, 239, 115, 117),
+    14: ("S", 806, 364, 179, 172), 23: ("M", 65, 184, 126, 172),
+    15: ("S", 1053, 364, 198, 172), 25: ("M", 573, 184, 134, 172),
+    47: ("L", 82, 544, 156, 172),
+    20: ("M", 584, 4, 111, 172), 21: ("M", 834, 4, 124, 172),
+    22: ("M", 1094, 4, 115, 172), 24: ("M", 325, 184, 118, 172),
+    11: ("S", 22, 364, 211, 172), 27: ("M", 1097, 184, 109, 172),
+    9: ("S", 837, 238, 117, 118), 17: ("S", 298, 545, 171, 171),
+    7: ("S", 322, 237, 123, 119), 41: ("L", 765, 184, 70, 172),
+}
+sheets = {
+    "S": Image.open("assets/city-sprites/buildings-small-01-17-k1.png").convert("RGBA"),
+    "M": Image.open("assets/city-sprites/buildings-medium-18-34-k1.png").convert("RGBA"),
+    "L": Image.open("assets/city-sprites/buildings-large-35-50-k1.png").convert("RGBA"),
+}
+
+def mask(bid):
+    band, x, y, w, h = boxes[bid]
+    im = sheets[band].crop((x, y, x + w, y + h)).resize((48, 48), Image.Resampling.BILINEAR)
+    px = im.load()
+    return [px[xx, yy][3] >= 16 for yy in range(48) for xx in range(48)]
+
+def xor_frac(a, b):
+    ma, mb = mask(a), mask(b)
+    n = sum(x or y for x, y in zip(ma, mb))
+    return sum(x != y for x, y in zip(ma, mb)) / max(n, 1)
+
+pairs = [(6,10),(6,14),(6,23),(10,14),(15,25),(15,47),(25,47),(20,21),(20,22),(20,24),(11,27),(9,17),(7,41)]
+print(" ".join(f"{xor_frac(a,b):.3f}" for a,b in pairs))
+`;
+    const vals = execFileSync("python3", ["-c", script], { encoding: "utf8" })
+      .trim()
+      .split(/\s+/)
+      .map(Number);
+    const labels = [
+      "mill 6 vs 10",
+      "mill 6 vs 14",
+      "mill 6 vs 23",
+      "mill 10 vs 14",
+      "clock 15 vs 25",
+      "clock 15 vs 47",
+      "clock 25 vs 47",
+      "eco 20 vs 21",
+      "eco 20 vs 22",
+      "eco 20 vs 24",
+      "ranch 11 vs 27",
+      "temple 9 vs 17",
+      "crane 7 vs rocket 41",
+    ];
+    vals.forEach((v, i) => {
+      expect(v, `${labels[i]} still one cousin silhouette`).toBeGreaterThan(0.16);
+    });
+  });
+
   it("flattens the lot 48 store oval off the slate roof", () => {
     const script = `
 from PIL import Image
