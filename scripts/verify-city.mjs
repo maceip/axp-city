@@ -56,6 +56,20 @@ let html = "";
 await check("client bundle", async () => {
   const r = await get("/city", "text/html");
   if (!r.ok) throw new Error(`/city ${r.status}`);
+  const requiredHeaders = {
+    "content-security-policy": "frame-ancestors 'none'",
+    "cross-origin-opener-policy": "same-origin",
+    "permissions-policy": "camera=()",
+    "referrer-policy": "no-referrer",
+    "strict-transport-security": "max-age=31536000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+  };
+  for (const [name, expectedValue] of Object.entries(requiredHeaders)) {
+    const value = r.headers.get(name);
+    if (!value?.includes(expectedValue)) throw new Error(`${name} missing ${expectedValue}`);
+  }
+  if (r.headers.get("cache-control") !== "no-cache") throw new Error("HTML must revalidate");
   html = await r.text();
   if (!/<div id="game"/.test(html)) throw new Error("index.html is not the Phaser client");
   if (/svg#axp-map|id="axp-map"/.test(html)) throw new Error("static SVG map markup is being served");
@@ -64,8 +78,10 @@ await check("client bundle", async () => {
   for (const asset of assets) {
     const a = await get(asset, "*/*");
     if (!a.ok) throw new Error(`${asset} ${a.status}`);
+    if (!a.headers.get("cache-control")?.includes("immutable"))
+      throw new Error(`${asset} is not immutable`);
   }
-  return { assets };
+  return { assets, securityHeaders: Object.keys(requiredHeaders) };
 });
 
 await check("snapshot", async () => {
