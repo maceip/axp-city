@@ -3,6 +3,7 @@ import { HUD_FONT } from "../../src/render/sprites.js";
 import { SceneKeys } from "./Boot.js";
 import { CORE_SHEETS, SPRITE_BASE } from "./assets.js";
 import { CityConnection } from "./connection.js";
+import { applyCityIdentity } from "./identity.js";
 
 type Behaviour = "humanWalk" | "humanWork" | "humanCarry" | "humanWave";
 
@@ -32,7 +33,9 @@ export class Preloader extends Phaser.Scene {
         this.person(behaviour);
       this.vehicles();
       const connection = new CityConnection({ snapshot() {}, mutation() {}, status() {}, connection() {} });
-      this.registry.set("snapshot", await connection.initial());
+      const snapshot = await connection.initial();
+      applyCityIdentity(snapshot.city);
+      this.registry.set("snapshot", snapshot);
       document.getElementById("boot-card")!.hidden = true;
       this.scene.start(SceneKeys.City);
     } catch (error) {

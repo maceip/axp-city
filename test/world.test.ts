@@ -4,13 +4,18 @@ import { parseLot } from "../src/parser/parseLot.js";
 import {
   CONSTRUCTION_MS,
   FREEWAY_SY,
+  LOT_D,
+  LOT_W,
+  STRIDE_X,
   STRIDE_Y,
+  TRAM_SX,
   isCorridorShoulderSlot,
   isReservedSlot,
   lotSlot,
   nextCadenceSlot,
   planCity,
   tileKind,
+  trendingDistrictLabels,
 } from "../src/world/index.js";
 import { isDailyDistrict, isMonthlyDistrict, isWeeklyDistrict } from "../src/world/trending.js";
 import { FIXED_NOW, metrics } from "./helpers.js";
@@ -220,6 +225,39 @@ describe("Trending City districts", () => {
       "WEEKLY PROJECTS",
       "MONTHLY PROJECTS",
     ]);
+    for (const label of first.labels) {
+      for (const place of first.placements) {
+        const onPad =
+          label.x >= place.x &&
+          label.x <= place.x + LOT_W &&
+          label.y >= place.y &&
+          label.y <= place.y + LOT_D;
+        expect(onPad, `${label.id} landed on ${place.lot.fullName}`).toBe(false);
+      }
+    }
+    expect(planCity(lots(8)).labels).toEqual([]);
+    const tramX = TRAM_SX * STRIDE_X + STRIDE_X / 2;
+    expect(trendingDistrictLabels().every((label) => label.x === tramX)).toBe(true);
+    const crowd = planCity(
+      (["daily", "weekly", "monthly"] as const).flatMap((cadence) =>
+        Array.from({ length: 8 }, (_, i) =>
+          parseLot(
+            metrics({ fullName: `trend/${cadence}-${i}`, owner: "trend", name: `${cadence}-${i}` }),
+            { now: FIXED_NOW, cadence },
+          ),
+        ),
+      ),
+    );
+    for (const label of crowd.labels) {
+      for (const place of crowd.placements) {
+        const onPad =
+          label.x >= place.x &&
+          label.x <= place.x + LOT_W &&
+          label.y >= place.y &&
+          label.y <= place.y + LOT_D;
+        expect(onPad, `${label.id} landed on ${place.lot.fullName} among 24 trending lots`).toBe(false);
+      }
+    }
     const grown = planCity([
       ...city,
       parseLot(metrics({ fullName: "trend/daily-b", owner: "trend", name: "daily-b" }), {

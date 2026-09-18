@@ -68,10 +68,17 @@ def test_trending_city_is_the_default_and_pads_match_buildings(backend, tmp_path
         info = page.evaluate("window.__AXP.diagnostics()")
         assert info["cityName"] == "Trending City"
         assert info["cityKind"] == "trending"
+        assert info["shellTitle"] == "Trending City"
+        assert "Trending City" in info["shellLabel"]
         assert info["cadences"]["daily"] >= 2
         assert info["cadences"]["weekly"] >= 1
         assert info["cadences"]["monthly"] >= 1
         assert info["districts"].get("Daily Projects", 0) >= 1
+        drawn = {row["id"]: row for row in info["drawnLabels"]}
+        assert set(drawn) == {"daily-projects", "weekly-projects", "monthly-projects"}
+        assert drawn["daily-projects"]["text"] == "DAILY PROJECTS"
+        assert drawn["weekly-projects"]["visible"]
+        assert drawn["monthly-projects"]["depth"] > -1000
         assert all(row["uniformGround"] for row in info["loadingZoneTiles"])
         assert all(row["islandDiamonds"] == 0 for row in info["loadingZoneTiles"])
 

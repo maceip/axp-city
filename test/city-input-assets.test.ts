@@ -119,7 +119,10 @@ describe("bitmap HUD redo", () => {
     expect(terrain).toContain('"BIKE LANE"');
     expect(terrain).toMatch(/bitmapText\(0, 1, HUD_FONT\.face, "BIKE LANE"/);
     expect(terrain).toContain("for (const label of plan.labels ?? [])");
-    expect(terrain).toContain("placeName(a.sx, a.sy, label.text, 0x3f5a44, 12)");
+    expect(terrain).toContain("streetLabel(label.x, label.y, label.text, label.id)");
+    expect(terrain).toContain("function districtPlaque(");
+    expect(terrain).toContain('setData("mapLabel"');
+    expect(terrain).not.toContain("placeName(a.sx, a.sy, label.text");
     expect(terrain).not.toMatch(/\.add\s*\.\s*text\s*\(/);
     expect(terrain).not.toMatch(/fillText|GameObjects\.Text/);
   });
@@ -184,10 +187,30 @@ describe("bitmap HUD redo", () => {
     expect(connection).toContain('if (!v.city) v.city = { name: "AXP City", kind: "standard" }');
     expect(connection).toContain("if (!v.plan!.labels) v.plan!.labels = []");
     expect(protocol).toContain("export const SNAPSHOT_SCHEMA = 2");
-    expect(protocol).toContain("export type CityKind = \"trending\" | \"standard\"");
+    expect(protocol).toContain('export type CityKind = "trending" | "standard"');
     expect(protocol).toContain("city: CityIdentity");
     expect(server).toContain('renderer: "phaser-4"');
     expect(server).toContain('options.clientRoot ?? "dist/game"');
     expect(server).not.toContain("out/city.html");
+  });
+
+  it("titles the Phaser shell from the snapshot city, not a hardcoded Trending City", () => {
+    const html = readFileSync("game/index.html", "utf8");
+    const hud = readFileSync("game/src/HudScene.ts", "utf8");
+    const pre = readFileSync("game/src/Preloader.ts", "utf8");
+    const identity = readFileSync("game/src/identity.ts", "utf8");
+    const city = readFileSync("game/src/CityScene.ts", "utf8");
+    expect(html).toContain("<title>City</title>");
+    expect(html).toContain("WELCOME TO THE CITY");
+    expect(html).not.toContain("WELCOME TO TRENDING CITY");
+    expect(identity).toContain("export function applyCityIdentity");
+    expect(identity).toContain("document.title = name");
+    expect(pre).toContain("applyCityIdentity(snapshot.city)");
+    expect(hud).toContain("cityDisplayName(this.snapshot.city)");
+    expect(hud).toContain("applyCityIdentity(snapshot.city)");
+    expect(hud).not.toContain('"TRENDING CITY"');
+    expect(hud).not.toMatch(/bg: Phaser\.GameObjects\.Graphics/);
+    expect(city).toContain("shellTitle: document.title");
+    expect(city).toContain("drawnLabels:");
   });
 });

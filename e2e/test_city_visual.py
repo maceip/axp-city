@@ -188,6 +188,12 @@ def test_production_routes_use_phaser_and_resolve_all_assets(browser, server, ba
     state = diag(page)
     assert state["connection"] == "connected" and state["mode"] == "offline"
     assert state["freshness"]["source"] == "fixture"
+    assert state["cityName"] == "AXP City"
+    assert state["cityKind"] == "standard"
+    assert state["shellTitle"] == "AXP City"
+    assert "AXP City" in state["shellLabel"]
+    assert state["labels"] == []
+    assert state["drawnLabels"] == []
     assert "fixture" in a11y(page, "#a11y-status").lower()
     page.wait_for_timeout(1500)
     # The canvas holds a drawn city, not a clear colour: a lot's building and

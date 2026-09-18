@@ -3,6 +3,7 @@ import {
   cadenceOfSlot,
   nextCadenceSlot,
   TRENDING_DISTRICT,
+  trendingDistrictLabels,
 } from "./trending.js";
 import {
   BIKE_BAND,
@@ -570,28 +571,7 @@ export function planCity(lots: CityLot[], options: PlanOptions = {}): CityPlan {
     if (c.kind !== "odd" && c.kind !== "parking") return true;
     return !stampOverlapsTravel(c.x, c.y, features);
   });
-  const labels: MapLabel[] = trending
-    ? [
-        {
-          id: "daily-projects",
-          text: "DAILY PROJECTS",
-          x: slotOrigin(0, -1).x + 2,
-          y: slotOrigin(0, -1).y + 1.1,
-        },
-        {
-          id: "weekly-projects",
-          text: "WEEKLY PROJECTS",
-          x: slotOrigin(4, 0).x + 2,
-          y: slotOrigin(4, 0).y + 1.1,
-        },
-        {
-          id: "monthly-projects",
-          text: "MONTHLY PROJECTS",
-          x: slotOrigin(0, 3).x + 2,
-          y: slotOrigin(0, 3).y + 1.1,
-        },
-      ]
-    : [];
+  const labels: MapLabel[] = trending ? trendingDistrictLabels() : [];
 
   return {
     placements,

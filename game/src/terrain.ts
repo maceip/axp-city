@@ -300,8 +300,12 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   };
   const placeName = (sx: number, sy: number, text: string, color: number, size: number) => {
     objects.push(
-      scene.add.bitmapText(sx, sy, HUD_FONT.face, text, size).setTint(color).setOrigin(0.5).setDepth(-90_000),
+      scene.add.bitmapText(sx, sy, HUD_FONT.face, text, size).setTint(color).setOrigin(0.5).setDepth(sy + 80),
     );
+  };
+  const streetLabel = (wx: number, wy: number, text: string, id: string) => {
+    const a = project(wx, wy);
+    objects.push(districtPlaque(scene, a.sx, a.sy, text, id));
   };
   const plaza = plan.features.find((f) => f.kind === "plaza")!;
   diamond(plaza.x, plaza.y, plaza.w, plaza.h, 0xc4b69a);
@@ -439,8 +443,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
       );
     }
   for (const label of plan.labels ?? []) {
-    const a = project(label.x, label.y);
-    placeName(a.sx, a.sy, label.text, 0x3f5a44, 12);
+    streetLabel(label.x, label.y, label.text, label.id);
   }
 
   const civicWidth: Record<CivicKind, number> = {
@@ -669,6 +672,33 @@ function dressOfficeCourtyard(
         .setDepth(officeDepth + 10),
     );
   }
+}
+
+function districtPlaque(
+  scene: Phaser.Scene,
+  sx: number,
+  sy: number,
+  text: string,
+  id: string,
+): Phaser.GameObjects.Container {
+  const w = Math.max(148, text.length * 9 + 20);
+  const h = 24;
+  const plaque = scene.add.graphics();
+  plaque.fillStyle(0x2a3828, 0.9);
+  plaque.fillRoundedRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4, 5);
+  plaque.fillStyle(0x3f5a44, 0.96);
+  plaque.fillRoundedRect(-w / 2, -h / 2, w, h, 4);
+  const label = scene.add
+    .bitmapText(0, 1, HUD_FONT.face, text, 13)
+    .setTint(0xf2efe2)
+    .setOrigin(0.5);
+  const box = scene.add.container(sx, sy, [plaque, label]);
+  box.setSize(w, h);
+  box.setDepth(sy + 80);
+  box.setName(`label-${id}`);
+  box.setData("mapLabel", id);
+  box.setData("mapLabelText", text);
+  return box;
 }
 
 function bikeLanePlaque(scene: Phaser.Scene, sx: number, sy: number, glance: boolean): Phaser.GameObjects.Container {
