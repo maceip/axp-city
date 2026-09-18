@@ -64,7 +64,8 @@ describe("bitmap HUD redo", () => {
     expect(yml).toContain("PLAYWRIGHT_SERVICE_URL is set without PLAYWRIGHT_SERVICE_ACCESS_TOKEN");
     expect(yml).toContain("browser-local:");
     expect(yml).toContain("python -m playwright install --with-deps");
-    expect(yml).toContain("pip install pillow");
+    expect(yml).toContain("pip install -r test/requirements.txt");
+    expect(readFileSync("test/requirements.txt", "utf8")).toMatch(/^pillow>=/m);
     expect(yml).toContain("CITY_LOCAL_BROWSER");
     expect(yml).not.toMatch(/echo "hosted=0"/);
     expect(yml).not.toMatch(/DEVICEFARM|EMU_TOKEN/);
@@ -76,6 +77,7 @@ describe("bitmap HUD redo", () => {
     expect(src).toContain("CITY_LOCAL_BROWSER");
     expect(src).toContain("refusing an anonymous hosted connection");
     expect(src).toContain("Live GitHub failures never switch to fixtures");
+    expect(src).toContain('setdefault("CITY_TRENDING", "0")');
     expect(src).not.toMatch(/DEVICEFARM|EMU_TOKEN/);
     const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
     expect(pkg.scripts["test:e2e"]).toContain("env -u PLAYWRIGHT_SERVICE_URL -u PLAYWRIGHT_SERVICE_ACCESS_TOKEN");

@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12"
       # sprites.test.ts shells out to Pillow; a missing PIL is a failed unit
       # gate, not a skipped tileset proof.
-      - run: pip install pillow
+      - run: pip install -r test/requirements.txt
       - run: npm ci
       - run: npm test
       - run: npm run typecheck

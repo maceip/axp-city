@@ -63,7 +63,7 @@ def pixel_distance(a, b):
     return total / len(a["cells"])
 
 
-def rendered_change(page, repo, before, label, settle_ms=400):
+def rendered_change(page, repo, before, label, settle_ms=400, min_change=6.0):
     """Assert the lot's rendered pixels changed far more than the animation noise floor.
     Callers hold motion (reduced motion) so the floor is near zero; the HUD toast that
     announces an update is waited out so it cannot overlap the sampled rectangle."""
@@ -74,7 +74,7 @@ def rendered_change(page, repo, before, label, settle_ms=400):
     again = lot_pixels(page, repo)
     noise = pixel_distance(after, again)
     change = pixel_distance(before, after)
-    assert change > max(6.0, 2.5 * noise), f"{label}: rendered lot did not change (Δ={change:.1f}, animation noise={noise:.1f})"
+    assert change > max(min_change, 2.5 * noise), f"{label}: rendered lot did not change (Δ={change:.1f}, animation noise={noise:.1f})"
     return after
 
 
@@ -451,8 +451,17 @@ def test_two_browsers_receive_rules_and_metrics_updates_and_reconnect(page, brow
     assert page.evaluate("window.__AXP.snapshot().plan.placements[0].lot.buildingId") == chosen  # the valid building.json still applies
     lot = page.evaluate("window.__AXP.snapshot().plan.placements[0].lot")
     assert "loading-zone.json" in lot["rulesWarning"] and lot.get("extraProps", []) == []
-    # Falling back to default yard rules redraws the yard (bays and decor gone) while the building stays.
-    rendered_change(page, "acme/forge", with_rules, "malformed loading-zone falls back to validated defaults")
+    # The crown sample is the upper 70% of the building. Removing roof-apron /
+    # lamp / bays is a small Δ there; wait until those stamps are actually gone
+    # (not only the plan) before sampling. Do not look for "lamp" in renderKey —
+    # the yard dressing hash can be "lamp" on its own. Firefox CI measured 5.9
+    # against a 6.0 floor.
+    page.wait_for_function("window.__AXP.diagnostics().assetsInflight === 0")
+    page.wait_for_function(
+        "() => { const tags = window.__AXP.drawnTags('acme/forge') || []; return !tags.includes('roof-lamp') && !tags.includes('roof-apron') && !tags.some(t => String(t).startsWith('roof-bay:')) && window.__AXP.lotIncomplete('acme/forge') === false; }",
+        timeout=15000,
+    )
+    rendered_change(page, "acme/forge", with_rules, "malformed loading-zone falls back to validated defaults", min_change=5.0)
     select(page)
     assert "loading-zone.json" in a11y(page, "#a11y-selection")
     page.screenshot(path=str(SHOTS / "rules-malformed-fallback.png"))

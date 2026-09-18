@@ -79,6 +79,7 @@ Lots are tracked by GitHub repository id, so renames and transfers keep their ad
 ## Verify
 
 ```sh
+python3 -m pip install -r test/requirements.txt   # Pillow: sprites.test.ts probes the PNG sheets
 npm test
 npm run typecheck
 npm run build

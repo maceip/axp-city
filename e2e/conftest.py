@@ -64,6 +64,11 @@ class CityServer:
             # until a test does so, and no fixture file is in reach of the resolver.
             env.pop("CITY_OFFLINE", None)
             env["CITY_ENROLL_FILE"] = os.devnull
+            # Production live default is Trending City. A successful trending fetch
+            # withdraws any lot not on that list, so an isolated live rehearsal
+            # (acme/alpha, maceip/axp-city) would vanish mid-test. Tests that want
+            # trending set CITY_TRENDING / CITY_TRENDING_FIXTURE themselves.
+            env.setdefault("CITY_TRENDING", "0")
         else:
             env.update(CITY_OFFLINE="1", CITY_FIXTURE_PATH=str(self.file))
         env.update(self.extra_env)
