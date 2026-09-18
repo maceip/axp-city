@@ -37,6 +37,13 @@ The script, from a clean committed checkout of `maceip/axp-city`:
 7. updates only the `demo.glint.sh` block in Caddy (`scripts/configure-city-proxy.py`, validated and reloaded, unrelated sites untouched, root-readable backup kept);
 8. runs the same verification against the public URL and keeps `verify-public.json`.
 
+The verifier also gates the browser security policy (CSP, clickjacking, MIME,
+referrer, permissions, opener isolation, and HSTS headers) and the cache split:
+HTML must revalidate while content-hashed Vite assets are immutable for one
+year. The Node server bounds header receipt, full request receipt, keep-alive,
+and header count to shed slow or malformed clients without imposing a timeout
+on the long-lived SSE response.
+
 Any failure after step 4 restores the previous drop-in and symlink, restarts the service, waits for the previous release to answer, and exits non-zero. The shared data directory is never replaced.
 
 ## Verify the active release

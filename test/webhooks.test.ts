@@ -290,6 +290,10 @@ describe("webhook server", () => {
     await runtime.city.hydrate([parseLot(metrics({ fullName: "acme/widget" }))]);
     const base = await listen(runtime);
     try {
+      expect(runtime.server.headersTimeout).toBe(15_000);
+      expect(runtime.server.requestTimeout).toBe(30_000);
+      expect(runtime.server.keepAliveTimeout).toBe(5_000);
+      expect(runtime.server.maxHeadersCount).toBe(100);
       const raw = JSON.stringify(pushPayload());
       const posted = await fetch(`${base}/webhooks/github`, {
         method: "POST",
@@ -310,6 +314,16 @@ describe("webhook server", () => {
       expect(list[0].signal).toBe("push");
       const health = await fetch(`${base}/healthz`);
       expect(health.status).toBe(200);
+      expect(health.headers.get("content-security-policy")).toContain(
+        "frame-ancestors 'none'",
+      );
+      expect(health.headers.get("strict-transport-security")).toBe(
+        "max-age=31536000; includeSubDomains",
+      );
+      expect(health.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(health.headers.get("x-frame-options")).toBe("DENY");
+      expect(health.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(health.headers.get("permissions-policy")).toContain("camera=()");
       expect(await health.json()).toMatchObject({ ok: true, lots: 1 });
       // Readiness fails without a client bundle and says why.
       const ready = await fetch(`${base}/readyz`);

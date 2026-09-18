@@ -340,6 +340,20 @@ function text(res: ServerResponse, status: number, body: string): void {
   res.end(body);
 }
 
+/** Browser defenses shared by the game, APIs, exports, and error responses. */
+function applySecurityHeaders(res: ServerResponse): void {
+  res.setHeader(
+    "content-security-policy",
+    "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; img-src 'self' data: blob:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:",
+  );
+  res.setHeader("cross-origin-opener-policy", "same-origin");
+  res.setHeader("permissions-policy", "camera=(), geolocation=(), microphone=()");
+  res.setHeader("referrer-policy", "no-referrer");
+  res.setHeader("strict-transport-security", "max-age=31536000; includeSubDomains");
+  res.setHeader("x-content-type-options", "nosniff");
+  res.setHeader("x-frame-options", "DENY");
+}
+
 export function createWebhookServer(
   options: WebhookOptions,
   port: number,
@@ -685,6 +699,7 @@ export function createWebhookServer(
   }
 
   const server = createServer(async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
       const path = url.pathname;
@@ -1046,6 +1061,14 @@ export function createWebhookServer(
       else res.destroy();
     }
   });
+
+  // Bound slow/incomplete clients before application body limits are reached.
+  // SSE responses remain open because requestTimeout applies to receiving a
+  // request, not to the lifetime of a response.
+  server.headersTimeout = 15_000;
+  server.requestTimeout = 30_000;
+  server.keepAliveTimeout = 5_000;
+  server.maxHeadersCount = 100;
 
   return {
     server,
