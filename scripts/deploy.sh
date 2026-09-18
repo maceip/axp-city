@@ -2,6 +2,7 @@
 # Deploy a tested commit of maceip/axp-city as an immutable release.
 #
 #   bash scripts/deploy.sh devuser@secure.build
+#   bash scripts/deploy.sh local                 # run on secure.build itself
 #
 # Steps, all of which must succeed or the previous release is restored:
 #   1. build client + server from a clean committed checkout and archive them;
@@ -18,6 +19,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 city_target=${1:-devuser@secure.build}
 city_public=${CITY_PUBLIC_URL:-https://demo.glint.sh}
+city_local=false
+if [[ "$city_target" == "local" ]]; then city_local=true; fi
 city_remote=$(git remote get-url origin)
 if [[ "$city_remote" != *maceip/axp-city* ]]; then
   echo "Expected maceip/axp-city origin" >&2; exit 1
@@ -37,9 +40,19 @@ mkdir "$city_tmp/release"
 git archive HEAD | tar -xf - -C "$city_tmp/release"
 cp -R dist "$city_tmp/release/dist"
 tar -czf "$city_tmp/$city_revision.tar.gz" -C "$city_tmp/release" .
-ssh "$city_target" 'mkdir -p ~/axp-city-releases ~/axp-city/data ~/axp-city/backups && chmod 700 ~/axp-city ~/axp-city/backups'
-scp -q "$city_tmp/$city_revision.tar.gz" "$city_target:axp-city-releases/$city_revision.tar.gz"
-ssh "$city_target" bash -s -- "$city_revision" "$city_public" <<'REMOTE'
+if [[ "$city_local" == true ]]; then
+  mkdir -p "$HOME/axp-city-releases" "$HOME/axp-city/data" "$HOME/axp-city/backups"
+  chmod 700 "$HOME/axp-city" "$HOME/axp-city/backups"
+  cp "$city_tmp/$city_revision.tar.gz" "$HOME/axp-city-releases/$city_revision.tar.gz"
+else
+  ssh "$city_target" 'mkdir -p ~/axp-city-releases ~/axp-city/data ~/axp-city/backups && chmod 700 ~/axp-city ~/axp-city/backups'
+  scp -q "$city_tmp/$city_revision.tar.gz" "$city_target:axp-city-releases/$city_revision.tar.gz"
+fi
+if [[ "$city_local" == true ]]; then
+  bash -s -- "$city_revision" "$city_public"
+else
+  ssh "$city_target" bash -s -- "$city_revision" "$city_public"
+fi <<'REMOTE'
 set -euo pipefail
 city_revision=$1
 city_public=$2

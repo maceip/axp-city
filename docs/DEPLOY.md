@@ -37,6 +37,11 @@ The script, from a clean committed checkout of `maceip/axp-city`:
 7. updates only the `demo.glint.sh` block in Caddy (`scripts/configure-city-proxy.py`, validated and reloaded, unrelated sites untouched, root-readable backup kept);
 8. runs the same verification against the public URL and keeps `verify-public.json`.
 
+When operating directly on `secure.build`, use `bash scripts/deploy.sh local`.
+This performs the same immutable release, rollback, Caddy, and verification
+steps without requiring the host to SSH back into itself. CI continues to use
+the SSH target shown above.
+
 The verifier also gates the browser security policy (CSP, clickjacking, MIME,
 referrer, permissions, opener isolation, and HSTS headers) and the cache split:
 HTML must revalidate while content-hashed Vite assets are immutable for one
