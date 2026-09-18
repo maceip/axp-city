@@ -300,7 +300,7 @@ export function drawCivics(scene: Phaser.Scene, plan: CityPlan): Phaser.GameObje
   };
   const placeName = (sx: number, sy: number, text: string, color: number, size: number) => {
     objects.push(
-      scene.add.bitmapText(sx, sy, HUD_FONT.face, text, size).setTint(color).setOrigin(0.5).setDepth(sy + 6),
+      scene.add.bitmapText(sx, sy, HUD_FONT.face, text, size).setTint(color).setOrigin(0.5).setDepth(sy + 80),
     );
   };
   const streetLabel = (wx: number, wy: number, text: string, id: string) => {
@@ -694,7 +694,7 @@ function districtPlaque(
     .setOrigin(0.5);
   const box = scene.add.container(sx, sy, [plaque, label]);
   box.setSize(w, h);
-  box.setDepth(sy + 14);
+  box.setDepth(sy + 80);
   box.setName(`label-${id}`);
   box.setData("mapLabel", id);
   box.setData("mapLabelText", text);

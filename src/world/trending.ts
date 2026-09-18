@@ -37,7 +37,7 @@ export function trendingDistrictLabels(): Array<{
   });
   return [
     { id: "daily-projects", text: "DAILY PROJECTS", ...onTram(PARK_SY0 - 1) },
-    { id: "weekly-projects", text: "WEEKLY PROJECTS", ...onTram(PARK_SY1) },
+    { id: "weekly-projects", text: "WEEKLY PROJECTS", ...onTram(PARK_SY0) },
     { id: "monthly-projects", text: "MONTHLY PROJECTS", ...onTram(PARK_SY1 + 1) },
   ];
 }
