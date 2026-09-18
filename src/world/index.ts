@@ -46,6 +46,7 @@ export {
   isWeeklyDistrict,
   isMonthlyDistrict,
   TRENDING_DISTRICT,
+  trendingDistrictLabels,
 } from "./trending.js";
 export {
   isCorridorShoulderSlot,

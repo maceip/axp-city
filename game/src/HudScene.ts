@@ -18,6 +18,7 @@ import type { LotPlacement } from "../../src/world/layout.js";
 import { SceneKeys } from "./Boot.js";
 import type { ConnectionState } from "./connection.js";
 import { SCALE9_FRAMES, Scale9Plaque, scale9Inset } from "./scale9.js";
+import { applyCityIdentity, cityDisplayName } from "./identity.js";
 import { ensureFrame } from "./stamps.js";
 
 type HudFrame = keyof typeof HUD_FRAMES;
@@ -73,7 +74,6 @@ function ink(
 
 interface Button {
   container: Phaser.GameObjects.Container;
-  bg: Phaser.GameObjects.Graphics;
   label: Phaser.GameObjects.BitmapText;
   width: number;
   height: number;
@@ -252,7 +252,10 @@ export class HudScene extends Phaser.Scene {
     this.searchWell.setName("search");
     this.plate = this.add.container(16, 16);
     const plateBg = this.hudPanel("plate", 250, 78);
-    this.cityTitle = ink(this, 14, 12, "TRENDING CITY", { fontSize: "11px", color: GOLD });
+    this.cityTitle = ink(this, 14, 12, cityDisplayName(this.snapshot.city).toUpperCase(), {
+      fontSize: "11px",
+      color: GOLD,
+    });
     this.district = ink(this, 14, 30, "Central Park", { fontSize: "18px", fontStyle: "bold" });
     this.coords = ink(this, 14, 55, "0 · 0", { fontSize: "11px", color: MUTED });
     this.plate.add([plateBg, this.cityTitle, this.district, this.coords]);
@@ -416,21 +419,19 @@ export class HudScene extends Phaser.Scene {
     const container = this.add.container(0, 0);
     const frame = height >= 40 && width <= 50 ? "btn-sq" : width >= 110 ? "btn-wide" : "btn";
     const img = this.hudPanel(frame, width, height);
-    const bg = this.add.graphics();
     const label = ink(this, width / 2, height / 2, text, { fontSize: height >= 40 ? "18px" : "14px" }).setOrigin(0.5);
     const paint = (hover: boolean) => {
       img.setTint(hover ? 0xf0e0a0 : 0xffffff);
-      bg.clear();
     };
     paint(false);
-    container.add([img, bg, label]);
+    container.add([img, label]);
     container.setSize(width, height);
     container.setInteractive({ hitArea: plateHit(width, height), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
     container.on("pointerover", () => paint(true));
     container.on("pointerout", () => paint(false));
     container.on("pointerup", () => onClick());
     container.setName(name);
-    const button = { container, bg, label, width, height, name };
+    const button = { container, label, width, height, name };
     this.buttons.set(name, button);
     return button;
   }
@@ -564,8 +565,9 @@ export class HudScene extends Phaser.Scene {
     this.snapshot = snapshot;
     this.clockOffset = Date.parse(snapshot.serverTime) - Date.now();
     this.freshness = snapshot.freshness;
-    const cityName = (snapshot.city?.name ?? "AXP City").toUpperCase();
+    const cityName = cityDisplayName(snapshot.city).toUpperCase();
     if (this.cityTitle.text !== cityName) this.cityTitle.setText(cityName);
+    applyCityIdentity(snapshot.city);
     const trending = snapshot.trending;
     const trendNote = trending
       ? trending.usingCache

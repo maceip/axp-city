@@ -1,9 +1,12 @@
 import {
   FREEWAY_SY,
+  LOT_D,
   PARK_SX0,
   PARK_SY0,
   PARK_SY1,
   RIVER_SX,
+  STRIDE_X,
+  STRIDE_Y,
   TRAM_SX,
 } from "./constants.js";
 import { isReservedSlot, slotKey, type Slot } from "./slots.js";
@@ -16,6 +19,28 @@ export const TRENDING_DISTRICT: Record<TrendingCadence, string> = {
   weekly: "Weekly Projects",
   monthly: "Monthly Projects",
 };
+
+/**
+ * Street-name plaques along the reserved tram boulevard — never on a lot pad
+ * or Kenney loading apron. Daily sits north of the park, weekly beside it,
+ * monthly south, so the labels survive park-clamp trees and lot 24 neighbours.
+ */
+export function trendingDistrictLabels(): Array<{
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+}> {
+  const onTram = (row: number) => ({
+    x: TRAM_SX * STRIDE_X + STRIDE_X / 2,
+    y: row * STRIDE_Y + LOT_D / 2,
+  });
+  return [
+    { id: "daily-projects", text: "DAILY PROJECTS", ...onTram(PARK_SY0 - 1) },
+    { id: "weekly-projects", text: "WEEKLY PROJECTS", ...onTram(PARK_SY1) },
+    { id: "monthly-projects", text: "MONTHLY PROJECTS", ...onTram(PARK_SY1 + 1) },
+  ];
+}
 
 /** North of the park, skipping the freeway corridor. */
 export function isDailyDistrict(sx: number, sy: number): boolean {

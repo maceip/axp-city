@@ -291,7 +291,19 @@ export class CityScene extends Phaser.Scene {
         ).size,
         cityName: this.city.city?.name ?? "AXP City",
         cityKind: this.city.city?.kind ?? "standard",
+        shellTitle: document.title,
+        shellLabel: document.getElementById("game")?.getAttribute("aria-label") ?? "",
         labels: this.city.plan.labels ?? [],
+        drawnLabels: this.civics
+          .filter((object) => object.getData("mapLabel"))
+          .map((object) => ({
+            id: object.getData("mapLabel") as string,
+            text: object.getData("mapLabelText") as string,
+            x: (object as Phaser.GameObjects.Container).x,
+            y: (object as Phaser.GameObjects.Container).y,
+            depth: object.depth,
+            visible: object.visible,
+          })),
         cadences: this.city.plan.placements.reduce<Record<string, number>>((acc, place) => {
           const key = place.lot.cadence ?? "none";
           acc[key] = (acc[key] ?? 0) + 1;
