@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Forced SSH command for the AXP City deployment-only account.
+set -euo pipefail
+umask 077
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+original=${SSH_ORIGINAL_COMMAND-}
+if [[ -z "$original" || ! "$original" =~ ^[A-Za-z0-9._\ -]+$ ]]; then
+  echo "axp-deploy: empty or unsafe command rejected" >&2
+  exit 2
+fi
+
+read -r -a argv <<< "$original"
+command=${argv[0]-}
+argc=${#argv[@]}
+sha='^[0-9a-f]{40}$'
+
+case "$command" in
+  probe|status|releases)
+    [[ $argc -eq 1 ]] || { echo "axp-deploy: extra arguments rejected" >&2; exit 2; }
+    exec /usr/bin/sudo -n /usr/local/sbin/axp-release-root "$command"
+    ;;
+  upload)
+    [[ $argc -eq 2 && ${argv[1]} =~ $sha ]] || { echo "axp-deploy: invalid revision" >&2; exit 2; }
+    exec /usr/bin/timeout --signal=TERM --kill-after=10s 300s \
+      /usr/bin/prlimit --as=805306368 --cpu=180 --fsize=536870912 \
+      --nofile=32 --nproc=16 --core=0 -- \
+      /usr/local/libexec/axp-upload "${argv[1]}"
+    ;;
+  deploy|cleanup)
+    [[ $argc -eq 2 && ${argv[1]} =~ $sha ]] || { echo "axp-deploy: invalid revision" >&2; exit 2; }
+    exec /usr/bin/sudo -n /usr/local/sbin/axp-release-root "$command" "${argv[1]}"
+    ;;
+  rollback)
+    if [[ $argc -eq 1 ]]; then
+      exec /usr/bin/sudo -n /usr/local/sbin/axp-release-root rollback
+    fi
+    [[ $argc -eq 2 && ${argv[1]} =~ $sha ]] || { echo "axp-deploy: invalid revision" >&2; exit 2; }
+    exec /usr/bin/sudo -n /usr/local/sbin/axp-release-root rollback "${argv[1]}"
+    ;;
+  *)
+    echo "axp-deploy: command rejected" >&2
+    exit 2
+    ;;
+esac

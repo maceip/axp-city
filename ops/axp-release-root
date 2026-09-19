@@ -1,0 +1,309 @@
+#!/usr/bin/env python3
+"""Fixed-policy release activator for the AXP City deployment account."""
+from __future__ import annotations
+
+import fcntl
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import shutil
+import sqlite3
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import urllib.request
+
+OWNER = "devuser"
+HOME = Path("/home/devuser")
+RELEASES = HOME / "axp-city-releases"
+ACTIVE = HOME / "axp-city-app"
+DATA = HOME / "axp-city" / "data"
+BACKUPS = HOME / "axp-city" / "backups"
+ENV = HOME / "axp-city" / "env"
+INCOMING = Path("/var/lib/axp-deploy/incoming")
+LOCK = Path("/var/lib/axp-deploy/.deploy.lock")
+SERVICE = "axp-webhooks.service"
+LOOPBACK = "http://127.0.0.1:43174"
+PUBLIC = "https://demo.glint.sh"
+SHA = re.compile(r"[0-9a-f]{40}")
+MAX_FILES = 50_000
+MAX_EXPANDED = 1024 * 1024 * 1024
+
+
+def fail(message: str) -> None:
+    raise RuntimeError(message)
+
+
+def revision(value: str) -> str:
+    if not SHA.fullmatch(value):
+        fail("revision must be 40 lowercase hexadecimal characters")
+    return value
+
+
+def owner_ids() -> tuple[int, int]:
+    account = pwd.getpwnam(OWNER)
+    return account.pw_uid, account.pw_gid
+
+
+def run(argv: list[str | Path], *, user: str | None = None, capture: bool = False) -> subprocess.CompletedProcess[str]:
+    command = [str(item) for item in argv]
+    if user:
+        command = ["/usr/sbin/runuser", "-u", user, "--", *command]
+    return subprocess.run(command, check=True, text=True, capture_output=capture)
+
+
+def user_systemctl(*arguments: str) -> None:
+    uid, _ = owner_ids()
+    run([
+        "/usr/sbin/runuser", "-u", OWNER, "--", "/usr/bin/env",
+        f"XDG_RUNTIME_DIR=/run/user/{uid}",
+        f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus",
+        "/usr/bin/systemctl", "--user", *arguments,
+    ])
+
+
+def fetch_json(url: str, timeout: float = 10) -> dict:
+    with urllib.request.urlopen(url, timeout=timeout) as response:
+        if response.status != 200:
+            fail(f"{url} returned {response.status}")
+        return json.load(response)
+
+
+def wait_ready(expected: str, attempts: int = 45) -> None:
+    for _ in range(attempts):
+        try:
+            health = fetch_json(f"{LOOPBACK}/healthz", 2)
+            ready = fetch_json(f"{LOOPBACK}/readyz", 2)
+            if (health.get("renderer") == "phaser-4" and
+                    health.get("buildRevision") == expected and ready.get("ready") is True):
+                return
+        except Exception:
+            pass
+        time.sleep(1)
+    fail(f"release {expected} did not become ready")
+
+
+def active_release() -> Path | None:
+    if not ACTIVE.is_symlink():
+        return None
+    target = ACTIVE.resolve()
+    try:
+        target.relative_to(RELEASES)
+    except ValueError:
+        fail("active release points outside the release directory")
+    return target
+
+
+def release_revision(path: Path) -> str:
+    info = path / "dist" / "build-info.json"
+    try:
+        value = json.loads(info.read_text())["commit"]
+    except (OSError, KeyError, json.JSONDecodeError) as error:
+        fail(f"invalid build metadata in {path}: {error}")
+    return revision(value)
+
+
+def verify_release(path: Path, expected: str) -> None:
+    required = [
+        "dist/build-info.json",
+        "dist/server/cli/server.js",
+        "dist/game/index.html",
+        "scripts/start-city.sh",
+        "scripts/verify-city.mjs",
+    ]
+    for name in required:
+        if not (path / name).is_file():
+            fail(f"release lacks {name}")
+    if release_revision(path) != expected:
+        fail("archive build revision does not match requested revision")
+
+
+def extract_archive(archive: Path, destination: Path) -> None:
+    if not archive.is_file() or archive.is_symlink():
+        fail("uploaded archive is not a regular file")
+    if archive.stat().st_size > 512 * 1024 * 1024:
+        fail("uploaded archive exceeds 512 MiB")
+    with tarfile.open(archive, "r:gz") as source:
+        members = source.getmembers()
+        if len(members) > MAX_FILES:
+            fail("archive contains too many files")
+        expanded = sum(member.size for member in members if member.isfile())
+        if expanded > MAX_EXPANDED:
+            fail("archive expands beyond 1 GiB")
+        for member in members:
+            path = Path(member.name)
+            if path.is_absolute() or ".." in path.parts or member.isdev() or member.isfifo():
+                fail(f"unsafe archive member: {member.name}")
+            if member.issym() or member.islnk():
+                target = Path(member.linkname)
+                if target.is_absolute() or ".." in target.parts:
+                    fail(f"unsafe archive link: {member.name}")
+        source.extractall(destination, filter="data")
+
+
+def chown_tree(path: Path) -> None:
+    uid, gid = owner_ids()
+    os.chown(path, uid, gid)
+    for root, directories, files in os.walk(path):
+        for name in directories:
+            os.chown(Path(root) / name, uid, gid, follow_symlinks=False)
+        for name in files:
+            os.chown(Path(root) / name, uid, gid, follow_symlinks=False)
+
+
+def backup_database(label: str) -> Path | None:
+    database = DATA / "city.sqlite"
+    if not database.exists():
+        return None
+    BACKUPS.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    destination = BACKUPS / f"city-{stamp}-{label}.sqlite"
+    source_connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    destination_connection = sqlite3.connect(destination)
+    try:
+        source_connection.backup(destination_connection)
+        result = destination_connection.execute("PRAGMA integrity_check").fetchone()
+        if not result or result[0] != "ok":
+            fail("database backup failed integrity_check")
+    finally:
+        source_connection.close()
+        destination_connection.close()
+    uid, gid = owner_ids()
+    os.chown(destination, uid, gid)
+    destination.chmod(0o600)
+    return destination
+
+
+def switch_to(target: Path) -> None:
+    temporary = ACTIVE.with_name(ACTIVE.name + ".next")
+    temporary.unlink(missing_ok=True)
+    temporary.symlink_to(target)
+    os.replace(temporary, ACTIVE)
+    user_systemctl("daemon-reload")
+    user_systemctl("restart", SERVICE)
+
+
+def verify(target: Path, expected: str, suffix: str) -> None:
+    wait_ready(expected)
+    verifier = target / "scripts" / "verify-city.mjs"
+    run(["/usr/bin/node", verifier, LOOPBACK, expected, "--report", target / f"verify-{suffix}-local.json"], user=OWNER)
+    run(["/usr/bin/node", verifier, PUBLIC, expected, "--report", target / f"verify-{suffix}-public.json"], user=OWNER)
+
+
+def deploy(value: str) -> None:
+    expected = revision(value)
+    archive = INCOMING / f"{expected}.tar.gz"
+    target = RELEASES / expected
+    current = active_release()
+    if target.exists():
+        if current == target:
+            verify(target, expected, "redeploy")
+            print(f"already deployed and verified {expected}")
+            return
+        fail(f"release already exists: {target}")
+    if not ENV.is_file() or ENV.stat().st_mode & 0o777 != 0o600:
+        fail(f"{ENV} must exist with mode 600")
+
+    staging = Path(tempfile.mkdtemp(prefix=f".{expected}.", dir=RELEASES))
+    try:
+        extract_archive(archive, staging)
+        verify_release(staging, expected)
+        (staging / "previous-release.txt").write_text(f"{current or ''}\n")
+        chown_tree(staging)
+        os.replace(staging, target)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+    backup_database(f"before-{expected[:12]}")
+    try:
+        switch_to(target)
+        verify(target, expected, "deploy")
+    except Exception:
+        if current is not None:
+            switch_to(current)
+            wait_ready(release_revision(current), 30)
+        raise
+    archive.unlink(missing_ok=True)
+    print(f"deployed and verified {expected} on {PUBLIC}")
+
+
+def rollback(value: str | None) -> None:
+    current = active_release()
+    if current is None:
+        fail("there is no active release")
+    if value:
+        target = RELEASES / revision(value)
+    else:
+        previous = (current / "previous-release.txt").read_text().strip()
+        if not previous:
+            fail("active release records no previous release")
+        target = Path(previous).resolve()
+        try:
+            target.relative_to(RELEASES)
+        except ValueError:
+            fail("recorded previous release is outside the release directory")
+    if not target.is_dir():
+        fail(f"rollback target does not exist: {target}")
+    expected = release_revision(target)
+    backup_database(f"before-rollback-{expected[:12]}")
+    (target / "rolled-back-from.txt").write_text(f"{current}\n")
+    uid, gid = owner_ids()
+    os.chown(target / "rolled-back-from.txt", uid, gid)
+    switch_to(target)
+    verify(target, expected, "rollback")
+    print(f"rolled back and verified {expected}")
+
+
+def status() -> None:
+    current = active_release()
+    print(f"current: {current or 'none'}")
+    if current:
+        print(f"revision: {release_revision(current)}")
+    try:
+        health = fetch_json(f"{LOOPBACK}/healthz", 3)
+        ready = fetch_json(f"{LOOPBACK}/readyz", 3)
+        print(json.dumps({"health": health, "ready": ready}, sort_keys=True))
+    except Exception as error:
+        print(f"service check failed: {error}")
+        raise
+
+
+def main() -> int:
+    if os.geteuid() != 0:
+        fail("axp-release-root must run as root")
+    if len(sys.argv) < 2:
+        fail("missing command")
+    command = sys.argv[1]
+    arguments = sys.argv[2:]
+    RELEASES.mkdir(parents=True, exist_ok=True)
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with LOCK.open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if command in {"probe", "status"} and not arguments:
+            status()
+        elif command == "releases" and not arguments:
+            for path in sorted(RELEASES.iterdir()):
+                if path.is_dir() and SHA.fullmatch(path.name):
+                    print(path.name)
+        elif command == "deploy" and len(arguments) == 1:
+            deploy(arguments[0])
+        elif command == "rollback" and len(arguments) <= 1:
+            rollback(arguments[0] if arguments else None)
+        elif command == "cleanup" and len(arguments) == 1:
+            (INCOMING / f"{revision(arguments[0])}.tar.gz").unlink(missing_ok=True)
+        else:
+            fail("unsupported command or arguments")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as error:
+        print(f"axp-release-root: {error}", file=sys.stderr)
+        raise SystemExit(1)

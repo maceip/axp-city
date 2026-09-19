@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Roll the live application back to a previous release without touching city data.
 #
-#   bash scripts/rollback.sh devuser@secure.build            # previous release recorded by deploy.sh
-#   bash scripts/rollback.sh devuser@secure.build <commit>   # a specific ~/axp-city-releases/<commit>
+#   bash scripts/rollback.sh axp-deploy@secure.build            # previous release recorded by deploy.sh
+#   bash scripts/rollback.sh axp-deploy@secure.build <commit>   # a specific release commit
 #
 # The shared data directory (~/axp-city/data) is never replaced: rolling back the
 # code keeps every lot, delivery and history row written since the failed deploy.
@@ -11,6 +11,13 @@ set -euo pipefail
 city_target=${1:?ssh target, e.g. devuser@secure.build}
 city_wanted=${2:-}
 city_public=${CITY_PUBLIC_URL:-https://demo.glint.sh}
+if [[ "$city_target" == axp-deploy@* ]]; then
+  if [[ -n "$city_wanted" ]]; then
+    [[ "$city_wanted" =~ ^[0-9a-f]{40}$ ]] || { echo "Restricted rollback requires a 40-character commit" >&2; exit 1; }
+    exec ssh "$city_target" "rollback $city_wanted"
+  fi
+  exec ssh "$city_target" rollback
+fi
 ssh "$city_target" bash -s -- "$city_wanted" "$city_public" <<'REMOTE'
 set -euo pipefail
 city_wanted=$1

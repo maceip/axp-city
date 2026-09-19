@@ -23,7 +23,7 @@ A dedicated fine-grained `GITHUB_TOKEN` may stand in for the App variables. The 
 Automated: the **Deploy verified commit** workflow (`.github/workflows/deploy.yml`) runs after **Verify Phaser city** succeeds on `main`, or on manual dispatch with a commit that passed verification. It requires `CITY_DEPLOY_SSH_KEY`, `CITY_DEPLOY_KNOWN_HOSTS`, and `CITY_DEPLOY_TARGET` in the `production` environment and never falls back to a personal credential. It then runs the same script an operator would:
 
 ```sh
-bash scripts/deploy.sh devuser@secure.build
+bash scripts/deploy.sh axp-deploy@secure.build
 ```
 
 The script, from a clean committed checkout of `maceip/axp-city`:
@@ -36,6 +36,12 @@ The script, from a clean committed checkout of `maceip/axp-city`:
 6. runs `scripts/verify-city.mjs` against loopback (revision, Phaser bundle and every referenced asset, snapshot, SVG export, SSE snapshot event, webhook and admin denials) and keeps `verify-local.json` in the release;
 7. updates only the `demo.glint.sh` block in Caddy (`scripts/configure-city-proxy.py`, validated and reloaded, unrelated sites untouched, root-readable backup kept);
 8. runs the same verification against the public URL and keeps `verify-public.json`.
+
+Production CI uses the restricted `axp-deploy` account. It has no interactive
+shell, TTY, forwarding, or general sudo access; its forced command accepts only
+`probe`, `status`, `releases`, `upload <commit>`, `deploy <commit>`,
+`rollback [commit]`, and `cleanup <commit>`. The application remains on the
+dedicated loopback port `43174` behind Caddy.
 
 When operating directly on `secure.build`, use `bash scripts/deploy.sh local`.
 This performs the same immutable release, rollback, Caddy, and verification
