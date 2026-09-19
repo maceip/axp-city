@@ -1,3 +1,5 @@
+> Historical repository-city documentation. The active core workshop is specified in [CORE-ENGINE.md](CORE-ENGINE.md); claims and measurements below apply to the previous experience.
+
 # Shared city and live protocol
 
 The Node process is authoritative for lots, their addresses, and their lifecycle. State lives in **SQLite** (`<CITY_DATA_DIR>/city.sqlite`, WAL, `synchronous=FULL`, `src/live/cityStore.ts`) with tables for lots, lot history, deliveries, public events, refresh status, and metadata. Every mutation is one transaction; the in-memory city and stream subscribers are updated only after the commit succeeds.

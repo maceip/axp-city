@@ -1,4 +1,5 @@
 import { readFile, mkdir, readdir, rm } from "node:fs/promises";
+import { runCoreServer } from "./coreServer.js";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs, parseRepoLine } from "./args.js";
@@ -123,6 +124,7 @@ async function readFixture(path: string): Promise<RepoMetrics[]> {
 }
 
 export async function runServer(argv = process.argv.slice(2)): Promise<void> {
+  if (argv.includes("--core")) return runCoreServer(argv);
   const config = resolveConfig(argv);
   const args = parseArgs(argv);
   const log = consoleLogger;

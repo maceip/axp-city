@@ -1,3 +1,5 @@
+> Historical repository-city documentation. The active core workshop is specified in [CORE-ENGINE.md](CORE-ENGINE.md); claims and measurements below apply to the previous experience.
+
 # Performance budgets and measurements
 
 Budgets are stated for the **fully featured** game: persistent actors and ambient traffic animating, staged construction, full detail at every zoom, a 1,000-lot city (`e2e/conftest.py::large_server`). They are enforced by `e2e/test_performance.py`, which measures each interaction separately and writes the complete report to `e2e/screenshots/performance.json` on every run, pass or fail.

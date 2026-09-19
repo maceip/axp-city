@@ -1,6 +1,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Session } from "node:inspector/promises";
 import { describe, it, expect } from "vitest";
 import { createWebhookServer, signBody, type WebhookServer } from "../src/webhooks/index.js";
 import { parseLot } from "../src/parser/parseLot.js";
@@ -14,6 +15,20 @@ import { metrics } from "./helpers.js";
 const secret = "city-load-test";
 const REPOS = 200;
 const DELIVERIES_PER_REPO = 3; // one of which is an exact duplicate id
+
+async function retainedHeap(): Promise<number> {
+  // heapUsed before collection measures allocation/GC scheduling, not retention.
+  // Collect both samples through the local inspector without enabling --expose-gc
+  // or opening a debugger port. The 64 MiB budget below remains unchanged.
+  const session = new Session();
+  session.connect();
+  try {
+    await session.post("HeapProfiler.collectGarbage");
+    return process.memoryUsage().heapUsed;
+  } finally {
+    session.disconnect();
+  }
+}
 
 async function start(runtime: WebhookServer) {
   await runtime.city.load();
@@ -99,25 +114,28 @@ describe("sustained load", () => {
     const names = Array.from({ length: REPOS }, (_, i) => `load/repo${i}`);
     await runtime.city.hydrate(names.map((fullName, i) => parseLot(metrics({ fullName, stars: i }))));
     const streams = await Promise.all([subscriber(`${base}/api/city/stream`), subscriber(`${base}/api/city/stream`)]);
-    const heapBefore = process.memoryUsage().heapUsed;
+    const heapBefore = await retainedHeap();
     try {
-      const post = (id: string, repo: string) => {
+      const post = async (id: string, repo: string) => {
         const body = JSON.stringify({ ref: "refs/heads/main", repository: { full_name: repo }, sender: { login: "human" } });
-        return fetch(`${base}/webhooks/github`, {
+        const response = await fetch(`${base}/webhooks/github`, {
           method: "POST",
           body,
           headers: { "x-github-event": "push", "x-github-delivery": id, "x-hub-signature-256": signBody(Buffer.from(body), secret) },
         });
+        // Complete the HTTP exchange and keep only the primitive result. Retaining
+        // 600 Response/body objects would measure the load generator itself.
+        await response.arrayBuffer();
+        return response.status;
       };
       // All deliveries at once: two distinct ids per repository plus one exact duplicate.
       const started = performance.now();
-      const requests: Promise<Response>[] = [];
+      const requests: Promise<number>[] = [];
       for (const repo of names) {
         requests.push(post(`${repo}#1`, repo), post(`${repo}#2`, repo), post(`${repo}#1`, repo));
       }
-      const responses = await Promise.all(requests);
+      const statuses = await Promise.all(requests);
       const acceptMs = performance.now() - started;
-      const statuses = responses.map((r) => r.status);
       // Every authenticated delivery is acknowledged after it is persisted — never 5xx,
       // never rate-limited at this configured ceiling; the exact duplicate of an id already
       // stored is acknowledged with 200 and not stored again.
@@ -156,13 +174,13 @@ describe("sustained load", () => {
         expect(s.counts.snapshot).toBe(1);
         expect(s.counts.mutation).toBeGreaterThanOrEqual(REPOS);
       }
-      const heapAfter = process.memoryUsage().heapUsed;
+      const heapAfter = await retainedHeap();
       // Delivery ids are not kept in memory: the heap after 600 deliveries is bounded.
       expect(heapAfter - heapBefore).toBeLessThan(64 * 2 ** 20);
       // Recorded for the performance notes; the test itself only bounds correctness.
       console.info(
         `[load] ${REPOS * DELIVERIES_PER_REPO} deliveries accepted in ${acceptMs.toFixed(0)} ms, drained in ${drainMs.toFixed(0)} ms, ` +
-          `${resolved} resolver calls (max ${inflight.max} concurrent), heap +${((heapAfter - heapBefore) / 2 ** 20).toFixed(1)} MB`,
+          `${resolved} resolver calls (max ${inflight.max} concurrent), retained heap +${((heapAfter - heapBefore) / 2 ** 20).toFixed(1)} MB`,
       );
     } finally {
       await Promise.all(streams.map((s) => s.close()));

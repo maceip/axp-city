@@ -35,9 +35,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Chromium runs the whole suite including the 1,000-lot performance
-        # scenarios; Firefox and WebKit run tileset, visual, support, export
-        # and local-live suites so the support matrix in docs/SUPPORT.md stays verified.
+        # Chromium runs core acceptance and preserved backend operations.
+        # Firefox and WebKit exercise the same core map and editor.
         engine: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -61,7 +60,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Browser suite (local ${{ matrix.engine }} — not hosted proof)
         if: matrix.engine != 'chromium'
-        run: python -m pytest e2e/test_tileset_revamp.py e2e/test_city_visual.py e2e/test_support.py e2e/test_exports.py e2e/test_live_local.py -v
+        run: python -m pytest e2e/test_core_city.py -v
         env:
           CITY_LOCAL_BROWSER: "1"
           CITY_BROWSER: ${{ matrix.engine }}
@@ -115,7 +114,9 @@ jobs:
         if: steps.hosted.outputs.run == '1'
       - name: Browser suite (hosted Azure Playwright Chromium)
         if: steps.hosted.outputs.run == '1'
-        run: python -m pytest e2e -v
+        # The populated benchmark is measured by browser-local; hosted functional
+        # proof must not silently launch a second, locally installed browser.
+        run: python -m pytest e2e -v --ignore=e2e/test_core_performance.py
         env:
           PLAYWRIGHT_SERVICE_URL: ${{ secrets.PLAYWRIGHT_SERVICE_URL }}
           PLAYWRIGHT_SERVICE_ACCESS_TOKEN: ${{ secrets.PLAYWRIGHT_SERVICE_ACCESS_TOKEN }}

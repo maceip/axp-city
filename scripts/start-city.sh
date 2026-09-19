@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Service entry point. Credentials come from the systemd EnvironmentFile
+# The town workshop is the default service and never needs credentials. Set
+# CITY_INTEGRATIONS=1 explicitly to run the preserved integration service.
+# Integration credentials come from the systemd EnvironmentFile
 # (~/axp-city/env): a GitHub App (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY,
 # GITHUB_APP_INSTALLATION_ID) or a dedicated fine-grained GITHUB_TOKEN. The
 # deployment user's personal `gh` login is no longer borrowed by default; set
 # CITY_ALLOW_GH_CLI_TOKEN=1 to opt into that fallback on a development host.
 set -euo pipefail
+if [[ "${CITY_INTEGRATIONS:-}" != "1" ]]; then
+  exec node dist/server/cli/server.js --core "$@"
+fi
 if [[ -z "${GITHUB_APP_ID:-}" && -z "${GITHUB_TOKEN:-}" && "${CITY_OFFLINE:-}" != "1" ]]; then
   if [[ "${CITY_ALLOW_GH_CLI_TOKEN:-}" == "1" ]] && command -v gh >/dev/null 2>&1; then
     city_github_token=$(gh auth token 2>/dev/null || true)
