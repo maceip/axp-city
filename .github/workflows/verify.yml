@@ -55,7 +55,7 @@ jobs:
       - run: python -m pip install -r e2e/requirements.txt
       - run: python -m playwright install --with-deps ${{ matrix.engine }}
       - name: Test ${{ matrix.engine }}
-        run: python -m pytest e2e/test_core_city.py --browser ${{ matrix.engine }} --screenshot only-on-failure -q
+        run: python -m pytest e2e/test_core_city.py --browser ${{ matrix.engine }} --screenshot only-on-failure -v -o faulthandler_timeout=120
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: failure()
         with:
