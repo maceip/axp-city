@@ -241,9 +241,15 @@ export class CoreScene extends Phaser.Scene {
       .querySelectorAll<HTMLElement>("[data-action]")
       .forEach((el) => on(el, "click", () => this.action(el.dataset.action!)));
     on(window, "keydown", ((event: KeyboardEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
       if (
+        event.defaultPrevented ||
+        document.querySelector("[popover]:popover-open") ||
+        target?.isContentEditable ||
+        (event.code === "Space" && target?.closest("button")) ||
         event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement
       )
         return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
@@ -358,11 +364,11 @@ export class CoreScene extends Phaser.Scene {
     const wide = camera.width >= 760;
     camera.setZoom(
       wide
-        ? Math.min(1.15, (camera.width - 260) / 1330)
+        ? Math.min(1.15, (camera.width - 100) / 1330)
         : Math.min(0.7, camera.width / 780),
     );
     const at = coreProject(0, -1);
-    camera.centerOn(at.x - (wide ? 100 : 0), at.y - (wide ? 0 : 50));
+    camera.centerOn(at.x - (wide ? 24 : 0), at.y - (wide ? 0 : 50));
     this.syncVisible();
     this.drawGhost();
     this.updateStats();
@@ -846,6 +852,12 @@ export class CoreScene extends Phaser.Scene {
     if (this.frameTimes.length > 360) this.frameTimes.shift();
     if (!this.paused) advanceWorld(this.world, elapsed);
     const kb = this.input.keyboard;
+    const editingUI = Boolean(
+      document.querySelector("[popover]:popover-open") ||
+        document.activeElement?.matches(
+          "input, textarea, select, [contenteditable=true]",
+        ),
+    );
     const down = (key: string) => {
       const pressed =
         kb?.keys[
@@ -857,6 +869,7 @@ export class CoreScene extends Phaser.Scene {
       // state; saving a town must not simultaneously pan its camera south.
       return Boolean(
         pressed?.isDown &&
+          !editingUI &&
           !pressed.ctrlKey &&
           !pressed.metaKey &&
           !pressed.altKey,

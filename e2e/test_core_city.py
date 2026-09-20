@@ -124,8 +124,11 @@ def test_drag_release_over_toolbar_restores_placement_preview(core_page):
     wait_js(page, "() => window.__CORE.placementPreview().commandCount > 0")
     page.mouse.down()
     page.mouse.move(700, 400, steps=8)
-    page.mouse.move(140, 160, steps=12)
-    assert page.evaluate("() => document.elementFromPoint(140, 160)?.tagName") != "CANVAS"
+    toolbar = page.locator(".topbar").bounding_box()
+    assert toolbar
+    release = dict(x=toolbar["x"] + toolbar["width"] / 2, y=toolbar["y"] + toolbar["height"] / 2)
+    page.mouse.move(release["x"], release["y"], steps=12)
+    assert page.evaluate("p => Boolean(document.elementFromPoint(p.x, p.y)?.closest('.topbar'))", release)
     page.mouse.up()
     page.mouse.move(850, 450, steps=12)
     wait_js(page, "() => window.__CORE.placementPreview().commandCount > 0", timeout=2000)

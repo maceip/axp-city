@@ -22,6 +22,8 @@ Open **http://127.0.0.1:43174/city**. `HOST` and `PORT` override the listener. `
 
 Choose Explore, Road, Cottage, Shop, Workshop or Clear. Click to inspect or build; drag to pan; scroll or pinch to zoom. The footprint preview shows the required road entrance. Overlapping buildings, water placement and disconnected roads are rejected with an explanation. Clear removes a complete building or an eligible road tile; occupied roads and required entrances are protected. Vehicles reroute when the road network changes.
 
+The compact menu adapts Shader Lab's glass panels, buttons and Geist fonts from Stems. The desktop header is 44px tall; tools sit in a narrow icon strip. **New town** is in the top-right menu. Touch controls expand to 44px targets. [Component source and adaptations](docs/SHADER-LAB-UI.md).
+
 - `1`–`6`: select a tool; `Escape`: Explore.
 - WASD / arrow keys: pan; `+` / `−`: zoom; `H`: center town.
 - Space: pause/resume; Command/Ctrl-S: save; Command/Ctrl-Z: undo.
