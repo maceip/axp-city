@@ -23,7 +23,7 @@
     "dev": "tsx src/cli/server.ts --dev --core",
     "build": "vite build --config game/vite.config.ts && tsc -p tsconfig.server.json && node scripts/build-info.mjs",
     "start": "node dist/server/cli/server.js --core",
-    "test:e2e": "python3 -m pytest e2e/test_core_city.py --browser chromium --browser firefox --browser webkit --tracing retain-on-failure --screenshot only-on-failure",
+    "test:e2e": "python3 -m pytest e2e/test_core_city.py --browser chromium --browser firefox --browser webkit --screenshot only-on-failure",
     "test:operations": "python3 -m pytest e2e/test_operations.py -q",
     "test:performance": "python3 -m pytest e2e/test_core_performance.py --performance --browser chromium -v"
   },

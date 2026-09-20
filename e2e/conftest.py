@@ -217,7 +217,7 @@ def browser_type_launch_args(browser_type_launch_args, browser_name):
         if platform.system() != "Darwin" or browser_name != "chromium":
             raise pytest.UsageError("CITY_CORE_HARDWARE=1 requires macOS and --browser chromium")
         options.update(headless=False, args=["--use-gl=angle", "--use-angle=metal"])
-    elif browser_name == "chromium" and os.environ.get("CITY_SOFTWARE_GL") == "1":
+    elif browser_name == "chromium":
         options["args"] = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
     elif browser_name == "firefox":
         options["firefox_user_prefs"] = {"webgl.force-enabled": True, "webgl.disabled": False}
