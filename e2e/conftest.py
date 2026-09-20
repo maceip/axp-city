@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import os
+import platform
 import re
 import shutil
 import socket
@@ -14,7 +15,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
 SECRET = "local-browser-test-secret"
@@ -32,10 +32,12 @@ LEGACY_UI_SUITES = {
 
 def pytest_addoption(parser):
     parser.addoption("--legacy-ui", action="store_true", help="Include UI tests for the retained, superseded GitHub-city renderer")
+    parser.addoption("--performance", action="store_true", help="Include timing benchmarks; run separately on an otherwise idle machine")
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "legacy_ui: targets the superseded GitHub-city interface, opt in with --legacy-ui")
+    config.addinivalue_line("markers", "performance: timing benchmark, opt in with --performance")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -45,7 +47,8 @@ def pytest_collection_modifyitems(config, items):
         legacy = item.path.name in LEGACY_UI_SUITES
         if legacy:
             item.add_marker(pytest.mark.legacy_ui)
-        if legacy and not config.getoption("--legacy-ui"):
+        performance = item.get_closest_marker("performance") is not None
+        if (legacy and not config.getoption("--legacy-ui")) or (performance and not config.getoption("--performance")):
             excluded.append(item)
         else:
             included.append(item)
@@ -206,100 +209,36 @@ def large_server(tmp_path, request):
     keep_server_log(runtime, request)
 
 
-class BrowserBackend:
-    """Where the browser under test actually runs. Recorded in every report."""
+@pytest.fixture(scope="session")
+def browser_type_launch_args(browser_type_launch_args, browser_name):
+    """Add the renderer profile while pytest-playwright owns browser lifecycle."""
+    options = dict(browser_type_launch_args)
+    if os.environ.get("CITY_CORE_HARDWARE") == "1":
+        if platform.system() != "Darwin" or browser_name != "chromium":
+            raise pytest.UsageError("CITY_CORE_HARDWARE=1 requires macOS and --browser chromium")
+        options.update(headless=False, args=["--use-gl=angle", "--use-angle=metal"])
+    elif browser_name == "chromium" and os.environ.get("CITY_SOFTWARE_GL") == "1":
+        options["args"] = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+    elif browser_name == "firefox":
+        options["firefox_user_prefs"] = {"webgl.force-enabled": True, "webgl.disabled": False}
+    return options
 
-    def __init__(self, kind, browser, detail):
-        self.kind = kind
+
+class BrowserBackend:
+    """Compatibility report descriptor for retained historical UI tests."""
+
+    def __init__(self, browser, engine):
         self.browser = browser
-        self.detail = detail
+        self.kind = f"local-{engine}"
+        self.engine = engine
 
     def describe(self):
-        return dict(backend=self.kind, browser=self.browser.version, **self.detail)
-
-
-def service_endpoint(url):
-    """Azure Playwright Workspaces expects os/runId/api-version query parameters on the workspace URL."""
-    run_id = os.environ.get("PLAYWRIGHT_SERVICE_RUN_ID") or f"axp-city-{int(time.time())}"
-    target_os = os.environ.get("PLAYWRIGHT_SERVICE_OS", "linux")
-    sep = "&" if "?" in url else "?"
-    return f"{url}{sep}os={target_os}&runId={run_id}&api-version=2025-09-01", run_id, target_os
-
-
-def launch_local(p):
-    """Launch a Playwright browser installed on this machine (Chromium/Firefox/WebKit)."""
-    engine = os.environ.get("CITY_BROWSER", "chromium")
-    headless = os.environ.get("HEADED") != "1"
-    if engine == "firefox":
-        browser = p.firefox.launch(headless=headless, firefox_user_prefs={"webgl.force-enabled": True, "webgl.disabled": False})
-        return BrowserBackend("local-firefox", browser, dict(engine="firefox", softwareGl=None, webglDisabled=False))
-    if engine == "webkit":
-        browser = p.webkit.launch(headless=headless)
-        return BrowserBackend("local-webkit", browser, dict(engine="webkit", softwareGl=None, webglDisabled=False, note="Playwright WebKit on Linux, not Safari on macOS/iOS"))
-    software = os.environ.get("CITY_SOFTWARE_GL") == "1"
-    args = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] if software else []
-    if os.environ.get("CITY_DISABLE_WEBGL") == "1":
-        args += ["--disable-webgl", "--disable-webgl2"]
-    browser = p.chromium.launch(headless=headless, args=args)
-    return BrowserBackend("local-chromium", browser, dict(engine="chromium", softwareGl=software, webglDisabled=os.environ.get("CITY_DISABLE_WEBGL") == "1"))
-
-
-def connect_browser(p):
-    """Local Playwright is the in-env proof path; Azure Workspaces is optional.
-
-    Preference:
-    1. CITY_LOCAL_BROWSER=1 always launches a local engine and ignores PLAYWRIGHT_SERVICE_*.
-    2. PLAYWRIGHT_SERVICE_URL set — hosted Azure Chromium. An access token is required;
-       a URL without a token fails closed instead of connecting anonymously or using fixtures.
-    3. Otherwise launch the Playwright browser installed on this machine.
-
-    Hosted browsers reach this machine's test server through Playwright's client-side
-    network exposure (`<loopback>`). Live GitHub failures never switch to fixtures.
-    """
-    url = os.environ.get("PLAYWRIGHT_SERVICE_URL") or ""
-    local = os.environ.get("CITY_LOCAL_BROWSER") == "1"
-    if local or not url:
-        return launch_local(p)
-    token = os.environ.get("PLAYWRIGHT_SERVICE_ACCESS_TOKEN")
-    if not token:
-        raise RuntimeError(
-            f"PLAYWRIGHT_SERVICE_URL is set without PLAYWRIGHT_SERVICE_ACCESS_TOKEN; "
-            f"refusing an anonymous hosted connection to {url.split('?')[0]}. "
-            "Unset PLAYWRIGHT_SERVICE_URL, or set CITY_LOCAL_BROWSER=1 to use a local Playwright browser."
-        )
-    endpoint, run_id, target_os = service_endpoint(url)
-    headers = {"Authorization": f"Bearer {token}"}
-    try:
-        browser = p.chromium.connect(endpoint, timeout=120_000, expose_network="<loopback>", headers=headers)
-    except Exception as error:  # noqa: BLE001 - surface the exact service failure
-        raise RuntimeError(
-            f"Could not connect to the hosted Playwright service at {url.split('?')[0]}: {error}. "
-            "Set CITY_LOCAL_BROWSER=1 only to run against a local browser instead."
-        ) from error
-    return BrowserBackend("azure-playwright-workspaces", browser, dict(service=url.split("/playwrightworkspaces/")[0], runId=run_id, os=target_os, softwareGl=False))
-
-
-def engine_name(browser):
-    return browser.browser_type.name
-
-
-@pytest.fixture(scope="session")
-def playwright_runtime():
-    """One sync Playwright loop shared by functional and benchmark browsers."""
-    with sync_playwright() as p:
-        yield p
-
-
-@pytest.fixture(scope="session")
-def backend(playwright_runtime):
-    runtime = connect_browser(playwright_runtime)
-    yield runtime
-    runtime.browser.close()
+        return dict(backend=self.kind, browser=self.browser.version, engine=self.engine)
 
 
 @pytest.fixture
-def browser(backend):
-    return backend.browser
+def backend(browser, browser_name):
+    return BrowserBackend(browser, browser_name)
 
 
 def wait_js(page, predicate, *, arg=None, timeout=30000, interval=50):
@@ -369,11 +308,3 @@ def webgl_available(page):
     """Whether this browser gave the client a WebGL context (headless Firefox on a CI
     runner without a GPU does not; the client then uses the documented Canvas fallback)."""
     return page.evaluate("window.__AXP_SUPPORT.renderer") == "webgl"
-
-
-@pytest.fixture
-def page(browser, server):
-    page = browser.new_page(viewport=dict(width=1600, height=1000))
-    ready(page, server.url)
-    yield page
-    page.close()

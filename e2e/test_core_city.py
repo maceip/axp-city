@@ -9,7 +9,7 @@ import urllib.request
 
 import pytest
 
-from conftest import engine_name, wait_js
+from conftest import wait_js
 from core_helpers import cell, choose, click_cell, core_ready, diagnostics, pause, photograph, snapshot
 
 
@@ -24,17 +24,16 @@ def test_default_core_server_has_no_ingestion_api_or_database(core_server):
 
 
 @pytest.fixture
-def core_page(browser, core_server):
-    page = browser.new_page(viewport=dict(width=1600, height=1000))
+def core_page(new_context, core_server):
+    page = new_context(viewport=dict(width=1600, height=1000)).new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     core_ready(page, core_server.url)
     yield page
     assert not errors, errors
-    page.close()
 
 
-def test_placement_obeys_road_access_and_occupancy(core_page):
+def test_placement_obeys_road_access_and_occupancy(core_page, browser_name):
     page = core_page
     pause(page)
     start = snapshot(page)
@@ -72,7 +71,7 @@ def test_placement_obeys_road_access_and_occupancy(core_page):
     choose(page, "bulldoze")
     click_cell(page, -12, 0)
     assert cell(snapshot(page), -12, 0)["road"], "Cannot remove a building's only road access"
-    photograph(page, f"placement-and-rejections-{engine_name(page.context.browser)}")
+    photograph(page, f"placement-and-rejections-{browser_name}")
 
 
 def test_pause_save_load_restores_the_world(core_page):
@@ -95,7 +94,7 @@ def test_pause_save_load_restores_the_world(core_page):
     wait_js(page, "tick => window.__CORE.diagnostics().tick > tick", arg=frozen["tick"])
 
 
-def test_visible_roof_picks_the_building_and_clear_can_be_undone(core_page):
+def test_visible_roof_picks_the_building_and_clear_can_be_undone(core_page, browser_name):
     page = core_page
     pause(page)
     before = snapshot(page)
@@ -113,7 +112,7 @@ def test_visible_roof_picks_the_building_and_clear_can_be_undone(core_page):
     assert all(c["occupant"] != target["id"] for c in cleared["cells"])
     page.locator("[data-action='undo']").click()
     assert snapshot(page) == before, "Undo must restore the exact removed building and its occupancy"
-    photograph(page, f"roof-clear-undone-{engine_name(page.context.browser)}")
+    photograph(page, f"roof-clear-undone-{browser_name}")
 
 
 def test_drag_release_over_toolbar_restores_placement_preview(core_page):
@@ -152,61 +151,55 @@ def test_save_shortcut_does_not_pan_camera(core_page, modifier):
 
 
 @pytest.mark.parametrize("viewport", [(1600, 1000), (480, 800)], ids=["desktop", "narrow"])
-def test_camera_and_tiles_at_near_mid_and_far(browser, core_server, viewport):
-    page = browser.new_page(viewport=dict(width=viewport[0], height=viewport[1]))
+def test_camera_and_tiles_at_near_mid_and_far(new_context, browser_name, core_server, viewport):
+    page = new_context(viewport=dict(width=viewport[0], height=viewport[1])).new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
-    try:
-        core_ready(page, core_server.url)
-        pause(page)
-        choose(page, "inspect")
-        engine = engine_name(browser)
-        suffix = f"{viewport[0]}-{engine}"
-        home = page.evaluate("() => window.__CORE.cellScreen(0, 0)")
-        initial = snapshot(page)
-        photograph(page, f"mid-{suffix}")
-        page.locator("[data-action='zoom-in']").click()
-        page.locator("[data-action='zoom-in']").click()
-        near = diagnostics(page)["zoom"]
-        photograph(page, f"near-{suffix}")
-        for _ in range(4):
-            page.locator("[data-action='zoom-out']").click()
-        assert diagnostics(page)["zoom"] < near
-        photograph(page, f"far-{suffix}")
-        assert snapshot(page) == initial, "Zoom must never change the world"
+    core_ready(page, core_server.url)
+    pause(page)
+    choose(page, "inspect")
+    engine = browser_name
+    suffix = f"{viewport[0]}-{engine}"
+    home = page.evaluate("() => window.__CORE.cellScreen(0, 0)")
+    initial = snapshot(page)
+    photograph(page, f"mid-{suffix}")
+    page.locator("[data-action='zoom-in']").click()
+    page.locator("[data-action='zoom-in']").click()
+    near = diagnostics(page)["zoom"]
+    photograph(page, f"near-{suffix}")
+    for _ in range(4):
+        page.locator("[data-action='zoom-out']").click()
+    assert diagnostics(page)["zoom"] < near
+    photograph(page, f"far-{suffix}")
+    assert snapshot(page) == initial, "Zoom must never change the world"
 
-        page.locator("[data-action='home']").click()
-        center = page.evaluate("() => window.__CORE.cellScreen(0, 0)")
-        page.mouse.move(center["x"], center["y"])
-        page.mouse.down()
-        page.mouse.move(center["x"] + 100, center["y"] + 70, steps=12)
-        page.mouse.up()
-        moved = page.evaluate("() => window.__CORE.cellScreen(0, 0)")
-        assert abs(moved["x"] - center["x"]) > 50, (center, moved)
-        assert snapshot(page) == initial, "Camera drag must not edit the map"
-        page.locator("[data-action='home']").click()
-        restored = page.evaluate("() => window.__CORE.cellScreen(0, 0)")
-        assert abs(restored["x"] - home["x"]) < 2 and abs(restored["y"] - home["y"]) < 2
-        assert not errors, errors
-    finally:
-        page.close()
+    page.locator("[data-action='home']").click()
+    center = page.evaluate("() => window.__CORE.cellScreen(0, 0)")
+    page.mouse.move(center["x"], center["y"])
+    page.mouse.down()
+    page.mouse.move(center["x"] + 100, center["y"] + 70, steps=12)
+    page.mouse.up()
+    moved = page.evaluate("() => window.__CORE.cellScreen(0, 0)")
+    assert abs(moved["x"] - center["x"]) > 50, (center, moved)
+    assert snapshot(page) == initial, "Camera drag must not edit the map"
+    page.locator("[data-action='home']").click()
+    restored = page.evaluate("() => window.__CORE.cellScreen(0, 0)")
+    assert abs(restored["x"] - home["x"]) < 2 and abs(restored["y"] - home["y"]) < 2
+    assert not errors, errors
 
 
-def test_canvas_fallback_supports_real_editing(browser, core_server):
-    page = browser.new_page(viewport=dict(width=1600, height=1000))
+def test_canvas_fallback_supports_real_editing(new_context, browser_name, core_server):
+    page = new_context(viewport=dict(width=1600, height=1000)).new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
-    try:
-        core_ready(page, core_server.url, "?renderer=canvas")
-        assert diagnostics(page)["renderer"] == "canvas"
-        pause(page)
-        choose(page, "road")
-        click_cell(page, -11, 0)
-        assert cell(snapshot(page), -11, 0)["road"]
-        photograph(page, f"canvas-fallback-{engine_name(browser)}")
-        assert not errors, errors
-    finally:
-        page.close()
+    core_ready(page, core_server.url, "?renderer=canvas")
+    assert diagnostics(page)["renderer"] == "canvas"
+    pause(page)
+    choose(page, "road")
+    click_cell(page, -11, 0)
+    assert cell(snapshot(page), -11, 0)["road"]
+    photograph(page, f"canvas-fallback-{browser_name}")
+    assert not errors, errors
 
 
 def test_invalid_saved_world_is_rejected_without_losing_open_town(core_page):
@@ -223,22 +216,19 @@ def test_invalid_saved_world_is_rejected_without_losing_open_town(core_page):
     assert page.evaluate("() => localStorage.getItem('axp-core-world-v1')") == corrupt
 
 
-def test_invalid_startup_save_stays_visible_and_preserves_saved_copy(browser, core_server):
-    context = browser.new_context(viewport=dict(width=1600, height=1000))
+def test_invalid_startup_save_stays_visible_and_preserves_saved_copy(new_context, core_server):
+    context = new_context(viewport=dict(width=1600, height=1000))
     context.add_init_script("localStorage.setItem('axp-core-world-v1', 'broken saved town')")
     page = context.new_page()
-    try:
-        core_ready(page, core_server.url)
-        status = page.locator("[data-testid='status']")
-        assert status.get_attribute("data-tone") == "error", "Startup warning must survive initial tool selection"
-        assert "saved" in status.inner_text().lower()
-        assert page.evaluate("() => localStorage.getItem('axp-core-world-v1')") == "broken saved town"
-        assert diagnostics(page)["buildings"] > 0
-    finally:
-        context.close()
+    core_ready(page, core_server.url)
+    status = page.locator("[data-testid='status']")
+    assert status.get_attribute("data-tone") == "error", "Startup warning must survive initial tool selection"
+    assert "saved" in status.inner_text().lower()
+    assert page.evaluate("() => localStorage.getItem('axp-core-world-v1')") == "broken saved town"
+    assert diagnostics(page)["buildings"] > 0
 
 
-def test_sustained_camera_travel_keeps_objects_and_textures_bounded(core_page):
+def test_sustained_camera_travel_keeps_objects_and_textures_bounded(core_page, browser_name):
     page = core_page
     pause(page)
     choose(page, "inspect")
@@ -259,10 +249,10 @@ def test_sustained_camera_travel_keeps_objects_and_textures_bounded(core_page):
     assert all(s["objects"] <= before["objects"] for s in samples), samples
     assert after["textures"] == before["textures"] and after["objects"] == before["objects"]
     assert snapshot(page) == world
-    photograph(page, f"sustained-travel-return-{engine_name(page.context.browser)}")
+    photograph(page, f"sustained-travel-return-{browser_name}")
 
 
-def test_webgl_context_recovery_preserves_world_camera_and_pixels(core_page):
+def test_webgl_context_recovery_preserves_world_camera_and_pixels(core_page, browser_name):
     from PIL import Image, ImageChops, ImageStat
     from core_helpers import SHOTS
     page = core_page
@@ -272,7 +262,7 @@ def test_webgl_context_recovery_preserves_world_camera_and_pixels(core_page):
     page.locator("[data-action='zoom-out']").click()
     before, world = diagnostics(page), snapshot(page)
     SHOTS.mkdir(parents=True, exist_ok=True)
-    engine = engine_name(page.context.browser)
+    engine = browser_name
     original = SHOTS / f"context-before-{engine}.png"
     restored = SHOTS / f"context-after-{engine}.png"
     page.locator("canvas").screenshot(path=str(original))
@@ -301,49 +291,46 @@ def test_webgl_context_recovery_preserves_world_camera_and_pixels(core_page):
         assert max(delta) < 2, f"Context restoration changed the paused map pixels: {delta}"
 
 
-def test_mobile_native_touch_tap_drag_and_pinch(browser, core_server):
-    if engine_name(browser) != "chromium":
+def test_mobile_native_touch_tap_drag_and_pinch(new_context, browser_name, core_server):
+    if browser_name != "chromium":
         pytest.skip("Trusted multi-touch dispatch uses Chromium CDP; other engines run narrow viewport coverage")
-    context = browser.new_context(viewport=dict(width=480, height=800), is_mobile=True, has_touch=True, device_scale_factor=2)
+    context = new_context(viewport=dict(width=480, height=800), is_mobile=True, has_touch=True, device_scale_factor=2)
     page = context.new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
-    try:
-        core_ready(page, core_server.url)
-        page.locator("[data-action='pause']").tap()
-        assert diagnostics(page)["paused"]
-        page.locator("[data-tool='road']").tap()
-        # South-edge extension is inside the phone viewport; the desktop
-        # west-edge extension is outside this much narrower camera.
-        point = page.evaluate("() => window.__CORE.cellScreen(0, 7)")
-        assert page.evaluate("p => document.elementFromPoint(p.x, p.y)?.tagName", point) == "CANVAS", point
-        page.touchscreen.tap(point["x"], point["y"])
-        assert cell(snapshot(page), 0, 7)["road"], "A finger tap must apply the selected tool"
-        world = snapshot(page)
-        cdp = context.new_cdp_session(page)
-        def touch(kind, points):
-            cdp.send("Input.dispatchTouchEvent", dict(type=kind, touchPoints=[dict(id=i, x=x, y=y, radiusX=3, radiusY=3, force=1) for i, x, y in points]))
-        cancelled = page.evaluate("() => window.__CORE.cellScreen(0, 8)")
-        assert page.evaluate("p => document.elementFromPoint(p.x, p.y)?.tagName", cancelled) == "CANVAS"
-        touch("touchStart", [(0, cancelled["x"], cancelled["y"])])
-        touch("touchCancel", [])
-        assert snapshot(page) == world, "Native gesture cancellation must never be treated as a placement tap"
-        page.locator("[data-tool='inspect']").tap()
-        before = diagnostics(page)
-        touch("touchStart", [(0, 240, 340)])
-        for x in range(250, 341, 10):
-            touch("touchMove", [(0, x, 340)])
-        touch("touchEnd", [])
-        wait_js(page, "x => Math.abs(window.__CORE.diagnostics().scrollX - x) > 50", arg=before["scrollX"])
-        zoom = diagnostics(page)["zoom"]
-        touch("touchStart", [(0, 200, 340), (1, 280, 340)])
-        for distance in [50, 65, 80, 95]:
-            touch("touchMove", [(0, 240-distance, 340), (1, 240+distance, 340)])
-        touch("touchEnd", [])
-        wait_js(page, "z => window.__CORE.diagnostics().zoom > z + .15", arg=zoom)
-        assert snapshot(page) == world, "Gestures must never place or remove a tile"
-        assert page.evaluate("() => document.documentElement.scrollWidth") == 480
-        photograph(page, "mobile-native-touch-chromium")
-        assert not errors, errors
-    finally:
-        context.close()
+    core_ready(page, core_server.url)
+    page.locator("[data-action='pause']").tap()
+    assert diagnostics(page)["paused"]
+    page.locator("[data-tool='road']").tap()
+    # South-edge extension is inside the phone viewport; the desktop
+    # west-edge extension is outside this much narrower camera.
+    point = page.evaluate("() => window.__CORE.cellScreen(0, 7)")
+    assert page.evaluate("p => document.elementFromPoint(p.x, p.y)?.tagName", point) == "CANVAS", point
+    page.touchscreen.tap(point["x"], point["y"])
+    assert cell(snapshot(page), 0, 7)["road"], "A finger tap must apply the selected tool"
+    world = snapshot(page)
+    cdp = context.new_cdp_session(page)
+    def touch(kind, points):
+        cdp.send("Input.dispatchTouchEvent", dict(type=kind, touchPoints=[dict(id=i, x=x, y=y, radiusX=3, radiusY=3, force=1) for i, x, y in points]))
+    cancelled = page.evaluate("() => window.__CORE.cellScreen(0, 8)")
+    assert page.evaluate("p => document.elementFromPoint(p.x, p.y)?.tagName", cancelled) == "CANVAS"
+    touch("touchStart", [(0, cancelled["x"], cancelled["y"])])
+    touch("touchCancel", [])
+    assert snapshot(page) == world, "Native gesture cancellation must never be treated as a placement tap"
+    page.locator("[data-tool='inspect']").tap()
+    before = diagnostics(page)
+    touch("touchStart", [(0, 240, 340)])
+    for x in range(250, 341, 10):
+        touch("touchMove", [(0, x, 340)])
+    touch("touchEnd", [])
+    wait_js(page, "x => Math.abs(window.__CORE.diagnostics().scrollX - x) > 50", arg=before["scrollX"])
+    zoom = diagnostics(page)["zoom"]
+    touch("touchStart", [(0, 200, 340), (1, 280, 340)])
+    for distance in [50, 65, 80, 95]:
+        touch("touchMove", [(0, 240-distance, 340), (1, 240+distance, 340)])
+    touch("touchEnd", [])
+    wait_js(page, "z => window.__CORE.diagnostics().zoom > z + .15", arg=zoom)
+    assert snapshot(page) == world, "Gestures must never place or remove a tile"
+    assert page.evaluate("() => document.documentElement.scrollWidth") == 480
+    photograph(page, "mobile-native-touch-chromium")
+    assert not errors, errors

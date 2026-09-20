@@ -32,6 +32,8 @@ The old renderer files and historical image pipeline remain as archival source. 
 
 ## Acceptance evidence
 
+The current CI uses standard pytest-playwright fixtures and the same functional suite in all three browser jobs, following [Streamlit](https://github.com/streamlit/streamlit/blob/a807ca5f8274de0eb708729cb40266f6321b82cc/.github/workflows/playwright.yml#L27-L29). Browser versions are pinned; the custom hosted/local launcher is removed. Timing benchmarks are explicit local measurements and do not gate pull requests. [Commands and failure artifacts](../e2e/README.md).
+
 The core unit suite covers connected terrain, all road/shores masks, legal/illegal footprints and entrances, routing, vehicle separation over time, equal outcomes across frame partitions, mid-edge save continuation, consecutive normal-traffic save validation, and malformed-save cases. Browser acceptance drives actual controls under the production CSP and inspects resulting world state and rendered screenshots. It covers native touch, near/mid/far views, invalid-save preservation, Canvas fallback, bounded travel resources and graphics-context recovery. Existing backend operations tests verify the preserved store remains usable.
 
 Historical UI suites are explicitly excluded as superseded presentation checks; they are not reported as passing. Source-only checks that required the former search box, page title or startup command were retired. The load-test heap budget remains 64MiB but now samples retained heap after garbage collection and consumes response bodies, rather than confusing uncollected allocations with retained state.
@@ -60,3 +62,8 @@ Hardware passed the 16.7ms p95 target. The final hardware run peaked at 10.3ms; 
 [Hardware measurements](evidence/core-metal.json) · [Software measurements](evidence/core-software.json)
 
 ![The core workshop at desktop scale](evidence/core-workshop.png)
+
+
+### Browser harness simplification, 2026-09-20
+
+Local verification after adopting standard pytest-playwright fixtures: 190 unit/service checks, typecheck/build, three backend operations checks, and the single three-browser invocation (41 passed, two Chromium-only touch cases skipped on the other engines). All existing core behavioral assertions remain. Two source-text tests that required the removed bespoke harness were retired. The explicit Metal benchmark command also passed; the benchmark is excluded from normal collection and required CI.

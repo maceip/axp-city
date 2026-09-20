@@ -50,9 +50,10 @@ npm run build
 python3 -m pip install -r e2e/requirements.txt
 python3 -m playwright install --with-deps chromium firefox webkit
 npm run test:e2e
+npm run test:operations
 ```
 
-Use `CITY_BROWSER=firefox python3 -m pytest e2e/test_core_city.py -v` or the equivalent `CITY_BROWSER=webkit` command for the other engines. The suite exercises the built application with its production CSP, actual mouse/touch controls, save/load, rejected edits, camera travel, graphics recovery and Canvas fallback. Saved screenshots require visual inspection as well as automated checks.
+`npm run test:e2e` runs the same functional suite in Chromium, Firefox and WebKit using standard `pytest-playwright` fixtures. Use `python3 -m pytest e2e/test_core_city.py --browser firefox` to select one engine. The suite exercises the built application with its production CSP, actual mouse/touch controls, save/load, rejected edits, camera travel, graphics recovery and Canvas fallback. CI retains failure traces and screenshots. Frame-time benchmarks run separately with `npm run test:performance`; they do not block normal verification. [Browser setup and upstream reference](e2e/README.md).
 
 Historical UI tests for the superseded repository-map presentation are explicitly marked `legacy_ui` and deselected by default. They are retained as references; `--legacy-ui` collects them for work on that historical presentation. Backend data/authorization/backup tests still run. A new core test replaces an old feature only when it actually exercises the core behavior; screenshot files alone are not visual approval.
 

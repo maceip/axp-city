@@ -14,3 +14,6 @@ __pycache__/
 ai-game-studio/
 
 .pytest_cache/
+
+# Standard pytest-playwright failure artifacts
+test-results/
