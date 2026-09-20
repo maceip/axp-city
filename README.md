@@ -43,17 +43,24 @@ Artwork is generated locally from source; there are no missing art folders, exte
 
 ## Verification
 
+Automatic CI runs the unit/service tests, typecheck, build and backend operations checks:
+
 ```sh
+python3 -m pip install -r test/requirements.txt -r e2e/requirements.txt
 npm test
 npm run typecheck
 npm run build
-python3 -m pip install -r e2e/requirements.txt
-python3 -m playwright install --with-deps chromium firefox webkit
-npm run test:e2e
 npm run test:operations
 ```
 
-`npm run test:e2e` runs the same functional suite in Chromium, Firefox and WebKit using standard `pytest-playwright` fixtures. Use `python3 -m pytest e2e/test_core_city.py --browser firefox` to select one engine. The suite exercises the built application with its production CSP, actual mouse/touch controls, save/load, rejected edits, camera travel, graphics recovery and Canvas fallback. CI retains failure screenshots and server logs; traces are an explicit diagnostic option. Frame-time benchmarks run separately with `npm run test:performance`; they do not block normal verification. [Browser setup and upstream reference](e2e/README.md).
+Browser checks are manual while the core engine is under development. Before milestones or relevant renderer/input/save changes, install the browsers and run the retained suite:
+
+```sh
+python3 -m playwright install --with-deps chromium firefox webkit
+npm run test:e2e
+```
+
+`npm run test:e2e` runs the same functional suite in Chromium, Firefox and WebKit using standard `pytest-playwright` fixtures. Use `python3 -m pytest e2e/test_core_city.py --browser firefox` to select one engine. The suite exercises the built application with its production CSP, actual mouse/touch controls, save/load, rejected edits, camera travel, graphics recovery and Canvas fallback. Screenshots and server logs are saved locally; traces are an explicit diagnostic option. Frame-time benchmarks run separately with `npm run test:performance`. Neither suite runs in automatic CI; a green automatic check does not prove rendering or browser interactions. [Browser setup and upstream reference](e2e/README.md).
 
 Historical UI tests for the superseded repository-map presentation are explicitly marked `legacy_ui` and deselected by default. They are retained as references; `--legacy-ui` collects them for work on that historical presentation. Backend data/authorization/backup tests still run. A new core test replaces an old feature only when it actually exercises the core behavior; screenshot files alone are not visual approval.
 
