@@ -91,6 +91,10 @@ React popup/portal code is not bundled.
 
 ## Deliberate adaptations
 
+- City chrome fits its contents: separate 38px desktop header panels, a
+  bounded status chip, and an intrinsic-width phone tool strip. Transparent
+  wrappers pass pointer input through to the map; touch actions retain 44px
+  targets inside 52px header panels.
 - Source Tailwind/CVA variants become ordinary CSS selectors. Text buttons use
   the source **compact** size by default; the source React component defaults to
   its larger 34px size.

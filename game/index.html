@@ -18,21 +18,25 @@
       id="game"
       aria-label="Isometric town map. Drag to pan, scroll to zoom, click to place or inspect a tile."
     ></div>
-    <header class="topbar sl-panel">
-      <div class="brand">
-        <svg class="brand-mark" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M1.5 1.5h13v13h-13zM1.5 6h13M1.5 10h13M6 1.5v13M10 1.5v13" />
-        </svg>
-        <span class="brand-name">AXP City</span>
-        <span class="divider brand-divider" aria-hidden="true"></span>
-        <h1>Town workshop</h1>
+    <header class="topbar">
+      <div class="town-info sl-panel">
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M1.5 1.5h13v13h-13zM1.5 6h13M1.5 10h13M6 1.5v13M10 1.5v13"
+            />
+          </svg>
+          <span class="brand-name">AXP City</span>
+          <span class="divider brand-divider" aria-hidden="true"></span>
+          <h1>Town workshop</h1>
+        </div>
+        <div class="town-summary" aria-label="Town summary">
+          <span><b id="building-count">0</b> buildings</span>
+          <span><b id="vehicle-count">0</b> vehicles</span>
+          <span id="sim-state">Town in motion</span>
+        </div>
       </div>
-      <div class="town-summary" aria-label="Town summary">
-        <span><b id="building-count">0</b> buildings</span>
-        <span><b id="vehicle-count">0</b> vehicles</span>
-        <span id="sim-state">Town in motion</span>
-      </div>
-      <div class="save-controls">
+      <div class="save-controls sl-panel">
         <span id="save-state">Local town</span>
         <button
           class="sl-icon-button"
@@ -60,9 +64,10 @@
           class="sl-button"
           data-variant="primary"
           data-action="save"
+          aria-label="Save town"
           title="Save town (Ctrl/⌘ S)"
         >
-          Save town
+          <span>Save<span class="save-label-tail"> town</span></span>
         </button>
         <button
           class="sl-icon-button"
@@ -93,95 +98,97 @@
         1–6 tools · H center<br />Space pause · Ctrl/⌘ S save
       </p>
     </div>
-    <aside class="tool-panel sl-panel" aria-label="Town building tools">
-      <div class="tool-list" role="group" aria-label="Select a tool">
-        <button
-          class="sl-icon-button"
-          data-variant="ghost"
-          data-tool="inspect"
-          aria-label="Explore"
-          aria-pressed="true"
-          title="Explore · Inspect tiles (1)"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="m3 1.5 9 7-5 .8-2 4.7z" />
-          </svg>
-        </button>
-        <button
-          class="sl-icon-button"
-          data-variant="ghost"
-          data-tool="road"
-          aria-label="Road"
-          aria-pressed="false"
-          title="Road · Connect places (2)"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="m4 1-2 14M12 1l2 14M8 2v2m0 3v2m0 3v2" />
-          </svg>
-        </button>
-        <button
-          class="sl-icon-button"
-          data-variant="ghost"
-          data-tool="cottage"
-          aria-label="Cottage"
-          aria-pressed="false"
-          title="Cottage · 2 × 2 tiles (3)"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="m1 7 7-5.5L15 7M3 6v8h10V6M6 14V9h4v5" />
-          </svg>
-        </button>
-        <button
-          class="sl-icon-button"
-          data-variant="ghost"
-          data-tool="shop"
-          aria-label="Shop"
-          aria-pressed="false"
-          title="Shop · 3 × 2 tiles (4)"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M2 6V2h12v4M1 6h14M2 6v8h12V6M5 14V9h6v5M5 2v4m6-4v4" />
-          </svg>
-        </button>
-        <button
-          class="sl-icon-button"
-          data-variant="ghost"
-          data-tool="workshop"
-          aria-label="Workshop"
-          aria-pressed="false"
-          title="Workshop · 3 × 3 tiles (5)"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M2 14V3h3v5l4-3v3l5-3v9zM5 11h.1M9 11h.1M12 11h.1" />
-          </svg>
-        </button>
-        <span class="tool-divider" aria-hidden="true"></span>
-        <button
-          class="sl-icon-button"
-          data-variant="ghost"
-          data-tool="bulldoze"
-          aria-label="Clear"
-          aria-pressed="false"
-          title="Clear · Remove a tile or building (6)"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="m9 2 5 5-7 7H4L1 11zM5 7l5 5M7 14h8" />
-          </svg>
-        </button>
-      </div>
-    </aside>
-    <footer class="statusbar sl-panel">
-      <div class="status-copy">
-        <span id="tool-title">Explore your town</span>
-        <span class="divider" aria-hidden="true"></span>
-        <span data-testid="status" role="status" aria-live="polite"
-          >Select a tile to inspect. Drag to explore.</span
-        >
-        <span id="tool-description" hidden
-          >Select a tile to inspect. Drag to explore.</span
-        >
-      </div>
-    </footer>
+    <div class="bottom-dock">
+      <aside class="tool-panel sl-panel" aria-label="Town building tools">
+        <div class="tool-list" role="group" aria-label="Select a tool">
+          <button
+            class="sl-icon-button"
+            data-variant="ghost"
+            data-tool="inspect"
+            aria-label="Explore"
+            aria-pressed="true"
+            title="Explore · Inspect tiles (1)"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="m3 1.5 9 7-5 .8-2 4.7z" />
+            </svg>
+          </button>
+          <button
+            class="sl-icon-button"
+            data-variant="ghost"
+            data-tool="road"
+            aria-label="Road"
+            aria-pressed="false"
+            title="Road · Connect places (2)"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="m4 1-2 14M12 1l2 14M8 2v2m0 3v2m0 3v2" />
+            </svg>
+          </button>
+          <button
+            class="sl-icon-button"
+            data-variant="ghost"
+            data-tool="cottage"
+            aria-label="Cottage"
+            aria-pressed="false"
+            title="Cottage · 2 × 2 tiles (3)"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="m1 7 7-5.5L15 7M3 6v8h10V6M6 14V9h4v5" />
+            </svg>
+          </button>
+          <button
+            class="sl-icon-button"
+            data-variant="ghost"
+            data-tool="shop"
+            aria-label="Shop"
+            aria-pressed="false"
+            title="Shop · 3 × 2 tiles (4)"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2 6V2h12v4M1 6h14M2 6v8h12V6M5 14V9h6v5M5 2v4m6-4v4" />
+            </svg>
+          </button>
+          <button
+            class="sl-icon-button"
+            data-variant="ghost"
+            data-tool="workshop"
+            aria-label="Workshop"
+            aria-pressed="false"
+            title="Workshop · 3 × 3 tiles (5)"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2 14V3h3v5l4-3v3l5-3v9zM5 11h.1M9 11h.1M12 11h.1" />
+            </svg>
+          </button>
+          <span class="tool-divider" aria-hidden="true"></span>
+          <button
+            class="sl-icon-button"
+            data-variant="ghost"
+            data-tool="bulldoze"
+            aria-label="Clear"
+            aria-pressed="false"
+            title="Clear · Remove a tile or building (6)"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="m9 2 5 5-7 7H4L1 11zM5 7l5 5M7 14h8" />
+            </svg>
+          </button>
+        </div>
+      </aside>
+      <footer class="statusbar sl-panel">
+        <div class="status-copy">
+          <span id="tool-title">Explore your town</span>
+          <span class="divider" aria-hidden="true"></span>
+          <span data-testid="status" role="status" aria-live="polite"
+            >Select a tile to inspect. Drag to explore.</span
+          >
+          <span id="tool-description" hidden
+            >Select a tile to inspect. Drag to explore.</span
+          >
+        </div>
+      </footer>
+    </div>
     <div class="view-controls sl-pill" aria-label="Map view controls">
       <button
         class="sl-icon-button"
