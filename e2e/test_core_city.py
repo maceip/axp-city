@@ -198,7 +198,13 @@ def test_canvas_fallback_supports_real_editing(new_context, browser_name, core_s
     core_ready(page, core_server.url, "?renderer=canvas")
     assert diagnostics(page)["renderer"] == "canvas"
     pause(page)
+    target = snapshot(page)["buildings"][-1]
+    roof = page.evaluate("id => window.__CORE.buildingScreen(id)", target["id"])
+    page.mouse.click(roof["x"], roof["y"])
+    assert diagnostics(page)["selectedBuildingId"] == target["id"]
+    assert page.locator("#building-inspector").is_visible()
     choose(page, "road")
+    assert diagnostics(page)["selectedBuildingId"] is None
     click_cell(page, -11, 0)
     assert cell(snapshot(page), -11, 0)["road"]
     photograph(page, f"canvas-fallback-{browser_name}")
@@ -262,6 +268,10 @@ def test_webgl_context_recovery_preserves_world_camera_and_pixels(core_page, bro
     if diagnostics(page)["renderer"] != "webgl":
         pytest.skip("Canvas fallback has no WebGL context to lose")
     pause(page)
+    target = snapshot(page)["buildings"][-1]
+    roof = page.evaluate("id => window.__CORE.buildingScreen(id)", target["id"])
+    page.mouse.click(roof["x"], roof["y"])
+    assert diagnostics(page)["selectedBuildingId"] == target["id"]
     page.locator("[data-action='zoom-out']").click()
     before, world = diagnostics(page), snapshot(page)
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -285,6 +295,8 @@ def test_webgl_context_recovery_preserves_world_camera_and_pixels(core_page, bro
     after = diagnostics(page)
     assert snapshot(page) == world
     assert after["paused"]
+    assert after["selectedBuildingId"] == target["id"]
+    assert page.locator("#building-inspector").get_attribute("data-building-id") == target["id"]
     for field in ["zoom", "scrollX", "scrollY"]:
         assert abs(after[field] - before[field]) < .01, (field, before, after)
     photograph(page, f"context-restored-{engine}")

@@ -17,12 +17,12 @@ npm run test:e2e
 The Python/browser versions are pinned in `requirements.txt`, including the same Playwright 1.61.0 used for local acceptance. To run one browser:
 
 ```sh
-python3 -m pytest e2e/test_core_city.py --browser chromium --screenshot only-on-failure
+python3 -m pytest e2e/test_core_city.py e2e/test_core_selection.py --browser chromium --screenshot only-on-failure
 ```
 
 Replace `chromium` with `firefox` or `webkit`. `--headed` opens a browser window. The plugin's [`new_context` fixture](https://playwright.dev/python/docs/test-runners#using-multiple-contexts) gives each test isolated storage and handles cleanup and failure artifacts. Failure screenshots are saved locally in `test-results/`. Trace recording stays off by default because it records throughout every passing test too; add `--tracing retain-on-failure` when diagnosing a failure. Application captures and server logs go to `e2e/screenshots/`.
 
-The retained functional checks cover rendering, placement/rejection, inspect/clear/undo, save/load, invalid saves, camera/input, Canvas fallback and graphics recovery under the production CSP. Inspect the near/mid/far captures during manual acceptance; pixel sanity assertions alone are not visual approval. The trusted multi-touch test uses Chromium CDP and explicitly skips on the other engines. Backend backup/restore checks remain automatic through `npm run test:operations` in the unit job.
+The retained functional checks cover rendering, placement/rejection, inspect/clear/undo, save/load, invalid saves, camera/input, Canvas fallback and graphics recovery under the production CSP. Building selection has focused coverage for desktop/narrow clicks, dismissal, save and world-replacement boundaries, and native touch gestures. Inspect the near/mid/far and selection captures during manual acceptance; pixel sanity assertions alone are not visual approval. The trusted multi-touch tests use Chromium CDP and explicitly skip on the other engines. Backend backup/restore checks remain automatic through `npm run test:operations` in the unit job.
 
 ## Performance is a separate measurement
 

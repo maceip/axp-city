@@ -24,6 +24,8 @@ Choose Explore, Road, Cottage, Shop, Workshop or Clear. Click to inspect or buil
 
 The compact menu adapts Shader Lab's glass panels, buttons and Geist fonts from Stems. Separate 38px-tall desktop header panels and the status chip fit their contents, leaving the map usable between them. Tools sit in a narrow icon strip, centered above the status chip on phones. **New town** is in the top-right menu. Touch controls retain 44px targets. [Component source and adaptations](docs/SHADER-LAB-UI.md).
 
+In **Explore**, click or tap a building's roof, walls or lot to select it. A persistent outline and compact card show its type, footprint, lot coordinates and actual road access. **Center building** keeps the current zoom. Pan and pinch preserve selection; empty-ground taps, Close, Escape, tool changes and successful load/new-town/undo dismiss it. Selection never changes the world or saved town.
+
 - `1`–`6`: select a tool; `Escape`: Explore.
 - WASD / arrow keys: pan; `+` / `−`: zoom; `H`: center town.
 - Space: pause/resume; Command/Ctrl-S: save; Command/Ctrl-Z: undo.
@@ -62,7 +64,7 @@ python3 -m playwright install --with-deps chromium firefox webkit
 npm run test:e2e
 ```
 
-`npm run test:e2e` runs the same functional suite in Chromium, Firefox and WebKit using standard `pytest-playwright` fixtures. Use `python3 -m pytest e2e/test_core_city.py --browser firefox` to select one engine. The suite exercises the built application with its production CSP, actual mouse/touch controls, save/load, rejected edits, camera travel, graphics recovery and Canvas fallback. Screenshots and server logs are saved locally; traces are an explicit diagnostic option. Frame-time benchmarks run separately with `npm run test:performance`. Neither suite runs in automatic CI; a green automatic check does not prove rendering or browser interactions. [Browser setup and upstream reference](e2e/README.md).
+`npm run test:e2e` runs the same functional suite in Chromium, Firefox and WebKit using standard `pytest-playwright` fixtures. Use `python3 -m pytest e2e/test_core_city.py e2e/test_core_selection.py --browser firefox` to select one engine. The suite exercises the built application with its production CSP, actual mouse/touch controls, building selection, save/load, rejected edits, camera travel, graphics recovery and Canvas fallback. Screenshots and server logs are saved locally; traces are an explicit diagnostic option. Frame-time benchmarks run separately with `npm run test:performance`. Neither suite runs in automatic CI; a green automatic check does not prove rendering or browser interactions. [Browser setup and upstream reference](e2e/README.md).
 
 Historical UI tests for the superseded repository-map presentation are explicitly marked `legacy_ui` and deselected by default. They are retained as references; `--legacy-ui` collects them for work on that historical presentation. Backend data/authorization/backup tests still run. A new core test replaces an old feature only when it actually exercises the core behavior; screenshot files alone are not visual approval.
 

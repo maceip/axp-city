@@ -156,6 +156,67 @@ h1 {
 .bottom-dock {
   display: contents;
 }
+.building-inspector {
+  position: fixed;
+  z-index: 10;
+  top: calc(
+    max(var(--ui-inset), env(safe-area-inset-top)) + var(--topbar-height) + 10px
+  );
+  right: max(var(--ui-inset), env(safe-area-inset-right));
+  display: grid;
+  width: max-content;
+  min-width: 230px;
+  max-width: min(
+    260px,
+    calc(
+      100vw - max(var(--ui-inset), env(safe-area-inset-left)) -
+        max(var(--ui-inset), env(safe-area-inset-right))
+    )
+  );
+  gap: 6px;
+  padding: 8px;
+}
+.building-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.building-heading-copy {
+  min-width: 0;
+}
+#building-title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+#building-location {
+  margin-top: 2px;
+  color: var(--ds-color-text-secondary);
+  font: 10px/12px var(--ds-font-mono);
+}
+.building-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0;
+}
+.building-facts dt {
+  color: var(--ds-color-text-secondary);
+  font-size: 10px;
+  line-height: 14px;
+}
+.building-facts dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+.building-actions {
+  display: flex;
+  justify-content: flex-end;
+}
 .tool-list {
   display: flex;
   flex-direction: column;

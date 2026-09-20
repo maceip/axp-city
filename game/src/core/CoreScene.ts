@@ -47,7 +47,7 @@ const TITLES: Record<Tool, string> = {
   bulldoze: "Clear a little space",
 };
 const HINTS: Record<Tool, string> = {
-  inspect: "Select a tile to inspect. Drag to explore.",
+  inspect: "Select a building for details. Drag to explore.",
   road: "Click dry, empty ground to lay a road.",
   cottage: "A 2 × 2 home. Face the front door toward a road.",
   shop: "A 3 × 2 shop. Keep a road along its front edge.",
@@ -74,8 +74,10 @@ export class CoreScene extends Phaser.Scene {
   private pool!: ObjectPool<Phaser.GameObjects.Image>;
   private ghost!: Phaser.GameObjects.Graphics;
   private selection!: Phaser.GameObjects.Graphics;
+  private selectionFootprint!: Phaser.GameObjects.Graphics;
   private hovered?: { x: number; y: number };
-  private selected?: { x: number; y: number };
+  private selectedBuildingId?: string;
+  private buildingBoundsCache = new Map<string, Phaser.Geom.Rectangle>();
   private drag?: {
     x: number;
     y: number;
@@ -102,6 +104,7 @@ export class CoreScene extends Phaser.Scene {
     world?: WorldState;
     camera?: CameraState;
     paused?: boolean;
+    selectedBuildingId?: string;
   }): void {
     this.generation++;
     this.cleanup = [];
@@ -110,6 +113,8 @@ export class CoreScene extends Phaser.Scene {
     this.cars = new Map();
     this.drag = undefined;
     this.pinch = undefined;
+    this.selectedBuildingId = undefined;
+    this.buildingBoundsCache.clear();
     this.cameraKey = "";
     this.world = data?.world ?? createWorld();
     this.paused = data?.paused ?? false;
@@ -127,6 +132,9 @@ export class CoreScene extends Phaser.Scene {
     this.pool = imagePool(this, 800);
     this.ghost = this.add.graphics().setDepth(900000);
     this.selection = this.add.graphics().setDepth(899999);
+    this.selectionFootprint = this.add.graphics().setDepth(-99999);
+    this.game.canvas.tabIndex = 0;
+    this.game.canvas.setAttribute("aria-label", "Town map");
     const missingPointers = 3 - this.input.manager.pointers.length;
     if (missingPointers > 0) this.input.addPointer(missingPointers);
     this.input.mouse?.disableContextMenu();
@@ -144,6 +152,8 @@ export class CoreScene extends Phaser.Scene {
     this.updateCars();
     this.updateStats();
     this.setTool(this.tool);
+    if (data?.selectedBuildingId && this.tool === "inspect")
+      this.selectBuilding(data.selectedBuildingId);
     if (restoreWarning) this.message(restoreWarning, true);
     document.getElementById("boot-card")!.hidden = true;
     this.lastTime = performance.now();
@@ -161,6 +171,7 @@ export class CoreScene extends Phaser.Scene {
       this.scene.restart({
         world: this.world,
         paused: this.paused,
+        selectedBuildingId: this.selectedBuildingId,
         camera: { x: camera.scrollX, y: camera.scrollY, zoom: camera.zoom },
       });
     };
@@ -187,6 +198,7 @@ export class CoreScene extends Phaser.Scene {
         zoom: this.cameras.main.zoom,
         paused: this.paused,
         selectedTool: this.tool,
+        selectedBuildingId: this.selectedBuildingId ?? null,
         renderer: this.game.renderer.type === Phaser.WEBGL ? "webgl" : "canvas",
         chunks: this.chunks.size,
         visibleChunks: [...this.chunks.values()].filter((c) => c.image.visible)
@@ -213,6 +225,12 @@ export class CoreScene extends Phaser.Scene {
       placementPreview: () => ({
         cell: this.hovered ?? null,
         commandCount: this.ghost.commandBuffer.length,
+      }),
+      selection: () => ({
+        buildingId: this.selectedBuildingId ?? null,
+        commandCount:
+          this.selection.commandBuffer.length +
+          this.selectionFootprint.commandBuffer.length,
       }),
       vehiclePoses: () =>
         this.world.vehicles.map((v) => ({
@@ -276,7 +294,9 @@ export class CoreScene extends Phaser.Scene {
     this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT");
   }
   private setTool(tool: Tool): void {
+    this.clearSelection();
     this.tool = tool;
+    this.ghost.setDepth(tool === "inspect" ? -99998 : 900000);
     document
       .querySelectorAll<HTMLElement>("[data-tool]")
       .forEach((el) =>
@@ -288,7 +308,13 @@ export class CoreScene extends Phaser.Scene {
     this.drawGhost();
   }
   private action(name: string): void {
-    if (name === "pause") {
+    if (name === "close-selection") {
+      this.clearSelection();
+      this.game.canvas.focus({ preventScroll: true });
+      this.message(HINTS[this.tool]);
+    } else if (name === "focus-selection") {
+      this.focusSelection();
+    } else if (name === "pause") {
       this.paused = !this.paused;
       this.lastTime = performance.now();
       this.updateStats();
@@ -348,8 +374,7 @@ export class CoreScene extends Phaser.Scene {
     if (this.undo.length > 30) this.undo.shift();
   }
   private rebuildAll(): void {
-    this.selected = undefined;
-    this.selection.clear();
+    this.clearSelection();
     this.lastTime = performance.now();
     this.rebuildTerrain();
     this.rebuildScenery();
@@ -357,6 +382,147 @@ export class CoreScene extends Phaser.Scene {
     this.drawGhost();
     this.updateStats();
     this.syncVisible();
+  }
+
+  private clearSelection(): void {
+    this.selectedBuildingId = undefined;
+    this.selection.clear();
+    this.selectionFootprint.clear();
+    const inspector = document.getElementById("building-inspector")!;
+    // A dismissed card must not leave keyboard focus on an invisible button.
+    if (inspector.contains(document.activeElement))
+      this.game.canvas.focus({ preventScroll: true });
+    inspector.hidden = true;
+    delete inspector.dataset.buildingId;
+  }
+
+  private selectBuilding(id: string): void {
+    const building = this.world.buildings.find((b) => b.id === id);
+    if (!building) {
+      this.clearSelection();
+      return;
+    }
+    this.selectedBuildingId = id;
+    const spec = BUILDINGS[building.kind];
+    const access = cellAt(
+      this.world,
+      building.x + spec.access.x,
+      building.y + spec.access.y,
+    );
+    const inspector = document.getElementById("building-inspector")!;
+    inspector.dataset.buildingId = id;
+    document.getElementById("building-title")!.textContent = spec.name;
+    document.getElementById("building-location")!.textContent =
+      `Lot ${building.x}, ${building.y}`;
+    document.getElementById("building-footprint")!.textContent =
+      `${spec.width} × ${spec.depth} tiles`;
+    document.getElementById("building-access")!.textContent = access?.road
+      ? "Connected"
+      : "No road";
+    inspector.hidden = false;
+    this.message(
+      `${spec.name} selected · ${spec.width} × ${spec.depth} tiles.`,
+    );
+    this.drawSelection();
+    this.ghost.clear();
+  }
+
+  private drawSelection(): void {
+    this.selection.clear();
+    this.selectionFootprint.clear();
+    const building = this.world.buildings.find(
+      (b) => b.id === this.selectedBuildingId,
+    );
+    if (!building) return;
+    const spec = BUILDINGS[building.kind];
+    const zoom = this.cameras.main.zoom;
+    this.outline(
+      this.selectionFootprint,
+      building.x,
+      building.y,
+      spec.width,
+      spec.depth,
+      0xffda85,
+      0.1,
+      2.5 / zoom,
+    );
+    // Small screen-sized brackets identify the whole building, including its
+    // roof, without tinting the artwork or adding another sprite to pick.
+    const sprite = this.scenery.get(building.id);
+    if (!sprite) return;
+    const bounds = this.buildingBounds(sprite);
+    const padding = 4 / zoom;
+    const left = bounds.left - padding,
+      right = bounds.right + padding;
+    const top = bounds.top - padding,
+      bottom = bounds.bottom + padding;
+    const length = Math.min(12 / zoom, (right - left) / 4);
+    this.selection.lineStyle(2 / zoom, 0xffda85, 1);
+    for (const [x, y, dx, dy] of [
+      [left, top, 1, 1],
+      [right, top, -1, 1],
+      [left, bottom, 1, -1],
+      [right, bottom, -1, -1],
+    ]) {
+      this.selection.lineBetween(x, y, x + dx * length, y);
+      this.selection.lineBetween(x, y, x, y + dy * length);
+    }
+  }
+
+  private buildingBounds(
+    sprite: Phaser.GameObjects.Image,
+  ): Phaser.Geom.Rectangle {
+    let trim = this.buildingBoundsCache.get(sprite.texture.key);
+    if (!trim) {
+      // Ignore transparent art padding and translucent shadows. Scan once per
+      // building texture, not on every camera frame or pointer movement.
+      const source = sprite.texture.getSourceImage() as HTMLCanvasElement;
+      const pixels = source
+        .getContext("2d", { willReadFrequently: true })!
+        .getImageData(0, 0, source.width, source.height).data;
+      let left = source.width,
+        top = source.height,
+        right = -1,
+        bottom = -1;
+      for (let y = 0; y < source.height; y++) {
+        for (let x = 0; x < source.width; x++) {
+          if (pixels[(y * source.width + x) * 4 + 3] <= 100) continue;
+          left = Math.min(left, x);
+          top = Math.min(top, y);
+          right = Math.max(right, x);
+          bottom = Math.max(bottom, y);
+        }
+      }
+      trim =
+        right < left
+          ? new Phaser.Geom.Rectangle(0, 0, 1, 1)
+          : new Phaser.Geom.Rectangle(
+              left / source.width,
+              top / source.height,
+              (right - left + 1) / source.width,
+              (bottom - top + 1) / source.height,
+            );
+      this.buildingBoundsCache.set(sprite.texture.key, trim);
+    }
+    const bounds = sprite.getBounds();
+    return new Phaser.Geom.Rectangle(
+      bounds.x + trim.x * bounds.width,
+      bounds.y + trim.y * bounds.height,
+      trim.width * bounds.width,
+      trim.height * bounds.height,
+    );
+  }
+
+  private focusSelection(): void {
+    const sprite = this.selectedBuildingId
+      ? this.scenery.get(this.selectedBuildingId)
+      : undefined;
+    if (!sprite) return;
+    const bounds = sprite.getBounds();
+    this.cameras.main.centerOn(bounds.centerX, bounds.centerY);
+    this.syncVisible();
+    this.refreshHover();
+    this.drawSelection();
   }
 
   home(): void {
@@ -404,7 +570,11 @@ export class CoreScene extends Phaser.Scene {
       const candidates = this.world.buildings
         .map((b) => ({ b, sprite: this.scenery.get(b.id)! }))
         .filter(({ sprite }) => sprite?.visible)
-        .sort((a, b) => b.sprite.depth - a.sprite.depth);
+        .sort(
+          (a, b) =>
+            b.sprite.depth - a.sprite.depth ||
+            this.children.getIndex(b.sprite) - this.children.getIndex(a.sprite),
+        );
       for (const { b, sprite } of candidates) {
         const bounds = sprite.getBounds();
         if (!bounds.contains(at.x, at.y)) continue;
@@ -532,30 +702,24 @@ export class CoreScene extends Phaser.Scene {
   private edit(at: { x: number; y: number }): void {
     const cell = cellAt(this.world, at.x, at.y);
     if (this.tool === "inspect") {
-      this.selected = at;
-      this.selection.clear();
+      const building = this.world.buildings.find(
+        (b) => b.id === cell?.occupant,
+      );
+      if (building) {
+        this.selectBuilding(building.id);
+        return;
+      }
+      this.clearSelection();
       if (!cell) {
         this.message("The town ends here. Drag to return to the neighborhood.");
         return;
       }
-      const building = this.world.buildings.find((b) => b.id === cell.occupant);
-      this.outline(
-        this.selection,
-        building?.x ?? at.x,
-        building?.y ?? at.y,
-        building ? BUILDINGS[building.kind].width : 1,
-        building ? BUILDINGS[building.kind].depth : 1,
-        0xf7cf79,
-        0.15,
-      );
       this.message(
-        building
-          ? `${BUILDINGS[building.kind].name} · road access at the front`
-          : cell.road
-            ? "Road · connected streets guide the town’s vehicles."
-            : cell.terrain === "water"
-              ? "Water · keep roads and buildings on dry land."
-              : "Open ground · ready for your next addition.",
+        cell.road
+          ? "Road · connected streets guide the town’s vehicles."
+          : cell.terrain === "water"
+            ? "Water · keep roads and buildings on dry land."
+            : "Open ground · ready for your next addition.",
       );
       return;
     }
@@ -573,8 +737,7 @@ export class CoreScene extends Phaser.Scene {
       return;
     }
     this.dirty = true;
-    this.selected = undefined;
-    this.selection.clear();
+    this.clearSelection();
     this.rebuildTerrain(at);
     this.rebuildScenery();
     this.updateStats();
@@ -589,6 +752,7 @@ export class CoreScene extends Phaser.Scene {
     d: number,
     color: number,
     alpha: number,
+    lineWidth = 2,
   ): void {
     const pts = [
       coreProject(x, y),
@@ -597,7 +761,7 @@ export class CoreScene extends Phaser.Scene {
       coreProject(x, y + d),
     ].map((p) => new Phaser.Math.Vector2(p.x, p.y));
     g.fillStyle(color, alpha).fillPoints(pts, true);
-    g.lineStyle(2, color, 0.95).strokePoints(pts, true);
+    g.lineStyle(lineWidth, color, 0.95).strokePoints(pts, true);
   }
   private refreshHover(): void {
     const p = this.input.activePointer;
@@ -618,11 +782,30 @@ export class CoreScene extends Phaser.Scene {
     if (!this.hovered || this.drag?.moved) return;
     const { x, y } = this.hovered;
     if (!cellAt(this.world, x, y)) return;
+    if (this.tool === "inspect") {
+      // Explore has building hover, not a competing one-tile placement ghost.
+      // Touch has no hover: retain only the selected building after a tap.
+      if (this.input.activePointer.wasTouch) return;
+      const id = cellAt(this.world, x, y)?.occupant;
+      if (!id || id === this.selectedBuildingId) return;
+      const building = this.world.buildings.find((b) => b.id === id);
+      if (!building) return;
+      const spec = BUILDINGS[building.kind];
+      this.outline(
+        this.ghost,
+        building.x,
+        building.y,
+        spec.width,
+        spec.depth,
+        0xe9f4c6,
+        0.08,
+        1.5 / this.cameras.main.zoom,
+      );
+      return;
+    }
     const spec =
       this.tool in BUILDINGS ? BUILDINGS[this.tool as BuildingKind] : undefined;
-    const valid =
-      this.tool === "inspect" ||
-      previewCommand(this.world, this.command(this.hovered)).ok;
+    const valid = previewCommand(this.world, this.command(this.hovered)).ok;
     this.outline(
       this.ghost,
       x,
@@ -890,6 +1073,7 @@ export class CoreScene extends Phaser.Scene {
     if (key !== this.cameraKey) {
       this.syncVisible();
       this.refreshHover();
+      this.drawSelection();
       this.cameraKey = key;
     }
     if (now - this.lastStats > 500) {

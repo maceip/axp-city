@@ -99,6 +99,51 @@
       </p>
     </div>
     <div class="bottom-dock">
+      <section
+        id="building-inspector"
+        class="building-inspector sl-panel"
+        hidden
+        aria-labelledby="building-title"
+      >
+        <header class="building-heading">
+          <div class="building-heading-copy">
+            <h2 id="building-title">Building</h2>
+            <p id="building-location"></p>
+          </div>
+          <button
+            type="button"
+            class="sl-icon-button"
+            data-variant="ghost"
+            data-action="close-selection"
+            aria-label="Close building details"
+            title="Close building details"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="m4 4 8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        </header>
+        <dl class="building-facts">
+          <div>
+            <dt>Footprint</dt>
+            <dd id="building-footprint">—</dd>
+          </div>
+          <div>
+            <dt>Road access</dt>
+            <dd id="building-access">—</dd>
+          </div>
+        </dl>
+        <footer class="building-actions">
+          <button
+            type="button"
+            class="sl-button"
+            data-variant="secondary"
+            data-action="focus-selection"
+          >
+            Center building
+          </button>
+        </footer>
+      </section>
       <aside class="tool-panel sl-panel" aria-label="Town building tools">
         <div class="tool-list" role="group" aria-label="Select a tool">
           <button
@@ -107,7 +152,7 @@
             data-tool="inspect"
             aria-label="Explore"
             aria-pressed="true"
-            title="Explore · Inspect tiles (1)"
+            title="Explore · Select buildings (1)"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path d="m3 1.5 9 7-5 .8-2 4.7z" />
@@ -181,10 +226,10 @@
           <span id="tool-title">Explore your town</span>
           <span class="divider" aria-hidden="true"></span>
           <span data-testid="status" role="status" aria-live="polite"
-            >Select a tile to inspect. Drag to explore.</span
+            >Select a building for details. Drag to explore.</span
           >
           <span id="tool-description" hidden
-            >Select a tile to inspect. Drag to explore.</span
+            >Select a building for details. Drag to explore.</span
           >
         </div>
       </footer>
