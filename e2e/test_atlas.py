@@ -4,8 +4,8 @@ Read-only diagnostics locate rendered targets and observe results. Navigation,
 editing, selection, zoom and gestures use visible controls and real input.
 """
 import json
+import math
 import re
-import time
 from pathlib import Path
 
 import pytest
@@ -44,17 +44,7 @@ def language_regions(page):
 
 
 def settle_regions(page, continent):
-    wait_js(page, "c => { const a = window.__ATLAS.snapshot(); return a.level === 'regions' && a.continent === c.id && Math.abs(a.pov.lat-c.lat) < .01 && Math.abs(a.pov.lng-c.lng) < .01; }", arg=continent)
-    previous, stable = atlas(page)["pov"], 0
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        page.wait_for_timeout(100)
-        current = atlas(page)["pov"]
-        stable = stable + 1 if all(abs(current[k] - previous[k]) < .0001 for k in ["lat", "lng", "altitude"]) else 0
-        if stable >= 2:
-            return
-        previous = current
-    raise AssertionError("The continent camera flight did not settle")
+    wait_js(page, "c => { const a = window.__ATLAS.snapshot(); return a.active && a.level === 'regions' && a.continent === c.id && !a.cinematic.active && !a.entering && Math.abs(a.pov.lat-c.lat) < .01 && Math.abs(a.pov.lng-c.lng) < .01; }", arg=continent)
 
 
 def enter_region(page, region):
@@ -169,6 +159,7 @@ def test_atlas_district_round_trip_preserves_local_edits(new_context, browser_na
     page.locator("#district-back").click()
     wait_js(page, "() => window.__ATLAS.snapshot().active && window.__ATLAS.snapshot().level === 'regions'")
     assert atlas(page)["continent"] == continent["id"]
+    settle_regions(page, continent)
     enter_region(page, region)
     page.locator("#district-town").click()
     expect(page.locator("#atlas-shell")).to_be_hidden()
@@ -202,10 +193,12 @@ def test_wheel_zoom_connects_world_regions_district_and_back(new_context, core_s
     region = continent["regions"][0]
     page.locator(f".atlas-tag[data-place-id='{region['id']}']").click()
     assert atlas(page)["entering"]
+    duration = atlas(page)["cinematic"]["durationMs"]
+    assert duration > 0
     page.mouse.move(1000, 500)
     page.mouse.wheel(0, 400)
-    wait_js(page, "() => !window.__ATLAS.snapshot().entering", timeout=1500)
-    page.wait_for_timeout(850)  # exceed the cancelled district-entry timer
+    wait_js(page, "() => { const a = window.__ATLAS.snapshot(); return !a.entering && !a.cinematic.active; }", timeout=1500)
+    page.wait_for_timeout(duration + 150)  # exceed the entire cancelled flight
     assert atlas(page)["active"] and diagnostics(page)["atlasActive"]
     assert not diagnostics(page)["repositoryDistrict"], "Zooming back out must cancel entry rather than opening a district later"
     page.locator("#atlas-continent").click()
@@ -222,6 +215,55 @@ def test_wheel_zoom_connects_world_regions_district_and_back(new_context, core_s
     page.locator("#atlas-town").click()
     expect(page.locator("#atlas-shell")).to_be_hidden()
     assert not diagnostics(page)["repositoryDistrict"]
+    assert not errors, errors
+
+
+@pytest.mark.parametrize("reduced_motion", [False, True], ids=["animated", "reduced-motion"])
+def test_cinematic_click_flight_and_interruption(new_context, browser_name, core_server, reduced_motion):
+    page = new_context(viewport=dict(width=1600, height=1000), reduced_motion="reduce" if reduced_motion else "no-preference").new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    core_ready(page, core_server.url)
+    pause(page)
+    town = snapshot(page)
+    open_atlas(page)
+    start = atlas(page)["pov"]
+    continent = next(c for c in atlas(page)["continents"] if c["name"] == "Python")
+    page.locator(f".atlas-language[data-place-id='{continent['id']}']").click()
+    if not reduced_motion:
+        mid = wait_js(page, "() => { const a = window.__ATLAS.snapshot(); return a.cinematic.active && a.cinematic.progress > .3 && a.cinematic.progress < .8 ? a : false; }")
+        flight = mid["cinematic"]
+        assert all(math.isfinite(flight[key]) for key in ["progress", "altitude", "fov", "pitch", "roll"])
+        assert abs(flight["altitude"] - start["altitude"]) > .05
+        assert abs(flight["fov"] - 50) > .1
+        assert abs(flight["pitch"] - math.pi / 2) > .005
+        assert abs(flight["roll"]) > .0001
+        assert mid["active"] and not diagnostics(page)["repositoryDistrict"]
+        capture(page, f"cinematic-descent-mid-{browser_name}")
+    settle_regions(page, continent)
+    final = atlas(page)["cinematic"]
+    assert final["fov"] == pytest.approx(50)
+    assert final["pitch"] == pytest.approx(math.pi / 2)
+    assert final["roll"] == pytest.approx(0, abs=1e-8)
+    region = continent["regions"][0]
+    if reduced_motion:
+        assert final["durationMs"] == 0 and final["progress"] == 1
+        enter_region(page, region)
+        assert not atlas(page)["cinematic"]["active"]
+        assert atlas(page)["cinematic"]["durationMs"] == 0
+        page.locator("#district-town").click()
+    else:
+        page.locator(f".atlas-tag[data-place-id='{region['id']}']").click()
+        diving = wait_js(page, "() => { const a = window.__ATLAS.snapshot(); return a.entering && a.cinematic.active && a.cinematic.progress > .15 ? a : false; }")
+        page.mouse.move(1200, 500)
+        page.mouse.wheel(0, 400)
+        wait_js(page, "() => { const a = window.__ATLAS.snapshot(); return !a.entering && !a.cinematic.active; }")
+        page.wait_for_timeout(diving["cinematic"]["durationMs"] + 150)
+        assert atlas(page)["active"] and diagnostics(page)["atlasActive"]
+        assert not diagnostics(page)["repositoryDistrict"], "Interrupted flight must never finish into a stale district"
+        page.locator("#atlas-town").click()
+    expect(page.locator("#atlas-shell")).to_be_hidden()
+    assert snapshot(page) == town
     assert not errors, errors
 
 

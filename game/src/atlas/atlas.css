@@ -16,6 +16,9 @@
   opacity: 0;
   pointer-events: none;
 }
+#atlas-shell.atlas-arriving {
+  opacity: 0;
+}
 #atlas-canvas {
   position: absolute;
   inset: 0;
@@ -109,6 +112,13 @@ body[data-atlas-active="true"] #game {
 }
 .atlas-marker {
   transition: opacity 180ms ease;
+}
+/* Reveal the destination labels once the approach has separated them on screen. */
+#atlas-shell[data-flight-labels="hidden"] .atlas-marker,
+#atlas-shell.atlas-departing .atlas-marker {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 .atlas-language,
 .atlas-tag {
