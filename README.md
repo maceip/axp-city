@@ -33,6 +33,14 @@ In **Explore**, click or tap a building's roof, walls or lot to select it. A per
 
 Saves are local to this browser and origin. Clearing browser storage removes them. This milestone has no accounts, cloud synchronization, economy, terrain heights or additional transport modes. Background tabs pause the simulation; returning does not fast-forward the town.
 
+## Explore the repository world
+
+Choose **World ↗**, or zoom out beyond the town, to open the rotating globe. Drag to rotate; scroll, pinch, or use **+ / −** to move closer and farther. At world scale only language icons appear. Hover anywhere on land to highlight its whole continent. Select a continent to reveal repository-topic regions; select a region or keep zooming to enter its buildings. Select a building for the real repository link and tags. **My town** restores your local camera, selection, edits and undo history. A direct globe entry is available at `/city?view=world`.
+
+The atlas uses a clearly labeled, bundled snapshot of 40 public repositories across nine measured primary languages. Continents are invented geography, regions use actual GitHub topics, and each district building represents one repository. It does not claim to be a complete GitHub index or a live feed. The snapshot is separate from saved towns and historical integration data. Districts are read-only; local town editing resumes through **My town**.
+
+[Globe.gl 2.46.2](docs/GLOBE-VENDOR.md) is vendored with its license and provenance. Its Three.js renderer loads on demand and stops rendering when hidden; Phaser retains the city engine. Camera flight and a short crossfade connect the spherical world to the flat city. Raised globe regions are visual navigation levels, not terrain-height physics. [Atlas design and data](docs/REPOSITORY-ATLAS.md).
+
 ## One focused engine
 
 | Responsibility | Source |
@@ -41,6 +49,7 @@ Saves are local to this browser and origin. Clearing browser storage removes the
 | Validated commands, fixed ticks, routing and versioned saves | `src/core/` |
 | Coherent procedural art with authored footprints and ground anchors | `game/src/core/art.ts` |
 | Phaser camera, chunk cache, pooling, picking and editor | `game/src/core/CoreScene.ts` |
+| Vendored globe, semantic zoom and repository catalog | `game/src/atlas/`, `vendor/globe.gl/` |
 | Static/dev server with no integration workers or database | `src/cli/coreServer.ts` |
 
 Artwork is generated locally from source; there are no missing art folders, external asset requests or generated-image dependencies. [Art contract](assets/core/README.md). [Engine decisions, boundaries and evidence](docs/CORE-ENGINE.md).

@@ -24,6 +24,14 @@ Replace `chromium` with `firefox` or `webkit`. `--headed` opens a browser window
 
 The retained functional checks cover rendering, placement/rejection, inspect/clear/undo, save/load, invalid saves, camera/input, Canvas fallback and graphics recovery under the production CSP. Building selection has focused coverage for desktop/narrow clicks, dismissal, save and world-replacement boundaries, and native touch gestures. Inspect the near/mid/far and selection captures during manual acceptance; pixel sanity assertions alone are not visual approval. The trusted multi-touch tests use Chromium CDP and explicitly skip on the other engines. Backend backup/restore checks remain automatic through `npm run test:operations` in the unit job.
 
+The atlas has a focused manual journey check:
+
+```sh
+python3 -m pytest e2e/test_atlas.py --browser chromium --browser webkit --screenshot only-on-failure -v
+```
+
+It covers real language/tag navigation, land hover away from icons, read-only repository districts, local save/undo/camera preservation, wheel zoom thresholds and Chromium native touch gestures. World, region and district captures are saved under `e2e/screenshots/atlas/` for desktop and narrow views.
+
 ## Performance is a separate measurement
 
 The populated 96-building/20-vehicle benchmark is **not a pull-request or deployment gate**. A shared CI machine's software-rendered frame rate is not a hardware performance measurement. It runs only when requested explicitly:

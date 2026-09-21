@@ -1,0 +1,44 @@
+{
+  "name": "globe.gl",
+  "version": "2.46.2",
+  "description": "UI component for Globe Data Visualization using ThreeJS/WebGL",
+  "type": "module",
+  "main": "dist/globe.gl.mjs",
+  "module": "dist/globe.gl.mjs",
+  "types": "dist/globe.gl.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vasturiano/globe.gl.git"
+  },
+  "author": {
+    "name": "Vasco Asturiano",
+    "url": "https://github.com/vasturiano"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@tweenjs/tween.js": "18 - 25",
+    "accessor-fn": "1",
+    "kapsule": "^1.16",
+    "three": ">=0.179 <1",
+    "three-globe": "^2.45",
+    "three-render-objects": "^1.41"
+  },
+  "engines": {
+    "node": ">=12"
+  },
+  "exports": {
+    "types": "./dist/globe.gl.d.ts",
+    "default": "./dist/globe.gl.mjs"
+  },
+  "sideEffects": [
+    "./src/*.css"
+  ],
+  "files": [
+    "dist/globe.gl.mjs",
+    "dist/globe.gl.d.ts",
+    "LICENSE",
+    "README.md",
+    "UPSTREAM.json",
+    "UPSTREAM-PACKAGE.json"
+  ]
+}

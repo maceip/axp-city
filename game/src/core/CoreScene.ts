@@ -30,6 +30,7 @@ import { imagePool, type ObjectPool } from "../pool.js";
 
 const SAVE_KEY = "axp-core-world-v1";
 const CHUNK = 8;
+const CAMERA_KEYS = "W,A,S,D,UP,DOWN,LEFT,RIGHT";
 const TOOLS: Tool[] = [
   "inspect",
   "road",
@@ -63,8 +64,25 @@ interface CameraState {
   y: number;
   zoom: number;
 }
+export interface RepositoryBuilding {
+  fullName: string;
+  url: string;
+  language: string | null;
+  topics: string[] | null;
+}
+interface LocalTown {
+  world: WorldState;
+  camera: CameraState;
+  paused: boolean;
+  tool: Tool;
+  dirty: boolean;
+  undo: string[];
+  selectedBuildingId?: string;
+}
 
 export class CoreScene extends Phaser.Scene {
+  /** Host navigation hook. Called when a city zoom-out would pass minimum zoom. */
+  onAtlasRequested?: () => void;
   private world!: WorldState;
   private tool: Tool = "inspect";
   private paused = false;
@@ -95,6 +113,13 @@ export class CoreScene extends Phaser.Scene {
   private dirty = false;
   private generation = 0;
   private frameTimes: number[] = [];
+  private atlasActive = false;
+  private atlasCamera?: CameraState;
+  private ready = false;
+  private regionReadOnly = false;
+  private repositoryBuildings: Record<string, RepositoryBuilding> = {};
+  private localTown?: LocalTown;
+  private status?: { text: string; error: boolean };
 
   constructor() {
     super("CoreCity");
@@ -105,7 +130,10 @@ export class CoreScene extends Phaser.Scene {
     camera?: CameraState;
     paused?: boolean;
     selectedBuildingId?: string;
+    atlasActive?: boolean;
   }): void {
+    this.ready = false;
+    this.atlasActive = data?.atlasActive ?? this.atlasActive;
     this.generation++;
     this.cleanup = [];
     this.chunks = new Map();
@@ -142,7 +170,7 @@ export class CoreScene extends Phaser.Scene {
     this.rebuildScenery();
     this.bindUI();
     this.bindInput();
-    this.home();
+    this.homeCamera();
     if (data?.camera) {
       this.cameras.main
         .setZoom(data.camera.zoom)
@@ -151,9 +179,10 @@ export class CoreScene extends Phaser.Scene {
     this.syncVisible();
     this.updateCars();
     this.updateStats();
-    this.setTool(this.tool);
+    this.renderTool();
     if (data?.selectedBuildingId && this.tool === "inspect")
       this.selectBuilding(data.selectedBuildingId);
+    else if (!this.status) this.message(HINTS[this.tool]);
     if (restoreWarning) this.message(restoreWarning, true);
     document.getElementById("boot-card")!.hidden = true;
     this.lastTime = performance.now();
@@ -172,12 +201,18 @@ export class CoreScene extends Phaser.Scene {
         world: this.world,
         paused: this.paused,
         selectedBuildingId: this.selectedBuildingId,
-        camera: { x: camera.scrollX, y: camera.scrollY, zoom: camera.zoom },
+        atlasActive: this.atlasActive,
+        camera: this.atlasCamera ?? {
+          x: camera.scrollX,
+          y: camera.scrollY,
+          zoom: camera.zoom,
+        },
       });
     };
     renderer.on("restorewebgl", restored);
     this.cleanup.push(() => renderer.off("restorewebgl", restored));
     this.events.once("shutdown", () => {
+      this.ready = false;
       for (const fn of this.cleanup) fn();
       for (const chunk of this.chunks.values()) {
         chunk.image.destroy();
@@ -197,6 +232,8 @@ export class CoreScene extends Phaser.Scene {
         vehicles: this.world.vehicles.length,
         zoom: this.cameras.main.zoom,
         paused: this.paused,
+        atlasActive: this.atlasActive,
+        repositoryDistrict: this.regionReadOnly,
         selectedTool: this.tool,
         selectedBuildingId: this.selectedBuildingId ?? null,
         renderer: this.game.renderer.type === Phaser.WEBGL ? "webgl" : "canvas",
@@ -238,9 +275,124 @@ export class CoreScene extends Phaser.Scene {
           ...vehiclePose(this.world, v),
         })),
     };
+    this.ready = true;
+    this.setAtlasActive(this.atlasActive);
+  }
+
+  /**
+   * Give the atlas ownership of the view without sleeping this scene. The host
+   * hides/inerts city DOM controls and retains the game element's dimensions;
+   * this bridge suspends city input/render work
+   * while the current world's fixed-step simulation continues. Returning keeps
+   * the camera and selected building. The flag survives graphics recovery.
+   */
+  setAtlasActive(active: boolean): void {
+    const previous = this.atlasActive;
+    this.atlasActive = active;
+    if (!this.ready) return;
+    this.cancelGesture();
+    const keyboard = this.input.keyboard;
+    keyboard?.resetKeys();
+    for (const pointer of this.input.manager.pointers) pointer.reset();
+    this.input.enabled = !active;
+    this.game.canvas.tabIndex = active ? -1 : 0;
+    this.game.canvas.setAttribute("aria-hidden", String(active));
+    if (keyboard) {
+      keyboard.enabled = !active;
+      if (active) keyboard.removeCapture(CAMERA_KEYS);
+      else keyboard.addCapture(CAMERA_KEYS);
+    }
+    this.cameras.main.setVisible(!active);
+    if (active) {
+      if (!previous || !this.atlasCamera) this.atlasCamera = this.cameraState();
+      return;
+    }
+    if (this.atlasCamera) this.restoreCamera(this.atlasCamera);
+    this.atlasCamera = undefined;
+    this.cameraKey = "";
+    this.syncVisible();
+    this.updateCars();
+    this.renderTool();
+    if (this.selectedBuildingId) this.selectBuilding(this.selectedBuildingId);
+    else this.clearSelection();
+    if (this.status) this.message(this.status.text, this.status.error);
+    this.updateStats();
+  }
+
+  /** After scene creation, open a validated repository world without touching browser saves or the
+   * local town's edit history. Only inspection and camera controls are enabled.
+   * Metadata and the local backup survive this scene's context-recovery restart.
+   */
+  setRepositoryDistrict(
+    world: WorldState,
+    repoByBuildingId: Record<string, RepositoryBuilding>,
+  ): void {
+    if (!this.localTown) {
+      this.localTown = {
+        world: this.world,
+        camera: this.atlasCamera ?? this.cameraState(),
+        paused: this.paused,
+        tool: this.tool,
+        dirty: this.dirty,
+        undo: this.undo,
+        selectedBuildingId: this.selectedBuildingId,
+      };
+    }
+    this.cancelGesture();
+    this.world = world;
+    this.repositoryBuildings = repoByBuildingId;
+    this.regionReadOnly = true;
+    this.paused = false;
+    this.tool = "inspect";
+    this.undo = [];
+    this.dirty = false;
+    this.rebuildAll();
+    this.homeCamera();
+    if (this.atlasActive) this.atlasCamera = this.cameraState();
+    this.renderTool();
+    this.message(
+      "Explore this repository district. Select a building for details.",
+    );
+    this.syncVisible();
+    this.updateStats();
+  }
+
+  /** Return to the retained local town, including its view and unsaved edits. */
+  restoreLocalTown(): void {
+    const local = this.localTown;
+    if (!local) return;
+    this.cancelGesture();
+    this.world = local.world;
+    this.regionReadOnly = false;
+    this.repositoryBuildings = {};
+    this.paused = local.paused;
+    this.tool = local.tool;
+    this.dirty = local.dirty;
+    this.undo = local.undo;
+    this.localTown = undefined;
+    this.rebuildAll();
+    this.restoreCamera(local.camera);
+    if (this.atlasActive) this.atlasCamera = local.camera;
+    this.renderTool();
+    this.message(HINTS[this.tool]);
+    if (local.selectedBuildingId) this.selectBuilding(local.selectedBuildingId);
+    this.syncVisible();
+    this.updateStats();
+  }
+
+  private cameraState(): CameraState {
+    const camera = this.cameras.main;
+    return { x: camera.scrollX, y: camera.scrollY, zoom: camera.zoom };
+  }
+
+  private restoreCamera(camera: CameraState): void {
+    this.cameras.main.setZoom(camera.zoom).setScroll(camera.x, camera.y);
+    this.cameraKey = "";
   }
 
   private message(text: string, error = false): void {
+    this.status = { text, error };
+    if (this.atlasActive) return;
     const el = document.querySelector<HTMLElement>("[data-testid=status]")!;
     el.textContent = text;
     el.dataset.tone = error ? "error" : "normal";
@@ -259,6 +411,7 @@ export class CoreScene extends Phaser.Scene {
       .querySelectorAll<HTMLElement>("[data-action]")
       .forEach((el) => on(el, "click", () => this.action(el.dataset.action!)));
     on(window, "keydown", ((event: KeyboardEvent) => {
+      if (this.atlasActive) return;
       const target = event.target instanceof HTMLElement ? event.target : null;
       if (
         event.defaultPrevented ||
@@ -268,6 +421,12 @@ export class CoreScene extends Phaser.Scene {
         event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement
+      )
+        return;
+      if (
+        this.regionReadOnly &&
+        (event.code === "Space" ||
+          ((event.metaKey || event.ctrlKey) && /^[sz]$/i.test(event.key)))
       )
         return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
@@ -291,23 +450,43 @@ export class CoreScene extends Phaser.Scene {
       if (event.key === "+" || event.key === "=") this.zoom(1.18);
       if (event.key === "-") this.zoom(1 / 1.18);
     }) as EventListener);
-    this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT");
+    this.input.keyboard?.addKeys(CAMERA_KEYS);
   }
   private setTool(tool: Tool): void {
+    if (this.atlasActive || (this.regionReadOnly && tool !== "inspect")) return;
     this.clearSelection();
     this.tool = tool;
+    this.renderTool();
+    this.message(HINTS[tool]);
+    this.drawGhost();
+  }
+  private renderTool(): void {
+    if (this.atlasActive) return;
+    const tool = this.tool;
     this.ghost.setDepth(tool === "inspect" ? -99998 : 900000);
     document
       .querySelectorAll<HTMLElement>("[data-tool]")
       .forEach((el) =>
         el.setAttribute("aria-pressed", String(el.dataset.tool === tool)),
       );
-    document.getElementById("tool-title")!.textContent = TITLES[tool];
+    document.getElementById("tool-title")!.textContent = this.regionReadOnly
+      ? "Explore repositories"
+      : TITLES[tool];
     document.getElementById("tool-description")!.textContent = HINTS[tool];
-    this.message(HINTS[tool]);
-    this.drawGhost();
   }
   private action(name: string): void {
+    if (this.atlasActive) return;
+    if (
+      this.regionReadOnly &&
+      ![
+        "close-selection",
+        "focus-selection",
+        "home",
+        "zoom-in",
+        "zoom-out",
+      ].includes(name)
+    )
+      return;
     if (name === "close-selection") {
       this.clearSelection();
       this.game.canvas.focus({ preventScroll: true });
@@ -388,6 +567,7 @@ export class CoreScene extends Phaser.Scene {
     this.selectedBuildingId = undefined;
     this.selection.clear();
     this.selectionFootprint.clear();
+    if (this.atlasActive) return;
     const inspector = document.getElementById("building-inspector")!;
     // A dismissed card must not leave keyboard focus on an invisible button.
     if (inspector.contains(document.activeElement))
@@ -403,7 +583,9 @@ export class CoreScene extends Phaser.Scene {
       return;
     }
     this.selectedBuildingId = id;
+    if (this.atlasActive) return;
     const spec = BUILDINGS[building.kind];
+    const repository = this.repositoryBuildings[id];
     const access = cellAt(
       this.world,
       building.x + spec.access.x,
@@ -411,7 +593,29 @@ export class CoreScene extends Phaser.Scene {
     );
     const inspector = document.getElementById("building-inspector")!;
     inspector.dataset.buildingId = id;
-    document.getElementById("building-title")!.textContent = spec.name;
+    document.getElementById("building-title")!.textContent =
+      repository?.fullName ?? spec.name;
+    const link = document.querySelector<HTMLAnchorElement>("#building-repo");
+    if (link) {
+      link.hidden = !repository;
+      link.textContent = repository?.fullName ?? "";
+      // Repository metadata is external data; never promote an arbitrary URL
+      // into a clickable script or unrelated navigation.
+      const safe = repository?.url.match(
+        /^https:\/\/github\.com\/[^/?#]+\/[^/?#]+\/?$/i,
+      );
+      if (safe) link.href = repository.url;
+      else link.removeAttribute("href");
+    }
+    const topics = document.getElementById("building-topics");
+    if (topics) {
+      topics.hidden = !repository;
+      topics.textContent = repository
+        ? [repository.language, ...(repository.topics ?? [])]
+            .filter(Boolean)
+            .join(" · ")
+        : "";
+    }
     document.getElementById("building-location")!.textContent =
       `Lot ${building.x}, ${building.y}`;
     document.getElementById("building-footprint")!.textContent =
@@ -421,7 +625,7 @@ export class CoreScene extends Phaser.Scene {
       : "No road";
     inspector.hidden = false;
     this.message(
-      `${spec.name} selected · ${spec.width} × ${spec.depth} tiles.`,
+      `${repository?.fullName ?? spec.name} selected · ${spec.width} × ${spec.depth} tiles.`,
     );
     this.drawSelection();
     this.ghost.clear();
@@ -430,6 +634,7 @@ export class CoreScene extends Phaser.Scene {
   private drawSelection(): void {
     this.selection.clear();
     this.selectionFootprint.clear();
+    if (this.atlasActive) return;
     const building = this.world.buildings.find(
       (b) => b.id === this.selectedBuildingId,
     );
@@ -526,6 +731,13 @@ export class CoreScene extends Phaser.Scene {
   }
 
   home(): void {
+    if (this.atlasActive) return;
+    this.homeCamera();
+    this.syncVisible();
+    this.drawGhost();
+    this.updateStats();
+  }
+  private homeCamera(): void {
     const camera = this.cameras.main;
     const wide = camera.width >= 760;
     camera.setZoom(
@@ -535,12 +747,14 @@ export class CoreScene extends Phaser.Scene {
     );
     const at = coreProject(0, -1);
     camera.centerOn(at.x - (wide ? 24 : 0), at.y - (wide ? 0 : 50));
-    this.syncVisible();
-    this.drawGhost();
-    this.updateStats();
   }
   private zoom(factor: number, x?: number, y?: number): void {
+    if (this.atlasActive) return;
     const c = this.cameras.main;
+    if (factor < 1 && c.zoom * factor < 0.3 && this.onAtlasRequested) {
+      this.onAtlasRequested();
+      return;
+    }
     const px = x ?? c.width / 2,
       py = y ?? c.height / 2;
     const before = c.getWorldPoint(px, py);
@@ -598,12 +812,7 @@ export class CoreScene extends Phaser.Scene {
     // A release over DOM controls emits pointerupoutside, while native touch
     // cancellation can otherwise reach Phaser as a normal pointerup. Neither
     // ends in an edit, and neither may leave a held gesture hiding the preview.
-    const cancelGesture = () => {
-      this.drag = undefined;
-      this.pinch = undefined;
-      this.hovered = undefined;
-      this.ghost.clear();
-    };
+    const cancelGesture = () => this.cancelGesture();
     this.input.on("pointerupoutside", cancelGesture);
     window.addEventListener("pointercancel", cancelGesture, true);
     window.addEventListener("touchcancel", cancelGesture, true);
@@ -614,6 +823,7 @@ export class CoreScene extends Phaser.Scene {
       window.removeEventListener("blur", cancelGesture);
     });
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      if (this.atlasActive) return;
       const held = this.input.manager.pointers.filter((p) => p.isDown);
       if (held.length > 1) {
         this.pinch = {
@@ -638,6 +848,7 @@ export class CoreScene extends Phaser.Scene {
       };
     });
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      if (this.atlasActive) return;
       const held = this.input.manager.pointers.filter((p) => p.isDown);
       if (this.pinch && held.length > 1) {
         const distance = Phaser.Math.Distance.Between(
@@ -669,6 +880,7 @@ export class CoreScene extends Phaser.Scene {
       this.drawGhost();
     });
     this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
+      if (this.atlasActive) return;
       if (
         this.drag?.id === p.id &&
         !this.drag.moved &&
@@ -687,8 +899,18 @@ export class CoreScene extends Phaser.Scene {
       (p: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) =>
         this.zoom(Math.exp(-dy * 0.001), p.x, p.y),
     );
-    this.scale.on("resize", this.home, this);
-    this.cleanup.push(() => this.scale.off("resize", this.home, this));
+    // Atlas layout changes must not recenter the retained city camera.
+    const resize = () => {
+      if (!this.atlasActive) this.home();
+    };
+    this.scale.on("resize", resize);
+    this.cleanup.push(() => this.scale.off("resize", resize));
+  }
+  private cancelGesture(): void {
+    this.drag = undefined;
+    this.pinch = undefined;
+    this.hovered = undefined;
+    this.ghost?.clear();
   }
   private command(at: { x: number; y: number }) {
     if (this.tool === "road" || this.tool === "bulldoze")
@@ -700,6 +922,8 @@ export class CoreScene extends Phaser.Scene {
     };
   }
   private edit(at: { x: number; y: number }): void {
+    if (this.atlasActive || (this.regionReadOnly && this.tool !== "inspect"))
+      return;
     const cell = cellAt(this.world, at.x, at.y);
     if (this.tool === "inspect") {
       const building = this.world.buildings.find(
@@ -764,6 +988,7 @@ export class CoreScene extends Phaser.Scene {
     g.lineStyle(lineWidth, color, 0.95).strokePoints(pts, true);
   }
   private refreshHover(): void {
+    if (this.atlasActive) return;
     const p = this.input.activePointer;
     const bounds = this.game.canvas.getBoundingClientRect();
     const clientX = bounds.x + (p.x * bounds.width) / this.scale.width;
@@ -779,7 +1004,7 @@ export class CoreScene extends Phaser.Scene {
   private drawGhost(): void {
     if (!this.ghost) return;
     this.ghost.clear();
-    if (!this.hovered || this.drag?.moved) return;
+    if (this.atlasActive || !this.hovered || this.drag?.moved) return;
     const { x, y } = this.hovered;
     if (!cellAt(this.world, x, y)) return;
     if (this.tool === "inspect") {
@@ -964,6 +1189,7 @@ export class CoreScene extends Phaser.Scene {
     this.cameraKey = "";
   }
   private updateCars(): void {
+    if (this.atlasActive) return;
     const wanted = new Set<string>();
     for (const v of this.world.vehicles) {
       wanted.add(v.id);
@@ -990,6 +1216,7 @@ export class CoreScene extends Phaser.Scene {
       }
   }
   private syncVisible(): void {
+    if (this.atlasActive) return;
     const c = this.cameras.main;
     c.preRender();
     const view = c.worldView;
@@ -1003,6 +1230,7 @@ export class CoreScene extends Phaser.Scene {
       );
   }
   private updateStats(): void {
+    if (this.atlasActive) return;
     document.getElementById("building-count")!.textContent = String(
       this.world.buildings.length,
     );
@@ -1016,9 +1244,11 @@ export class CoreScene extends Phaser.Scene {
     )!;
     pause.setAttribute("aria-pressed", String(this.paused));
     pause.textContent = this.paused ? "▶ Resume" : "Ⅱ Pause";
-    document.getElementById("save-state")!.textContent = this.dirty
-      ? "Unsaved changes"
-      : "Local town";
+    document.getElementById("save-state")!.textContent = this.regionReadOnly
+      ? "Repository district"
+      : this.dirty
+        ? "Unsaved changes"
+        : "Local town";
     document.querySelector<HTMLButtonElement>("[data-action=undo]")!.disabled =
       this.undo.length === 0;
     document.getElementById("sim-state")!.textContent = this.paused
@@ -1031,9 +1261,10 @@ export class CoreScene extends Phaser.Scene {
       elapsed = now - this.lastTime;
     this.lastTime = now;
     if (document.hidden) return; // Explicit policy: hidden tabs pause, never discard visible-time ticks.
+    if (!this.paused) advanceWorld(this.world, elapsed);
+    if (this.atlasActive) return;
     this.frameTimes.push(elapsed);
     if (this.frameTimes.length > 360) this.frameTimes.shift();
-    if (!this.paused) advanceWorld(this.world, elapsed);
     const kb = this.input.keyboard;
     const editingUI = Boolean(
       document.querySelector("[popover]:popover-open") ||

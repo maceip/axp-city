@@ -28,10 +28,13 @@
     "test:performance": "python3 -m pytest e2e/test_core_performance.py --performance --browser chromium -v"
   },
   "dependencies": {
-    "phaser": "4.2.1"
+    "globe.gl": "file:vendor/globe.gl",
+    "phaser": "4.2.1",
+    "three": "0.186.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.1",
+    "@types/three": "0.186.0",
     "prettier": "3.6.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",

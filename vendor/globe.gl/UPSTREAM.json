@@ -1,0 +1,37 @@
+{
+  "package": "globe.gl",
+  "version": "2.46.2",
+  "retrieved": "2026-09-20",
+  "repository": "https://github.com/vasturiano/globe.gl",
+  "commit": "6820a9c794bddde8e842bb203eaa698f6ed7adfe",
+  "registry": "https://registry.npmjs.org/globe.gl/2.46.2",
+  "tarball": "https://registry.npmjs.org/globe.gl/-/globe.gl-2.46.2.tgz",
+  "tarballBytes": 23416281,
+  "integrity": "sha512-oh5fx/sTVtFa06OrLXxgfZ5TV1xhDzLKw0muc0fxJfpHrvfDNRspGqrgURpEBBYWS7REzQA78vodUrjbpfYoqA==",
+  "shasum": "d76bfdde11f966e5e2ec17ba38e885dc4227a98e",
+  "files": {
+    "dist/globe.gl.mjs": {
+      "bytes": 23090,
+      "sha256": "b38e5edd8dcae90842579d86a7e73d11c456d227b7c1a364c5affeb38a2450bf"
+    },
+    "dist/globe.gl.d.ts": {
+      "bytes": 9273,
+      "sha256": "3082187de1b6c3f58c2490ca71e5944898f13804ddb5f485a3d6e59d981a378b"
+    },
+    "LICENSE": {
+      "bytes": 1072,
+      "sha256": "c633a0da18abe4208665d9faf574f38084bbe38ce5bf743e9ecc06e50b941b59"
+    },
+    "README.md": {
+      "bytes": 74566,
+      "sha256": "b97060ce9464e31f853609ff078dc3cf1b0fcc93db631ca74e8c2e895115ede3"
+    },
+    "package.json": {
+      "bytes": 1872,
+      "sha256": "5bc8fa58eeaf2d8c59ce39eb49bf919eabf263a5b5ddaea91961f618ca9ff470"
+    }
+  },
+  "adaptations": [
+    "package.json: preserve ESM/types entrypoints and upstream runtime dependency ranges; omit UMD export, example files, build scripts and development dependencies because this is a prebuilt ESM runtime subset. Exact upstream manifest retained as UPSTREAM-PACKAGE.json."
+  ]
+}

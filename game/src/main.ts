@@ -2,6 +2,7 @@ import "./styles.css";
 import { detectSupport } from "./support.js";
 import shaderLabLicense from "../../assets/licenses/shader-lab-APACHE-2.0.txt?url";
 import geistLicense from "../../assets/fonts/geist/OFL.txt?url";
+import { installAtlas } from "./atlas/AtlasHost.js";
 
 // Keep the adapted component and font licenses in the distributed build.
 for (const href of [shaderLabLicense, geistLicense]) {
@@ -46,7 +47,10 @@ if (!support.renderer) {
   const renderer = support.renderer;
   // Phaser is only loaded once the browser has proven it can run it.
   import("./config.js")
-    .then(({ createGame }) => createGame("game", renderer))
+    .then(({ createGame }) => {
+      const game = createGame("game", renderer);
+      game.events.once("ready", () => installAtlas(game));
+    })
     .catch((error: unknown) => {
       showUnsupported([
         `The city engine failed to start: ${error instanceof Error ? error.message : String(error)}`,

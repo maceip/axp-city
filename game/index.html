@@ -29,6 +29,14 @@
           <span class="brand-name">AXP City</span>
           <span class="divider brand-divider" aria-hidden="true"></span>
           <h1>Town workshop</h1>
+          <button
+            id="open-world"
+            class="sl-button"
+            data-variant="ghost"
+            title="Explore the repository world"
+          >
+            World ↗
+          </button>
         </div>
         <div class="town-summary" aria-label="Town summary">
           <span><b id="building-count">0</b> buildings</span>
@@ -123,6 +131,15 @@
             </svg>
           </button>
         </header>
+        <a
+          id="building-repo"
+          class="building-repo"
+          target="_blank"
+          rel="noopener noreferrer"
+          hidden
+          >Open repository ↗</a
+        >
+        <p id="building-topics" class="building-topics" hidden></p>
         <dl class="building-facts">
           <div>
             <dt>Footprint</dt>
@@ -281,6 +298,101 @@
       >
         Ⅱ Pause
       </button>
+    </div>
+    <section id="atlas-shell" hidden aria-label="Repository world">
+      <div
+        id="atlas-canvas"
+        aria-label="Rotating repository globe. Drag to rotate, scroll or pinch to zoom."
+      ></div>
+      <nav class="atlas-breadcrumb sl-panel" aria-label="World navigation">
+        <button id="atlas-world" class="sl-button" data-variant="ghost">
+          World
+        </button>
+        <span id="atlas-separator" class="atlas-chevron" hidden>›</span>
+        <button
+          id="atlas-continent"
+          class="sl-button"
+          data-variant="ghost"
+          hidden
+        ></button>
+        <span id="atlas-region-name" hidden></span>
+      </nav>
+      <div class="atlas-options sl-panel">
+        <button
+          class="sl-button"
+          data-variant="ghost"
+          popovertarget="atlas-languages"
+        >
+          Languages
+        </button>
+        <button id="atlas-town" class="sl-button" data-variant="secondary">
+          My town
+        </button>
+      </div>
+      <div
+        id="atlas-languages"
+        class="atlas-languages sl-panel"
+        popover
+        aria-label="Choose a language"
+      ></div>
+      <div class="atlas-caption">
+        <p class="atlas-eyebrow">THE REPOSITORY WORLD</p>
+        <h2 id="atlas-title">A world built from code.</h2>
+        <p id="atlas-hint" role="status">
+          Drag to rotate. Select a language to explore.
+        </p>
+      </div>
+      <p id="atlas-source" class="atlas-source"></p>
+      <div class="atlas-controls sl-pill" aria-label="World view controls">
+        <button
+          id="atlas-home"
+          class="sl-icon-button"
+          data-variant="ghost"
+          aria-label="Show whole world"
+          title="Show whole world"
+        >
+          ◎
+        </button>
+        <span class="divider" aria-hidden="true"></span>
+        <button
+          id="atlas-out"
+          class="sl-icon-button"
+          data-variant="ghost"
+          aria-label="Zoom out of world"
+          title="Zoom out"
+        >
+          −
+        </button>
+        <span id="atlas-level">World</span>
+        <button
+          id="atlas-in"
+          class="sl-icon-button"
+          data-variant="ghost"
+          aria-label="Zoom into world"
+          title="Zoom in"
+        >
+          +
+        </button>
+      </div>
+    </section>
+    <nav
+      id="district-navigation"
+      class="sl-panel"
+      aria-label="Repository district navigation"
+      hidden
+    >
+      <button id="district-back" class="sl-button" data-variant="ghost">
+        ← World
+      </button>
+      <span id="district-label"></span>
+      <button id="district-town" class="sl-button" data-variant="secondary">
+        My town
+      </button>
+    </nav>
+    <div id="atlas-error" class="loading-card" role="alert" hidden>
+      <h2>The globe could not start.</h2>
+      <p id="atlas-error-message"></p>
+      <button id="atlas-error-close" class="sl-button">Back to my town</button>
     </div>
     <div id="boot-card" class="loading-card">
       <span class="eyebrow">AXP CITY</span>
