@@ -4,6 +4,7 @@ import type { GlobeView } from "./GlobeView.js";
 import type { AtlasRegion } from "./catalog.js";
 import "./atlas.css";
 import globeLicense from "../../../vendor/globe.gl/LICENSE?url";
+import cinematicLicense from "../../../vendor/cinematic-world-zoom/LICENSE?url";
 import iconLicense from "./icons/LICENSE?url";
 
 /** Load the globe on demand; the existing town/save remains the local workshop. */
@@ -16,7 +17,7 @@ export function installAtlas(game: Phaser.Game): void {
   const scene = () => game.scene.getScene("CoreCity") as CoreScene;
   const get = (id: string) => document.getElementById(id)!;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  for (const href of [globeLicense, iconLicense]) {
+  for (const href of [globeLicense, cinematicLicense, iconLicense]) {
     const link = document.createElement("link");
     link.rel = "license";
     link.href = href;
@@ -34,6 +35,8 @@ export function installAtlas(game: Phaser.Game): void {
   function leaveGlobe(): void {
     const token = ++transition;
     globe?.hide();
+    shell.inert = true;
+    shell.classList.remove("atlas-arriving");
     shell.classList.add("atlas-departing");
     setCityInput(true);
     setTimeout(
@@ -91,21 +94,40 @@ export function installAtlas(game: Phaser.Game): void {
   }
   async function openWorld(): Promise<void> {
     const token = ++transition;
+    const fadeFromCity = Boolean(globe) && shell.hidden && !reduced;
     scene().cameras.main.resetFX();
     get("town-menu").hidePopover();
     shell.hidden = false;
+    shell.inert = false;
     shell.classList.remove("atlas-departing");
+    shell.classList.toggle("atlas-arriving", fadeFromCity);
     get("atlas-hint").textContent = "Preparing the repository world…";
     setCityInput(false);
+    // Keep the last city composition visible beneath the returning globe for
+    // the crossfade. Input and simulation presentation already belong to the atlas.
+    if (fadeFromCity) scene().cameras.main.visible = true;
     try {
       const view = await loadGlobe();
       if (transition !== token) return;
       view.show(region);
+      if (fadeFromCity) {
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            if (transition !== token) return;
+            shell.classList.remove("atlas-arriving");
+            setTimeout(() => {
+              if (transition === token) scene().cameras.main.visible = false;
+            }, 460);
+          }),
+        );
+      }
       shell
         .querySelector<HTMLCanvasElement>("canvas")
         ?.focus({ preventScroll: true });
     } catch (error) {
       if (transition !== token) return;
+      shell.classList.remove("atlas-arriving");
+      scene().cameras.main.visible = false;
       get("atlas-error-message").textContent =
         error instanceof Error
           ? error.message

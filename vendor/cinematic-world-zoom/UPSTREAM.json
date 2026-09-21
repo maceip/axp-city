@@ -1,0 +1,65 @@
+{
+  "repository": "https://github.com/Makio64/threejs-cinematic-world-zoom",
+  "commit": "a15c683fb30671a44115c30e6ef045938c5a4167",
+  "commitDate": "2026-08-11T15:47:25+09:00",
+  "retrievedAt": "2026-09-21T04:54:16Z",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2026 David Ronai (@makio64)",
+  "purpose": "Byte-exact upstream camera source retained for attribution, selective TypeScript adaptation and comparison; not a standalone application or installed package.",
+  "files": {
+    "src/camera/Rig.js": {
+      "upstreamPath": "src/camera/Rig.js",
+      "bytes": 8685,
+      "sha256": "926e04ee21966ffabeac544a6b42d436deb20037a99f5176a395b8ad8cd4367d",
+      "gitBlob": "c88f02a72c4aed6c4b267eef516e52fe20083a1e"
+    },
+    "src/camera/shots.js": {
+      "upstreamPath": "src/camera/shots.js",
+      "bytes": 20761,
+      "sha256": "ad52a0dc9f4cacb0388b9a506937444e5736443a890117ea72a3755174d1161d",
+      "gitBlob": "29b12dc7a765de920e8f6c53b21ae91d9bf0ed9a"
+    },
+    "src/camera/easing.js": {
+      "upstreamPath": "src/camera/easing.js",
+      "bytes": 8522,
+      "sha256": "9e18227049abd1087e1b39128da99317266c462d8eaf60b7638048334c7dd8c4",
+      "gitBlob": "b93a60b763707dee708522b789d4cad7b6eee5e0"
+    },
+    "LICENSE": {
+      "upstreamPath": "LICENSE",
+      "bytes": 1079,
+      "sha256": "eb5f961447b282d1a3d8e8a0963da64a1f51cb1371a4028d62e6fa3d3d30396e",
+      "gitBlob": "c82fb95073195535f8cf1eebf658c79796100774"
+    }
+  },
+  "modifications": [],
+  "dependencyBoundary": {
+    "src/camera/easing.js": [],
+    "src/camera/shots.js": [
+      "three",
+      "./easing.js"
+    ],
+    "src/camera/Rig.js": [
+      "three",
+      "../geo.js (not vendored; geographic frame/ellipsoid is adapted separately)"
+    ]
+  },
+  "excluded": [
+    "Upstream AGENTS.md and executable/build/install scripts",
+    "Geographic, world, tile-authentication, atmosphere/cloud, recorder, UI and asset modules",
+    "Upstream dependency manifest and lockfile",
+    "Earth/map tiles, sky binaries and network assets"
+  ],
+  "localFiles": {
+    "src/camera/easing.d.ts": {
+      "purpose": "Locally authored TypeScript declarations; not part of upstream source",
+      "bytes": 1294,
+      "sha256": "2af8280206f8b313a7414a2d423bf8cc0e3616bfad8cca4bfc0cc817de60c6e5"
+    },
+    "src/camera/shots.d.ts": {
+      "purpose": "Locally authored TypeScript declarations; not part of upstream source",
+      "bytes": 2140,
+      "sha256": "1c58c5eabaa82e34bd2985faf6f4c1221b0097f26b6a1dd928b39b3b5abf6b1d"
+    }
+  }
+}

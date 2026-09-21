@@ -4,7 +4,9 @@ import {
   DirectionalLight,
   HemisphereLight,
   MeshPhongMaterial,
+  type PerspectiveCamera,
 } from "three";
+import { CinematicCamera, type GlobePov } from "./CinematicCamera.js";
 import {
   buildAtlas,
   catalog,
@@ -60,6 +62,8 @@ const angularDistance = (
 export class GlobeView {
   readonly atlas = buildAtlas(catalog);
   private globe: InstanceType<typeof Globe>;
+  private cinematic: CinematicCamera;
+  private updatingCamera = false;
   private continent?: AtlasContinent;
   private hovered?: Place;
   private polygonHovered?: Place;
@@ -68,7 +72,7 @@ export class GlobeView {
   private contextLost = false;
   private entering = false;
   private flightUntil = 0;
-  private enterTimer?: ReturnType<typeof setTimeout>;
+  private zoomTarget?: number;
   private markerElements = new Map<string, HTMLElement>();
   private landMaterials = new Map<string, MeshPhongMaterial>();
   private cleanup: Array<() => void> = [];
@@ -158,6 +162,26 @@ export class GlobeView {
       lng: -22,
       altitude: this.worldAltitude(),
     });
+    this.cinematic = new CinematicCamera(
+      this.globe.camera() as PerspectiveCamera,
+      this.globe.getGlobeRadius(),
+      () => {
+        // Globe.gl's public control event refreshes marker occlusion/picking.
+        // Suppress semantic zoom while the cinematic rig owns the camera.
+        this.updatingCamera = true;
+        this.globe.controls().dispatchEvent({ type: "change" });
+        this.updatingCamera = false;
+        const flight = this.cinematic.snapshot;
+        el("atlas-shell").dataset.flightLabels =
+          flight.active &&
+          flight.kind !== "zoom" &&
+          (flight.kind === "dive" || flight.progress < 0.65)
+            ? "hidden"
+            : "visible";
+      },
+      this.reduceMotion,
+    );
+    this.cinematic.setActive(false);
     this.renderLevel();
     const canvas = container.querySelector("canvas")!;
     canvas.tabIndex = 0;
@@ -182,7 +206,11 @@ export class GlobeView {
       }
     });
     listen(document, "visibilitychange", () => {
-      if (document.hidden || !this.active) this.globe.pauseAnimation();
+      this.cinematic.setActive(
+        !document.hidden && this.active && !this.contextLost,
+      );
+      if (document.hidden || !this.active || this.contextLost)
+        this.globe.pauseAnimation();
       else this.globe.resumeAnimation();
     });
     listen(window, "keydown", ((event: KeyboardEvent) => {
@@ -205,22 +233,31 @@ export class GlobeView {
     listen(canvas, "webglcontextlost", (event) => {
       event.preventDefault();
       this.contextLost = true;
-      this.cancelEntry();
+      this.stopFlight();
+      this.cinematic.setActive(false);
+      this.globe.pauseAnimation();
       el("atlas-error-message").textContent =
         "The globe’s graphics connection was interrupted. Your town is still available.";
       el("atlas-error").hidden = !this.active;
     });
     listen(canvas, "webglcontextrestored", () => {
       this.contextLost = false;
+      this.cinematic.setActive(this.active && !document.hidden);
+      this.globe.controls().enabled = this.active;
+      if (this.active && !document.hidden) this.globe.resumeAnimation();
       el("atlas-error").hidden = true;
     });
-    const interruptFlight = () => {
-      if (!this.entering) return;
-      this.cancelEntry();
+    const interruptFlight = (event: Event) => {
+      // Marker clicks may retarget a flight continuously; canvas gestures take
+      // control immediately, before OrbitControls sees the same input event.
+      if ((event.target as HTMLElement).closest("button")) return;
+      if (!this.cinematic.active) return;
+      this.stopFlight();
       this.flightUntil = performance.now() + 500;
-      this.globe.pointOfView(this.globe.pointOfView(), 0);
       el("atlas-hint").textContent =
-        "Select a tag region, or keep scrolling closer.";
+        this.level === "world"
+          ? "Drag to rotate. Select a language to explore."
+          : "Select a tag region, or keep scrolling closer.";
     };
     listen(container, "wheel", interruptFlight, true);
     listen(container, "pointerdown", interruptFlight, true);
@@ -255,6 +292,7 @@ export class GlobeView {
         continent: this.continent?.id ?? null,
         hovered: this.hovered?.id ?? null,
         pov: this.globe.pointOfView(),
+        cinematic: this.cinematic.snapshot,
         continents: this.atlas.continents.map((c) => ({
           id: c.id,
           name: c.name,
@@ -291,8 +329,8 @@ export class GlobeView {
     );
   }
   private focalLength(): number {
-    const camera = this.globe.camera() as { fov?: number };
-    return innerHeight / (2 * Math.tan(((camera.fov ?? 50) * Math.PI) / 360));
+    // Framing/LOD use the settled lens, independent of an in-flight lens change.
+    return innerHeight / (2 * Math.tan((50 * Math.PI) / 360));
   }
   private continentAltitude(continent: AtlasContinent): number {
     const ring = continent.geometry.coordinates[0];
@@ -406,7 +444,7 @@ export class GlobeView {
     return wrapper;
   }
   private highlight(place: Place | null): void {
-    if (this.entering) return;
+    if (this.entering || this.cinematic.active) return;
     if (this.level === "regions" && place && !isRegion(place)) place = null;
     if (this.hovered?.id === place?.id) return;
     this.hovered = place ?? undefined;
@@ -423,12 +461,13 @@ export class GlobeView {
         : "Select a tag region, or keep scrolling closer.";
   }
   private choose(place: Place): void {
-    if (!this.active || this.entering) return;
+    if (!this.active || this.contextLost || this.entering) return;
     if (isRegion(place)) this.enter(place);
     else this.focusContinent(place);
   }
   focusContinent(continent: AtlasContinent): void {
-    this.cancelEntry();
+    if (this.contextLost) return;
+    this.entering = false;
     this.continent = continent;
     this.level = "regions";
     this.renderLevel();
@@ -438,34 +477,82 @@ export class GlobeView {
         lng: continent.lng,
         altitude: this.continentAltitude(continent),
       },
-      850,
+      1400,
+      "descent",
     );
   }
   private fly(
-    pov: { lat?: number; lng?: number; altitude: number },
+    pov: Partial<GlobePov> & { altitude: number },
     duration: number,
+    kind: "descent" | "dive" | "return" | "zoom",
+    complete?: () => void,
   ): void {
-    const ms = this.reduceMotion ? 0 : duration;
-    this.flightUntil = performance.now() + ms + 80;
-    this.globe.pointOfView(pov, ms);
+    if (this.contextLost) return;
+    this.zoomTarget = kind === "zoom" ? pov.altitude : undefined;
+    const controls = this.globe.controls();
+    const camera = this.globe.camera();
+    // Drain residual drag/pinch damping before taking over. Restore the exact
+    // displayed pose so a click during a gesture does not jump on its first frame.
+    const position = camera.position.clone();
+    const quaternion = camera.quaternion.clone();
+    this.updatingCamera = true;
+    controls.enabled = false;
+    const damping = controls.enableDamping;
+    controls.enableDamping = false;
+    controls.update();
+    controls.enableDamping = damping;
+    camera.position.copy(position);
+    camera.quaternion.copy(quaternion);
+    camera.updateMatrixWorld();
+    this.updatingCamera = false;
+    this.flightUntil = 0;
+    el("atlas-shell").dataset.flying = "true";
+    this.cinematic.flyTo(
+      { ...this.globe.pointOfView(), ...pov },
+      {
+        kind,
+        durationMs: duration,
+        onComplete: () => {
+          controls.enabled = true;
+          this.zoomTarget = undefined;
+          el("atlas-shell").dataset.flying = "false";
+          if (complete) complete();
+          else if (kind === "zoom") this.onZoom(this.globe.pointOfView());
+        },
+      },
+    );
   }
   private enter(region: AtlasRegion): void {
     if (this.entering) return;
     this.entering = true;
-    const ms = this.reduceMotion ? 0 : 700;
-    this.fly({ lat: region.lat, lng: region.lng, altitude: 0.18 }, ms);
     el("atlas-hint").textContent = `Entering ${region.name}…`;
-    this.enterTimer = setTimeout(() => {
-      if (this.active && this.entering) this.enterDistrict(region);
-      this.entering = false;
-    }, ms);
+    this.fly(
+      { lat: region.lat, lng: region.lng, altitude: 0.18 },
+      1600,
+      "dive",
+      () => {
+        if (!this.active || !this.entering) return;
+        this.entering = false;
+        this.enterDistrict(region);
+      },
+    );
   }
-  private cancelEntry(): void {
-    clearTimeout(this.enterTimer);
+  private stopFlight(): void {
     this.entering = false;
+    this.zoomTarget = undefined;
+    this.cinematic.cancel();
+    this.globe.controls().enabled = this.active && !this.contextLost;
+    el("atlas-shell").dataset.flying = "false";
+    el("atlas-shell").dataset.flightLabels = "visible";
   }
   private onZoom(pov: { lat: number; lng: number; altitude: number }): void {
-    if (!this.active || this.entering || performance.now() < this.flightUntil)
+    if (
+      !this.active ||
+      this.contextLost ||
+      this.updatingCamera ||
+      this.cinematic?.active ||
+      this.entering
+    )
       return;
     if (
       this.level === "regions" &&
@@ -475,7 +562,9 @@ export class GlobeView {
       this.level = "world";
       this.continent = undefined;
       this.renderLevel();
-    } else if (this.level === "world") {
+      return;
+    }
+    if (this.level === "world") {
       const nearest = [...this.atlas.continents].sort(
         (a, b) => angularDistance(pov, a) - angularDistance(pov, b),
       )[0];
@@ -488,9 +577,11 @@ export class GlobeView {
         this.level = "regions";
         this.renderLevel();
       }
-    } else if (
+    }
+    if (
       this.level === "regions" &&
       this.continent &&
+      performance.now() >= this.flightUntil &&
       pov.altitude < 0.4
     ) {
       const nearest = [...this.continent.regions].sort(
@@ -523,45 +614,64 @@ export class GlobeView {
     el("atlas-shell").dataset.level = this.level;
   }
   private zoom(factor: number): void {
+    if (this.contextLost) return;
     if (this.entering) {
-      if (factor > 1) this.cancelEntry();
+      if (factor > 1) this.entering = false;
       else return;
     }
     const pov = this.globe.pointOfView();
-    this.flightUntil = 0;
     const altitude = Math.min(
       this.worldAltitude() + 1,
-      Math.max(0.14, pov.altitude * factor),
+      Math.max(0.14, (this.zoomTarget ?? pov.altitude) * factor),
     );
     // Button zoom follows the same LOD thresholds as wheel and pinch.
-    this.globe.pointOfView({ altitude }, this.reduceMotion ? 0 : 320);
+    this.fly({ altitude }, 360, "zoom");
   }
   world(): void {
-    this.cancelEntry();
+    if (this.contextLost) return;
+    this.entering = false;
     this.continent = undefined;
     this.level = "world";
     this.renderLevel();
-    this.fly({ altitude: this.worldAltitude() }, 700);
+    this.fly({ altitude: this.worldAltitude() }, 1250, "return");
   }
   show(region?: AtlasRegion): void {
     this.active = true;
+    this.cinematic.setActive(!document.hidden && !this.contextLost);
     el("atlas-error").hidden = !this.contextLost;
-    this.globe.resumeAnimation();
+    this.globe.controls().enabled = !this.contextLost;
+    if (!this.contextLost && !document.hidden) this.globe.resumeAnimation();
     if (region) {
       const continent = this.atlas.continents.find(
         (c) => c.id === region.continentId,
       );
-      if (continent) this.focusContinent(continent);
+      if (continent) {
+        this.entering = false;
+        this.continent = continent;
+        this.level = "regions";
+        this.renderLevel();
+        this.fly(
+          {
+            lat: continent.lat,
+            lng: continent.lng,
+            altitude: this.continentAltitude(continent),
+          },
+          1400,
+          "return",
+        );
+      }
     }
   }
   hide(): void {
     this.active = false;
-    this.cancelEntry();
+    this.stopFlight();
+    this.cinematic.setActive(false);
     this.globe.pauseAnimation();
     el("atlas-languages").hidePopover();
   }
   destroy(): void {
     this.hide();
+    this.cinematic.destroy();
     this.cleanup.forEach((fn) => fn());
     this.globe._destructor();
   }
