@@ -1,10 +1,10 @@
 {
   "name": "axp-city",
   "version": "1.0.0",
-  "description": "GitHub → isometric city ingest pipeline. Real repo metrics become mapped city lots.",
+  "description": "A compact isometric city workshop with deterministic tile and traffic simulation.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   },
   "scripts": {
     "ingest": "tsx src/cli/ingest.ts",
@@ -20,16 +20,21 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc --noEmit -p game/tsconfig.json",
-    "dev": "tsx src/cli/server.ts --dev --offline",
+    "dev": "tsx src/cli/server.ts --dev --core",
     "build": "vite build --config game/vite.config.ts && tsc -p tsconfig.server.json && node scripts/build-info.mjs",
-    "start": "node dist/server/cli/server.js",
-    "test:e2e": "env -u PLAYWRIGHT_SERVICE_URL -u PLAYWRIGHT_SERVICE_ACCESS_TOKEN CITY_LOCAL_BROWSER=1 CITY_SOFTWARE_GL=1 python3 -m pytest e2e -v"
+    "start": "node dist/server/cli/server.js --core",
+    "test:e2e": "python3 -m pytest e2e/test_core_city.py e2e/test_core_selection.py --browser chromium --browser firefox --browser webkit --screenshot only-on-failure",
+    "test:operations": "python3 -m pytest e2e/test_operations.py -q",
+    "test:performance": "python3 -m pytest e2e/test_core_performance.py --performance --browser chromium -v"
   },
   "dependencies": {
-    "phaser": "4.2.1"
+    "globe.gl": "file:vendor/globe.gl",
+    "phaser": "4.2.1",
+    "three": "0.186.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.1",
+    "@types/three": "0.186.0",
     "prettier": "3.6.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",

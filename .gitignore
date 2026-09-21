@@ -1,5 +1,6 @@
 node_modules/
 dist/
+!vendor/globe.gl/dist/
 *.log
 .DS_Store
 .cache/
@@ -14,3 +15,6 @@ __pycache__/
 ai-game-studio/
 
 .pytest_cache/
+
+# Standard pytest-playwright failure artifacts
+test-results/

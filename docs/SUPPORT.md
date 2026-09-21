@@ -1,3 +1,5 @@
+> Historical repository-city documentation. The active core workshop is specified in [CORE-ENGINE.md](CORE-ENGINE.md); claims and measurements below apply to the previous experience.
+
 # Browser and device support
 
 The city is a Phaser 4.2.1 application. Before Phaser is loaded, `game/src/support.ts` feature-detects the browser and picks one of three outcomes:

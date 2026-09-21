@@ -1,0 +1,513 @@
+{
+  "version": 1,
+  "label": "Public repository sample",
+  "capturedAt": "2026-09-21T00:23:21Z",
+  "source": "GitHub REST API public repository metadata: https://api.github.com/repos/{owner}/{repo}",
+  "repos": [
+    {
+      "id": "github:483402734",
+      "fullName": "android/nowinandroid",
+      "url": "https://github.com/android/nowinandroid",
+      "language": "Kotlin",
+      "topics": ["android", "jetpack-compose", "kotlin", "sample"]
+    },
+    {
+      "id": "github:24195339",
+      "fullName": "angular/angular",
+      "url": "https://github.com/angular/angular",
+      "language": "TypeScript",
+      "topics": [
+        "angular",
+        "javascript",
+        "pwa",
+        "typescript",
+        "web",
+        "web-framework",
+        "web-performance"
+      ]
+    },
+    {
+      "id": "github:6358188",
+      "fullName": "apache/druid",
+      "url": "https://github.com/apache/druid",
+      "language": "Java",
+      "topics": ["druid"]
+    },
+    {
+      "id": "github:4710920",
+      "fullName": "apache/dubbo",
+      "url": "https://github.com/apache/dubbo",
+      "language": "Java",
+      "topics": [
+        "distributed-systems",
+        "dubbo",
+        "framework",
+        "grpc",
+        "http",
+        "java",
+        "microservices",
+        "restful",
+        "rpc",
+        "service-mesh",
+        "web"
+      ]
+    },
+    {
+      "id": "github:2211243",
+      "fullName": "apache/kafka",
+      "url": "https://github.com/apache/kafka",
+      "language": "Java",
+      "topics": ["java", "kafka", "scala", "streaming"]
+    },
+    {
+      "id": "github:523043277",
+      "fullName": "astral-sh/ruff",
+      "url": "https://github.com/astral-sh/ruff",
+      "language": "Rust",
+      "topics": [
+        "linter",
+        "pep8",
+        "python",
+        "python3",
+        "ruff",
+        "rust",
+        "rustpython",
+        "static-analysis",
+        "static-code-analysis",
+        "style-guide",
+        "styleguide"
+      ]
+    },
+    {
+      "id": "github:212613049",
+      "fullName": "cli/cli",
+      "url": "https://github.com/cli/cli",
+      "language": "Go",
+      "topics": ["cli", "git", "github-api-v4", "golang"]
+    },
+    {
+      "id": "github:201684760",
+      "fullName": "coil-kt/coil",
+      "url": "https://github.com/coil-kt/coil",
+      "language": "Kotlin",
+      "topics": [
+        "android",
+        "androidx",
+        "compose",
+        "compose-multiplatform",
+        "coroutines",
+        "image-loader",
+        "images",
+        "kotlin",
+        "kotlin-coroutines",
+        "okio"
+      ]
+    },
+    {
+      "id": "github:133442384",
+      "fullName": "denoland/deno",
+      "url": "https://github.com/denoland/deno",
+      "language": "Rust",
+      "topics": ["deno", "javascript", "rust", "typescript"]
+    },
+    {
+      "id": "github:4164482",
+      "fullName": "django/django",
+      "url": "https://github.com/django/django",
+      "language": "Python",
+      "topics": [
+        "apps",
+        "django",
+        "framework",
+        "models",
+        "orm",
+        "python",
+        "templates",
+        "views",
+        "web"
+      ]
+    },
+    {
+      "id": "github:507775",
+      "fullName": "elastic/elasticsearch",
+      "url": "https://github.com/elastic/elasticsearch",
+      "language": "Java",
+      "topics": ["elasticsearch", "java", "search-engine"]
+    },
+    {
+      "id": "github:6934395",
+      "fullName": "facebook/rocksdb",
+      "url": "https://github.com/facebook/rocksdb",
+      "language": "C++",
+      "topics": ["database", "storage-engine"]
+    },
+    {
+      "id": "github:612354784",
+      "fullName": "ggml-org/llama.cpp",
+      "url": "https://github.com/ggml-org/llama.cpp",
+      "language": "C++",
+      "topics": ["ggml"]
+    },
+    {
+      "id": "github:11180687",
+      "fullName": "gohugoio/hugo",
+      "url": "https://github.com/gohugoio/hugo",
+      "language": "Go",
+      "topics": [
+        "blog-engine",
+        "cms",
+        "content-management-system",
+        "documentation-tool",
+        "go",
+        "hugo",
+        "static-site-generator"
+      ]
+    },
+    {
+      "id": "github:23096959",
+      "fullName": "golang/go",
+      "url": "https://github.com/golang/go",
+      "language": "Go",
+      "topics": ["go", "golang", "language", "programming-language"]
+    },
+    {
+      "id": "github:23405758",
+      "fullName": "google/leveldb",
+      "url": "https://github.com/google/leveldb",
+      "language": "C++",
+      "topics": []
+    },
+    {
+      "id": "github:155220641",
+      "fullName": "huggingface/transformers",
+      "url": "https://github.com/huggingface/transformers",
+      "language": "Python",
+      "topics": [
+        "audio",
+        "deep-learning",
+        "deepseek",
+        "gemma",
+        "glm",
+        "hacktoberfest",
+        "llm",
+        "machine-learning",
+        "model-hub",
+        "natural-language-processing",
+        "nlp",
+        "pretrained-models",
+        "python",
+        "pytorch",
+        "pytorch-transformers",
+        "qwen",
+        "speech-recognition",
+        "transformer",
+        "vlm"
+      ]
+    },
+    {
+      "id": "github:3432266",
+      "fullName": "JetBrains/kotlin",
+      "url": "https://github.com/JetBrains/kotlin",
+      "language": "Kotlin",
+      "topics": [
+        "compiler",
+        "gradle-plugin",
+        "intellij-plugin",
+        "kotlin",
+        "kotlin-library",
+        "maven-plugin",
+        "programming-language",
+        "wasm",
+        "webassembly"
+      ]
+    },
+    {
+      "id": "github:40136600",
+      "fullName": "ktorio/ktor",
+      "url": "https://github.com/ktorio/ktor",
+      "language": "Kotlin",
+      "topics": ["async", "asynchronous", "kotlin", "web", "web-framework"]
+    },
+    {
+      "id": "github:20580498",
+      "fullName": "kubernetes/kubernetes",
+      "url": "https://github.com/kubernetes/kubernetes",
+      "language": "Go",
+      "topics": ["cncf", "containers", "go", "kubernetes"]
+    },
+    {
+      "id": "github:628160489",
+      "fullName": "maxrave-dev/SimpMusic",
+      "url": "https://github.com/maxrave-dev/SimpMusic",
+      "language": "Kotlin",
+      "topics": [
+        "android",
+        "android-16",
+        "android-app",
+        "android-application",
+        "android-auto",
+        "compose-multiplatform",
+        "exoplayer",
+        "kotlin",
+        "linux",
+        "macos",
+        "media3",
+        "mp3",
+        "music",
+        "spotify",
+        "video-streaming",
+        "windows",
+        "youtube",
+        "youtube-music"
+      ]
+    },
+    {
+      "id": "github:100060912",
+      "fullName": "microsoft/terminal",
+      "url": "https://github.com/microsoft/terminal",
+      "language": "C++",
+      "topics": [
+        "cmd",
+        "command-line",
+        "console",
+        "contributions-welcome",
+        "good-first-issue",
+        "hacktoberfest",
+        "terminal",
+        "windows",
+        "windows-console",
+        "windows-terminal",
+        "wsl"
+      ]
+    },
+    {
+      "id": "github:20929025",
+      "fullName": "microsoft/TypeScript",
+      "url": "https://github.com/microsoft/TypeScript",
+      "language": "Go",
+      "topics": ["javascript", "language", "typechecker", "typescript"]
+    },
+    {
+      "id": "github:41881900",
+      "fullName": "microsoft/vscode",
+      "url": "https://github.com/microsoft/vscode",
+      "language": "TypeScript",
+      "topics": [
+        "editor",
+        "electron",
+        "microsoft",
+        "typescript",
+        "visual-studio-code"
+      ]
+    },
+    {
+      "id": "github:576201",
+      "fullName": "mrdoob/three.js",
+      "url": "https://github.com/mrdoob/three.js",
+      "language": "JavaScript",
+      "topics": [
+        "3d",
+        "augmented-reality",
+        "canvas",
+        "html5",
+        "javascript",
+        "svg",
+        "virtual-reality",
+        "webaudio",
+        "webgl",
+        "webgl2",
+        "webgpu",
+        "webxr"
+      ]
+    },
+    {
+      "id": "github:27193779",
+      "fullName": "nodejs/node",
+      "url": "https://github.com/nodejs/node",
+      "language": "JavaScript",
+      "topics": [
+        "javascript",
+        "js",
+        "linux",
+        "macos",
+        "mit",
+        "node",
+        "nodejs",
+        "runtime",
+        "windows"
+      ]
+    },
+    {
+      "id": "github:5108051",
+      "fullName": "opencv/opencv",
+      "url": "https://github.com/opencv/opencv",
+      "language": "C++",
+      "topics": [
+        "c-plus-plus",
+        "computer-vision",
+        "deep-learning",
+        "image-processing",
+        "opencv"
+      ]
+    },
+    {
+      "id": "github:596892",
+      "fullName": "pallets/flask",
+      "url": "https://github.com/pallets/flask",
+      "language": "Python",
+      "topics": [
+        "flask",
+        "jinja",
+        "pallets",
+        "python",
+        "web-framework",
+        "werkzeug",
+        "wsgi"
+      ]
+    },
+    {
+      "id": "github:6838921",
+      "fullName": "prometheus/prometheus",
+      "url": "https://github.com/prometheus/prometheus",
+      "language": "Go",
+      "topics": [
+        "alerting",
+        "graphing",
+        "hacktoberfest",
+        "metrics",
+        "monitoring",
+        "prometheus",
+        "time-series"
+      ]
+    },
+    {
+      "id": "github:1362490",
+      "fullName": "psf/requests",
+      "url": "https://github.com/psf/requests",
+      "language": "Python",
+      "topics": [
+        "client",
+        "cookies",
+        "forhumans",
+        "http",
+        "humans",
+        "python",
+        "python-requests",
+        "requests"
+      ]
+    },
+    {
+      "id": "github:81598961",
+      "fullName": "python/cpython",
+      "url": "https://github.com/python/cpython",
+      "language": "Python",
+      "topics": []
+    },
+    {
+      "id": "github:10270250",
+      "fullName": "react/react",
+      "url": "https://github.com/react/react",
+      "language": "JavaScript",
+      "topics": [
+        "declarative",
+        "frontend",
+        "javascript",
+        "library",
+        "react",
+        "ui"
+      ]
+    },
+    {
+      "id": "github:724712",
+      "fullName": "rust-lang/rust",
+      "url": "https://github.com/rust-lang/rust",
+      "language": "Rust",
+      "topics": ["compiler", "language", "rust"]
+    },
+    {
+      "id": "github:429536908",
+      "fullName": "shuding/cobe",
+      "url": "https://github.com/shuding/cobe",
+      "language": "TypeScript",
+      "topics": ["globe", "webgl"]
+    },
+    {
+      "id": "github:6296790",
+      "fullName": "spring-projects/spring-boot",
+      "url": "https://github.com/spring-projects/spring-boot",
+      "language": "Java",
+      "topics": ["framework", "java", "spring", "spring-boot"]
+    },
+    {
+      "id": "github:178991158",
+      "fullName": "starship/starship",
+      "url": "https://github.com/starship/starship",
+      "language": "Rust",
+      "topics": [
+        "bash",
+        "fish",
+        "fish-prompt",
+        "fish-theme",
+        "oh-my-zsh",
+        "powershell",
+        "rust",
+        "shell-prompt",
+        "starship",
+        "zsh",
+        "zsh-prompt",
+        "zsh-theme"
+      ]
+    },
+    {
+      "id": "github:74293321",
+      "fullName": "sveltejs/svelte",
+      "url": "https://github.com/sveltejs/svelte",
+      "language": "JavaScript",
+      "topics": ["compiler", "template", "ui"]
+    },
+    {
+      "id": "github:196701619",
+      "fullName": "tauri-apps/tauri",
+      "url": "https://github.com/tauri-apps/tauri",
+      "language": "Rust",
+      "topics": [
+        "desktop-app",
+        "high-performance",
+        "mobile-app",
+        "native-app",
+        "rust",
+        "web-frontend",
+        "webview"
+      ]
+    },
+    {
+      "id": "github:170811695",
+      "fullName": "vasturiano/globe.gl",
+      "url": "https://github.com/vasturiano/globe.gl",
+      "language": "HTML",
+      "topics": ["data-visualization", "globe", "threejs", "webgl"]
+    },
+    {
+      "id": "github:70107786",
+      "fullName": "vercel/next.js",
+      "url": "https://github.com/vercel/next.js",
+      "language": "JavaScript",
+      "topics": [
+        "blog",
+        "browser",
+        "compiler",
+        "components",
+        "hybrid",
+        "nextjs",
+        "node",
+        "react",
+        "server-rendering",
+        "ssg",
+        "static",
+        "static-site-generator",
+        "universal",
+        "vercel"
+      ]
+    }
+  ]
+}

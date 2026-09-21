@@ -1,3 +1,5 @@
+> Historical repository-city documentation. The active core workshop is specified in [CORE-ENGINE.md](CORE-ENGINE.md); claims and measurements below apply to the previous experience.
+
 # Phaser 4 engine
 
 AXP City uses **Phaser 4.2.1** for its live city. This decision is implemented, not a proposal for a future renderer.

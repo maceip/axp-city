@@ -1,3 +1,13 @@
+# Core workshop deployment boundary
+
+The current default service is the browser-local Town workshop. `npm start` and `scripts/start-city.sh` serve it without GitHub credentials or database jobs. `/healthz` and `/readyz` report `experience: "core"`, `persistence: "browser"`, `integrations: false`, readiness and the build revision. `scripts/verify-city.mjs <url> <commit>` checks this contract, all client assets, security/cache headers, missing integration APIs and denied mutations.
+
+No production deployment was performed for the core-engine change. The existing automated release machinery below is retained for the configured host: it still requires the historical mode-600 environment file and takes a backup of the old store before switching releases. Do not infer that a fresh core-only host has been provisioned by local acceptance. An existing `CITY_INTEGRATIONS=1` environment value explicitly selects the preserved backend and must be reviewed before a core rollout. Browser saves are origin-local and are not covered by the historical SQLite backups.
+
+For local production verification, use `npm run build`, `npm start`, and `node scripts/verify-city.mjs http://127.0.0.1:43174 <commit>`. See [current scope and evidence](CORE-ENGINE.md). The material below describes the historical integration deployment; its city UI and integration readiness criteria do not apply to the new workshop.
+
+---
+
 # Deploy the single Phaser application
 
 The live site is **https://demo.glint.sh/city** on `secure.build`, managed as `devuser`. Caddy proxies the entire site to the Node process on loopback port 43174, including `/city`, `/assets/`, `/api/`, `/webhooks/`, `/healthz`, and `/readyz`. The old static SVG docroot is not the application.
